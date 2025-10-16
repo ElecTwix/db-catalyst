@@ -31,7 +31,7 @@ Non-goals:
 
 The CLI orchestrates a four-stage pipeline:
 
-1. **Configuration ingest:** Read a single YAML or TOML file, validate required fields, resolve file globs, and build an in-memory job plan.
+1. **Configuration ingest:** Read a single TOML file, validate required fields, resolve file globs, and build an in-memory job plan.
 2. **Schema catalog construction:** Tokenize and parse DDL statements (`CREATE TABLE`, `CREATE INDEX`, `CREATE VIEW`, simple `ALTER TABLE ADD COLUMN`). Produce a normalized catalog with tables, columns, primary keys, unique indexes, and foreign keys. No migrations run; everything is derived statically.
 3. **Query analysis:** Parse query blocks, extract metadata (name, result cardinality, parameters, documentation comments), and resolve column information by matching against the catalog. Fail fast on ambiguities.
 4. **Code generation:** Use Go's `go/ast` + `go/printer` to emit packages containing model structs, helper types, and query methods. Output files land in a configured directory, ready for `goimports`.
@@ -40,18 +40,16 @@ Each stage consumes immutable inputs and produces immutable outputs, facilitatin
 
 ## 4. Configuration Specification
 
-- **File expectations:** Default filename `dbcat.yaml`. Overrideable via `--config` flag.
-- **Format:** YAML (primary) with TOML fallback (`dbcat.toml`). Only a single config file permitted per invocation. No version numbers.
+- **File expectations:** Default filename `db-catalyst.toml`. Overrideable via `--config` flag.
+- **Format:** TOML only. No version numbers, no alternate encodings.
 - **Schema:**
 
-```yaml
-package: bookstore # required, Go package name for generated code
-out: internal/db   # required, output directory relative to config file
-sqlite_driver: modernc # optional, enum {modernc, mattn}; defaults to modernc
-schemas:
-  - schema/*.sql   # glob patterns; must resolve to at least one file
-queries:
-  - query/*.sql
+```toml
+package = "bookstore"        # required, Go package name for generated code
+out = "internal/db"          # required, output directory relative to config file
+sqlite_driver = "modernc"    # optional, enum {"modernc", "mattn"}; defaults to modernc
+schemas = ["schema/*.sql"]   # glob patterns; must resolve to at least one file
+queries = ["query/*.sql"]
 ```
 
 - **Validation rules:**
@@ -224,7 +222,7 @@ db-catalyst generate [--config path] [--out dir]
 ```
 
 Flags:
-- `--config`: path to config file (default `dbcat.yaml`).
+- `--config`: path to config file (default `db-catalyst.toml`).
 - `--out`: override output directory; if absent, use config `out`.
 - `--dry-run`: parse and analyze, but do not write files; prints summary.
 - `--list-queries`: list discovered queries with input/output summary.
