@@ -1,0 +1,5 @@
+package = "app"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]

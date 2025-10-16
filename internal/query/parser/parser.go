@@ -1,0 +1,547 @@
+package parser
+
+import (
+	"fmt"
+	"go/token"
+	"strconv"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/electwix/db-catalyst/internal/query/block"
+	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
+)
+
+type Query struct {
+	Block       block.Block
+	Verb        Verb
+	Columns     []Column
+	Params      []Param
+	Diagnostics []Diagnostic
+}
+
+type Verb int
+
+const (
+	VerbUnknown Verb = iota
+	VerbSelect
+	VerbInsert
+	VerbUpdate
+	VerbDelete
+)
+
+type Column struct {
+	Expr   string
+	Alias  string
+	Table  string
+	Line   int
+	Column int
+}
+
+type Param struct {
+	Name   string
+	Style  ParamStyle
+	Order  int
+	Line   int
+	Column int
+}
+
+type ParamStyle int
+
+const (
+	ParamStyleUnknown ParamStyle = iota
+	ParamStylePositional
+	ParamStyleNamed
+)
+
+type Severity int
+
+const (
+	SeverityError Severity = iota
+	SeverityWarning
+)
+
+type Diagnostic struct {
+	Path     string
+	Line     int
+	Column   int
+	Message  string
+	Severity Severity
+}
+
+func Parse(blk block.Block) (Query, []Diagnostic) {
+	q := Query{Block: blk}
+	var diags []Diagnostic
+
+	trimmed := strings.TrimSpace(blk.SQL)
+	if trimmed == "" {
+		diags = append(diags, Diagnostic{
+			Path:     blk.Path,
+			Line:     blk.Line,
+			Column:   blk.Column,
+			Message:  "query block contains no SQL",
+			Severity: SeverityError,
+		})
+		return finalizeQuery(q, diags)
+	}
+
+	tokens, err := tokenizer.Scan(blk.Path, []byte(blk.SQL), false)
+	if err != nil {
+		diags = append(diags, diagnosticFromError(blk, err))
+		return finalizeQuery(q, diags)
+	}
+
+	verb, verbIdx := determineVerb(tokens)
+	if verb == VerbUnknown {
+		if verbIdx >= 0 && verbIdx < len(tokens) {
+			tok := tokens[verbIdx]
+			diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "unsupported query verb %s", tok.Text))
+		} else {
+			diags = append(diags, Diagnostic{
+				Path:     blk.Path,
+				Line:     blk.Line,
+				Column:   blk.Column,
+				Message:  "could not determine query verb",
+				Severity: SeverityError,
+			})
+		}
+		return finalizeQuery(q, diags)
+	}
+	q.Verb = verb
+
+	params, paramDiags := collectParams(tokens, blk)
+	q.Params = params
+	diags = append(diags, paramDiags...)
+
+	if verb == VerbSelect {
+		posIdx := newPositionIndex(blk.SQL)
+		columns, columnDiags := parseSelectColumns(tokens, verbIdx, blk, posIdx)
+		q.Columns = columns
+		diags = append(diags, columnDiags...)
+	}
+
+	return finalizeQuery(q, diags)
+}
+
+func finalizeQuery(q Query, diags []Diagnostic) (Query, []Diagnostic) {
+	if len(diags) > 0 {
+		q.Diagnostics = append(q.Diagnostics[:0], diags...)
+	} else {
+		q.Diagnostics = nil
+	}
+	return q, diags
+}
+
+func diagnosticFromError(blk block.Block, err error) Diagnostic {
+
+	if tokErr, ok := err.(*tokenizer.Error); ok {
+		return makeDiag(blk, tokErr.Line, tokErr.Column, SeverityError, "%s", tokErr.Message)
+	}
+	return Diagnostic{
+		Path:     blk.Path,
+		Line:     blk.Line,
+		Column:   blk.Column,
+		Message:  err.Error(),
+		Severity: SeverityError,
+	}
+}
+
+func determineVerb(tokens []tokenizer.Token) (Verb, int) {
+	for i, tok := range tokens {
+		if tok.Kind == tokenizer.KindEOF {
+			break
+		}
+		if tok.Kind != tokenizer.KindKeyword && tok.Kind != tokenizer.KindIdentifier {
+			continue
+		}
+		text := strings.ToUpper(tok.Text)
+		switch text {
+		case "SELECT":
+			return VerbSelect, i
+		case "INSERT":
+			return VerbInsert, i
+		case "UPDATE":
+			return VerbUpdate, i
+		case "DELETE":
+			return VerbDelete, i
+		}
+		if tok.Kind == tokenizer.KindKeyword {
+			return VerbUnknown, i
+		}
+	}
+	return VerbUnknown, -1
+}
+
+func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagnostic) {
+	params := make([]Param, 0, 4)
+	diags := make([]Diagnostic, 0, 2)
+	numbered := make(map[int]int)
+	named := make(map[string]int)
+
+	i := 0
+	for i < len(tokens) {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "?":
+				order := 1
+				for {
+					if _, exists := numbered[order]; !exists {
+						break
+					}
+					order++
+				}
+				actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+				if i+1 < len(tokens) {
+					nextTok := tokens[i+1]
+					if nextTok.Kind == tokenizer.KindNumber && nextTok.Line == tok.Line && nextTok.Column == tok.Column+1 {
+						parsed, err := strconv.Atoi(nextTok.Text)
+						if err != nil || parsed <= 0 {
+							diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text))
+						} else {
+							order = parsed
+							if idx, exists := numbered[order]; exists {
+								if params[idx].Name != fmt.Sprintf("arg%d", order) {
+									diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", order))
+								}
+							} else {
+								params = append(params, Param{
+									Name:   fmt.Sprintf("arg%d", order),
+									Style:  ParamStylePositional,
+									Order:  order,
+									Line:   actualLine,
+									Column: actualColumn,
+								})
+								numbered[order] = len(params) - 1
+							}
+						}
+						i += 2
+						continue
+					}
+				}
+				params = append(params, Param{
+					Name:   fmt.Sprintf("arg%d", order),
+					Style:  ParamStylePositional,
+					Order:  order,
+					Line:   actualLine,
+					Column: actualColumn,
+				})
+				numbered[order] = len(params) - 1
+				i++
+				continue
+			case ":":
+				if i+1 < len(tokens) {
+					nameTok := tokens[i+1]
+					if nameTok.Kind == tokenizer.KindIdentifier {
+						raw := tokenizer.NormalizeIdentifier(nameTok.Text)
+						key := strings.ToLower(raw)
+						camel := camelCaseParam(raw)
+						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+						if idx, exists := named[key]; exists {
+							if params[idx].Name != camel {
+								diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel))
+							}
+						} else {
+							params = append(params, Param{
+								Name:   camel,
+								Style:  ParamStyleNamed,
+								Order:  len(params) + 1,
+								Line:   actualLine,
+								Column: actualColumn,
+							})
+							named[key] = len(params) - 1
+						}
+						i += 2
+						continue
+					}
+				}
+			}
+		}
+		i++
+	}
+
+	return params, diags
+}
+
+type positionIndex struct {
+	sql         string
+	lineOffsets []int
+}
+
+func newPositionIndex(sql string) positionIndex {
+	offsets := make([]int, 1, strings.Count(sql, "\n")+2)
+	offsets[0] = 0
+	for i := 0; i < len(sql); {
+		switch sql[i] {
+		case '\r':
+			i++
+			if i < len(sql) && sql[i] == '\n' {
+				i++
+			}
+			offsets = append(offsets, i)
+		case '\n':
+			i++
+			offsets = append(offsets, i)
+		default:
+			_, size := utf8.DecodeRuneInString(sql[i:])
+			i += size
+		}
+	}
+	return positionIndex{sql: sql, lineOffsets: offsets}
+}
+
+func (p positionIndex) offset(tok tokenizer.Token) int {
+	line := tok.Line
+	if line <= 0 {
+		return 0
+	}
+	if line-1 >= len(p.lineOffsets) {
+		return len(p.sql)
+	}
+	base := p.lineOffsets[line-1]
+	col := tok.Column
+	idx := base
+	for count := 1; count < col && idx < len(p.sql); count++ {
+		_, size := utf8.DecodeRuneInString(p.sql[idx:])
+		idx += size
+	}
+	return idx
+}
+
+func parseSelectColumns(tokens []tokenizer.Token, selectIdx int, blk block.Block, pos positionIndex) ([]Column, []Diagnostic) {
+	columns := make([]Column, 0, 4)
+	diags := make([]Diagnostic, 0, 2)
+	depth := 0
+	start := selectIdx + 1
+	i := start
+
+	for i < len(tokens) {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindEOF {
+			break
+		}
+		if depth == 0 && tok.Kind == tokenizer.KindKeyword && tok.Text == "FROM" {
+			break
+		}
+		if depth == 0 && tok.Kind == tokenizer.KindKeyword && len(columns) == 0 && (tok.Text == "DISTINCT" || tok.Text == "ALL") {
+			start = i + 1
+			i++
+			continue
+		}
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				if depth > 0 {
+					depth--
+				}
+			case ",":
+				if depth == 0 {
+					exprTokens := trimTokens(tokens[start:i])
+					if len(exprTokens) > 0 {
+						col, cDiags := buildColumn(exprTokens, blk, pos)
+						columns = append(columns, col)
+						diags = append(diags, cDiags...)
+					}
+					start = i + 1
+				}
+			}
+		}
+		i++
+	}
+	exprTokens := trimTokens(tokens[start:i])
+	if len(exprTokens) > 0 {
+		col, cDiags := buildColumn(exprTokens, blk, pos)
+		columns = append(columns, col)
+		diags = append(diags, cDiags...)
+	}
+
+	return columns, diags
+}
+
+func trimTokens(tokens []tokenizer.Token) []tokenizer.Token {
+	start := 0
+	for start < len(tokens) && tokens[start].Kind == tokenizer.KindSymbol && tokens[start].Text == "," {
+		start++
+	}
+	end := len(tokens)
+	for end > start && tokens[end-1].Kind == tokenizer.KindSymbol && tokens[end-1].Text == "," {
+		end--
+	}
+	return tokens[start:end]
+}
+
+func buildColumn(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (Column, []Diagnostic) {
+	var diags []Diagnostic
+	exprTokens, aliasTok, alias, hasAlias := extractAlias(tokens)
+	table, columnName, simple := analyzeSimpleColumn(exprTokens)
+	if !hasAlias && simple {
+		alias = columnName
+	}
+	if alias == "" && !simple {
+		if len(exprTokens) > 0 {
+			tok := exprTokens[0]
+			diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "result column requires alias"))
+		}
+	}
+	if len(exprTokens) == 0 {
+		exprTokens = tokens
+	}
+	if len(exprTokens) == 0 {
+		return Column{}, append(diags, makeDiag(blk, 0, 0, SeverityError, "empty result expression"))
+	}
+
+	startTok := exprTokens[0]
+	endTok := exprTokens[len(exprTokens)-1]
+	startOffset := pos.offset(startTok)
+	endOffset := pos.offset(endTok) + len(endTok.Text)
+	if endOffset > len(pos.sql) {
+		endOffset = len(pos.sql)
+	}
+	expr := strings.TrimSpace(pos.sql[startOffset:endOffset])
+	line, column := actualPosition(blk, startTok.Line, startTok.Column)
+	col := Column{
+		Expr:   expr,
+		Alias:  alias,
+		Table:  table,
+		Line:   line,
+		Column: column,
+	}
+	if aliasTok != nil {
+		line, column = actualPosition(blk, aliasTok.Line, aliasTok.Column)
+		col.Line = line
+		col.Column = column
+	}
+	return col, diags
+}
+
+func extractAlias(tokens []tokenizer.Token) ([]tokenizer.Token, *tokenizer.Token, string, bool) {
+	if len(tokens) == 0 {
+		return tokens, nil, "", false
+	}
+	depth := 0
+	for i := len(tokens) - 1; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case ")":
+				depth++
+				continue
+			case "(":
+				if depth > 0 {
+					depth--
+				}
+				continue
+			}
+		}
+		if depth > 0 {
+			continue
+		}
+		if tok.Kind == tokenizer.KindIdentifier {
+			aliasTok := tok
+			alias := tokenizer.NormalizeIdentifier(tok.Text)
+			if i > 0 && tokens[i-1].Kind == tokenizer.KindKeyword && tokens[i-1].Text == "AS" {
+				return tokens[:i-1], &aliasTok, alias, true
+			}
+			if i == 0 {
+				break
+			}
+			if tokens[i-1].Kind == tokenizer.KindSymbol && tokens[i-1].Text == "." {
+				break
+			}
+			return tokens[:i], &aliasTok, alias, true
+		}
+		if tok.Kind == tokenizer.KindKeyword && tok.Text == "AS" {
+			continue
+		}
+	}
+	return tokens, nil, "", false
+}
+
+func analyzeSimpleColumn(tokens []tokenizer.Token) (table string, column string, ok bool) {
+	if len(tokens) == 1 && tokens[0].Kind == tokenizer.KindIdentifier {
+		column = tokenizer.NormalizeIdentifier(tokens[0].Text)
+		return "", column, true
+	}
+	if len(tokens) == 3 && tokens[0].Kind == tokenizer.KindIdentifier && tokens[1].Kind == tokenizer.KindSymbol && tokens[1].Text == "." && tokens[2].Kind == tokenizer.KindIdentifier {
+		table = tokenizer.NormalizeIdentifier(tokens[0].Text)
+		column = tokenizer.NormalizeIdentifier(tokens[2].Text)
+		return table, column, true
+	}
+	return "", "", false
+}
+
+func camelCaseParam(name string) string {
+	if name == "" {
+		return "param"
+	}
+	parts := make([]string, 0, 4)
+	var segment strings.Builder
+	for _, r := range name {
+		switch r {
+		case '_', '-', '.':
+			if segment.Len() > 0 {
+				parts = append(parts, segment.String())
+				segment.Reset()
+			}
+		default:
+			segment.WriteRune(r)
+		}
+	}
+	if segment.Len() > 0 {
+		parts = append(parts, segment.String())
+	}
+	if len(parts) == 0 {
+		parts = append(parts, name)
+	}
+	var out strings.Builder
+	for i, part := range parts {
+		lower := strings.ToLower(part)
+		if lower == "" {
+			continue
+		}
+		if i == 0 {
+			out.WriteString(lower)
+			continue
+		}
+		first, size := utf8.DecodeRuneInString(lower)
+		if first == utf8.RuneError {
+			out.WriteString(lower)
+			continue
+		}
+		out.WriteRune(unicode.ToUpper(first))
+		out.WriteString(lower[size:])
+	}
+	ident := out.String()
+	if ident == "" {
+		ident = "param"
+	}
+	first, _ := utf8.DecodeRuneInString(ident)
+	if !unicode.IsLetter(first) && first != '_' {
+		ident = "p" + ident
+	}
+	if token.Lookup(ident).IsKeyword() {
+		ident += "_"
+	}
+	return ident
+}
+
+func makeDiag(blk block.Block, relLine, relColumn int, severity Severity, format string, args ...any) Diagnostic {
+	line, column := actualPosition(blk, relLine, relColumn)
+	return Diagnostic{
+		Path:     blk.Path,
+		Line:     line,
+		Column:   column,
+		Message:  fmt.Sprintf(format, args...),
+		Severity: severity,
+	}
+}
+
+func actualPosition(blk block.Block, relLine, relColumn int) (int, int) {
+	line := blk.Line + relLine
+	if relLine == 0 {
+		line = blk.Line
+	}
+	return line, relColumn
+}

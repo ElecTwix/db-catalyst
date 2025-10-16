@@ -1,0 +1,5 @@
+CREATE TABLE accounts (
+    id INTEGER PRIMARY KEY
+);
+
+ALTER TABLE accounts ADD COLUMN email TEXT NOT NULL;
