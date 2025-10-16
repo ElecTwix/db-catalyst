@@ -1,0 +1,20 @@
+# AGENTS
+- Repo motto: clarity over cleverness; SQLite-only generator stays small.
+- Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
+- Build CLI with `go build ./cmd/db-catalyst`; use -trimpath for releases.
+- Quick smoke: `make test` wraps `go test ./...` (only target currently).
+- Full tests: `go test ./...`; add `-race` when touching concurrency.
+- Single test: `go test ./internal/config -run TestLoadConfig` (package-specific).
+- Benchmarks: `go test ./internal/schema/tokenizer -bench . -benchmem`.
+- Lint: `golangci-lint run ./...` (govet, staticcheck per .golangci.yml).
+- Supplement with `go vet ./...` before larger changes.
+- Always format with gofmt/goimports; no manual spacing or tab tweaks.
+- Imports grouped stdlib / internal / external; deterministic order enforced by goimports.
+- Prefer plain structs and slices; use Go 1.25 iter helpers only when clearer.
+- Avoid global state; inject dependencies and keep pipeline stages immutable.
+- Functions take `context.Context` first, return `error` last, no named result panics.
+- Errors should bubble with file:line hints; log via slog text handler respecting verbosity.
+- Determinism: sort map/slice outputs before writing files or comparing goldens.
+- Tests use cmp.Diff and golden fixtures; update snapshots intentionally.
+- Generated code must look hand-written: exported identifiers documented, names descriptive.
+- No Cursor/Copilot overrides exist; rely on db-catalyst-spec.md for deeper guidance.
