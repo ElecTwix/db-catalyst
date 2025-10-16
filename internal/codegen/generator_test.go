@@ -15,6 +15,77 @@ import (
 )
 
 func TestGeneratorProducesDeterministicOutput(t *testing.T) {
+	catalog, analyses := sampleCatalogAndAnalyses()
+
+	g := New(Options{Package: "store", EmitJSONTags: true})
+
+	ctx := context.Background()
+	first, err := g.Generate(ctx, catalog, analyses)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	second, err := g.Generate(ctx, catalog, analyses)
+	if err != nil {
+		t.Fatalf("generate second: %v", err)
+	}
+
+	if diff := cmp.Diff(fileList(first), fileList(second)); diff != "" {
+		t.Fatalf("file order not deterministic (-want +got):\n%s", diff)
+	}
+
+	for _, file := range first {
+		goldenPath := filepath.Join("testdata", "golden", file.Path+".golden")
+		want, err := os.ReadFile(goldenPath)
+		if err != nil {
+			t.Fatalf("read golden %s: %v", goldenPath, err)
+		}
+		if diff := cmp.Diff(string(want), string(file.Content)); diff != "" {
+			t.Errorf("mismatch for %s (-want +got):\n%s", file.Path, diff)
+		}
+	}
+}
+
+func TestGeneratorPreparedQueries(t *testing.T) {
+	catalog, analyses := sampleCatalogAndAnalyses()
+
+	g := New(Options{Package: "store", Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
+
+	ctx := context.Background()
+	files, err := g.Generate(ctx, catalog, analyses)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	var prepared *File
+	for i := range files {
+		if files[i].Path == "prepared.go" {
+			prepared = &files[i]
+			break
+		}
+	}
+	if prepared == nil {
+		t.Fatalf("prepared.go not emitted")
+	}
+
+	goldenPath := filepath.Join("testdata", "golden", "prepared.go.golden")
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden %s: %v\n%s", goldenPath, err, prepared.Content)
+	}
+	if diff := cmp.Diff(string(want), string(prepared.Content)); diff != "" {
+		t.Errorf("mismatch for prepared.go (-want +got):\n%s", diff)
+	}
+}
+
+func fileList(files []File) []string {
+	out := make([]string, len(files))
+	for i, f := range files {
+		out[i] = f.Path
+	}
+	return out
+}
+
+func sampleCatalogAndAnalyses() (*model.Catalog, []analyzer.Result) {
 	catalog := model.NewCatalog()
 	catalog.Tables["users"] = &model.Table{
 		Name: "users",
@@ -75,38 +146,5 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 		},
 	}
 
-	g := New(Options{Package: "store", EmitJSONTags: true})
-
-	ctx := context.Background()
-	first, err := g.Generate(ctx, catalog, analyses)
-	if err != nil {
-		t.Fatalf("generate: %v", err)
-	}
-	second, err := g.Generate(ctx, catalog, analyses)
-	if err != nil {
-		t.Fatalf("generate second: %v", err)
-	}
-
-	if diff := cmp.Diff(fileList(first), fileList(second)); diff != "" {
-		t.Fatalf("file order not deterministic (-want +got):\n%s", diff)
-	}
-
-	for _, file := range first {
-		goldenPath := filepath.Join("testdata", "golden", file.Path+".golden")
-		want, err := os.ReadFile(goldenPath)
-		if err != nil {
-			t.Fatalf("read golden %s: %v", goldenPath, err)
-		}
-		if diff := cmp.Diff(string(want), string(file.Content)); diff != "" {
-			t.Errorf("mismatch for %s (-want +got):\n%s", file.Path, diff)
-		}
-	}
-}
-
-func fileList(files []File) []string {
-	out := make([]string, len(files))
-	for i, f := range files {
-		out[i] = f.Path
-	}
-	return out
+	return catalog, analyses
 }

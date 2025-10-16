@@ -50,12 +50,22 @@ out = "internal/db"          # required, output directory relative to config fil
 sqlite_driver = "modernc"    # optional, enum {"modernc", "mattn"}; defaults to modernc
 schemas = ["schema/*.sql"]   # glob patterns; must resolve to at least one file
 queries = ["query/*.sql"]
+
+[prepared_queries]
+# optional; defaults to disabled
+enabled = true
+metrics = true
+thread_safe = true
 ```
 
 - **Validation rules:**
   - `package` must be a valid Go identifier.
   - `out` must be a clean relative path; the tool creates it if missing.
   - `schemas` and `queries` must each resolve to at least one readable file. The tool surfaces missing files with friendly error messages listing attempted paths.
+  - Optional `[prepared_queries]` table configures prepared statement generation:
+    - `enabled` toggles output of the prepared wrapper (default `false`).
+    - `metrics` emits duration/error hooks around each prepared call (default `false`).
+    - `thread_safe` guards lazy prepare/close with per-query mutexes; when `false`, statements prepare eagerly during `Prepare` (default `false`).
   - Unknown keys trigger warnings (treated as errors when `--strict-config` is set).
 
 No nested configuration (e.g., overrides, multiple packages) is supported in v0. Every configuration generates exactly one Go package.

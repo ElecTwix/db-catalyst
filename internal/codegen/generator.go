@@ -19,9 +19,16 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+type PreparedOptions struct {
+	Enabled     bool
+	EmitMetrics bool
+	ThreadSafe  bool
+}
+
 type Options struct {
 	Package      string
 	EmitJSONTags bool
+	Prepared     PreparedOptions
 }
 
 type Generator struct {
@@ -64,6 +71,9 @@ type queryInfo struct {
 	rowType    string
 	helper     *helperSpec
 	args       []string
+	stmtField  string
+	prepareFn  string
+	metricsKey string
 }
 
 type paramSpec struct {
@@ -132,6 +142,14 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 		return nil, err
 	}
 	files = append(files, queryFiles...)
+
+	if g.opts.Prepared.Enabled {
+		preparedFile, err := g.buildPreparedFile(packageName, queries)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, preparedFile)
+	}
 
 	slices.SortFunc(files, func(a, b File) int {
 		if a.Path == b.Path {
@@ -239,6 +257,8 @@ func (g *Generator) buildQueries(analyses []analyzer.Result) []queryInfo {
 		for _, p := range params {
 			args = append(args, p.name)
 		}
+		stmtField := "stmt" + methodName
+		prepareFn := "prepare" + methodName
 		info := queryInfo{
 			methodName: methodName,
 			constName:  constName,
@@ -248,6 +268,9 @@ func (g *Generator) buildQueries(analyses []analyzer.Result) []queryInfo {
 			docComment: res.Query.Block.Doc,
 			params:     params,
 			args:       args,
+			stmtField:  stmtField,
+			prepareFn:  prepareFn,
+			metricsKey: methodName,
 		}
 
 		switch res.Query.Block.Command {
@@ -521,6 +544,289 @@ func (g *Generator) buildQueryFiles(pkg string, queries []queryInfo) ([]File, er
 		files = append(files, File{Path: q.fileName, Content: content})
 	}
 	return files, nil
+}
+
+func (g *Generator) buildPreparedFile(pkg string, queries []queryInfo) (File, error) {
+	importSet := map[string]struct{}{
+		"context":      {},
+		"database/sql": {},
+	}
+	if g.opts.Prepared.ThreadSafe {
+		importSet["sync"] = struct{}{}
+	}
+	if g.opts.Prepared.EmitMetrics {
+		importSet["time"] = struct{}{}
+	}
+
+	keys := make([]string, 0, len(importSet))
+	for key := range importSet {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "package %s\n\n", pkg)
+	if len(keys) > 0 {
+		fmt.Fprintf(&buf, "import (\n")
+		for _, imp := range keys {
+			fmt.Fprintf(&buf, "\t\"%s\"\n", imp)
+		}
+		fmt.Fprintf(&buf, ")\n\n")
+	}
+
+	fmt.Fprintf(&buf, "type PrepareDB interface {\n")
+	fmt.Fprintf(&buf, "\tDBTX\n")
+	fmt.Fprintf(&buf, "\tPrepareContext(ctx context.Context, query string) (*sql.Stmt, error)\n")
+	fmt.Fprintf(&buf, "}\n\n")
+
+	if g.opts.Prepared.EmitMetrics {
+		fmt.Fprintf(&buf, "type PreparedMetricsRecorder interface {\n")
+		fmt.Fprintf(&buf, "\tObservePreparedQuery(ctx context.Context, name string, duration time.Duration, err error)\n")
+		fmt.Fprintf(&buf, "}\n\n")
+		fmt.Fprintf(&buf, "type PreparedConfig struct {\n")
+		fmt.Fprintf(&buf, "\tMetrics PreparedMetricsRecorder\n")
+		fmt.Fprintf(&buf, "}\n\n")
+	} else {
+		fmt.Fprintf(&buf, "type PreparedConfig struct{}\n\n")
+	}
+
+	fmt.Fprintf(&buf, "type PreparedQueries struct {\n")
+	fmt.Fprintf(&buf, "\tqueries *Queries\n")
+	fmt.Fprintf(&buf, "\tdb PrepareDB\n")
+	if g.opts.Prepared.EmitMetrics {
+		fmt.Fprintf(&buf, "\tmetrics PreparedMetricsRecorder\n")
+	}
+	if g.opts.Prepared.ThreadSafe {
+		fmt.Fprintf(&buf, "\tcloseOnce sync.Once\n")
+		fmt.Fprintf(&buf, "\tcloseErr error\n")
+	} else {
+		fmt.Fprintf(&buf, "\tclosed bool\n")
+	}
+	for _, q := range queries {
+		fmt.Fprintf(&buf, "\t%s *sql.Stmt\n", q.stmtField)
+		if g.opts.Prepared.ThreadSafe {
+			fmt.Fprintf(&buf, "\t%[1]sMu sync.Mutex\n", q.stmtField)
+		}
+	}
+	fmt.Fprintf(&buf, "}\n\n")
+
+	fmt.Fprintf(&buf, "func (p *PreparedQueries) Raw() *Queries {\n")
+	fmt.Fprintf(&buf, "\treturn p.queries\n")
+	fmt.Fprintf(&buf, "}\n\n")
+
+	fmt.Fprintf(&buf, "func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQueries, error) {\n")
+	fmt.Fprintf(&buf, "\tpq := &PreparedQueries{\n")
+	fmt.Fprintf(&buf, "\t\tqueries: New(db),\n")
+	fmt.Fprintf(&buf, "\t\tdb:       db,\n")
+	if g.opts.Prepared.EmitMetrics {
+		fmt.Fprintf(&buf, "\t\tmetrics: cfg.Metrics,\n")
+	}
+	fmt.Fprintf(&buf, "\t}\n")
+	if !g.opts.Prepared.ThreadSafe {
+		fmt.Fprintf(&buf, "\tprepared := make([]*sql.Stmt, 0, %d)\n", len(queries))
+		for _, q := range queries {
+			fmt.Fprintf(&buf, "\tstmt, err := db.PrepareContext(ctx, %s)\n", q.constName)
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\tfor _, preparedStmt := range prepared {\n")
+			fmt.Fprintf(&buf, "\t\t\tpreparedStmt.Close()\n")
+			fmt.Fprintf(&buf, "\t\t}\n")
+			fmt.Fprintf(&buf, "\t\treturn nil, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tprepared = append(prepared, stmt)\n")
+			fmt.Fprintf(&buf, "\tpq.%s = stmt\n", q.stmtField)
+		}
+	}
+	fmt.Fprintf(&buf, "\treturn pq, nil\n")
+	fmt.Fprintf(&buf, "}\n\n")
+
+	if g.opts.Prepared.ThreadSafe {
+		fmt.Fprintf(&buf, "func (p *PreparedQueries) Close() error {\n")
+		fmt.Fprintf(&buf, "\tp.closeOnce.Do(func() {\n")
+		fmt.Fprintf(&buf, "\t\tvar err error\n")
+		for _, q := range queries {
+			fmt.Fprintf(&buf, "\t\tp.%[1]sMu.Lock()\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\tif p.%[1]s != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\t\tif closeErr := p.%[1]s.Close(); err == nil && closeErr != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\t\t\terr = closeErr\n")
+			fmt.Fprintf(&buf, "\t\t\t}\n")
+			fmt.Fprintf(&buf, "\t\t\tp.%[1]s = nil\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\t}\n")
+			fmt.Fprintf(&buf, "\t\tp.%[1]sMu.Unlock()\n", q.stmtField)
+		}
+		fmt.Fprintf(&buf, "\t\tp.closeErr = err\n")
+		fmt.Fprintf(&buf, "\t})\n")
+		fmt.Fprintf(&buf, "\treturn p.closeErr\n")
+		fmt.Fprintf(&buf, "}\n\n")
+	} else {
+		fmt.Fprintf(&buf, "func (p *PreparedQueries) Close() error {\n")
+		fmt.Fprintf(&buf, "\tif p.closed {\n")
+		fmt.Fprintf(&buf, "\t\treturn nil\n")
+		fmt.Fprintf(&buf, "\t}\n")
+		fmt.Fprintf(&buf, "\tp.closed = true\n")
+		fmt.Fprintf(&buf, "\tvar err error\n")
+		for _, q := range queries {
+			fmt.Fprintf(&buf, "\tif p.%[1]s != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\tif closeErr := p.%[1]s.Close(); err == nil && closeErr != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\t\terr = closeErr\n")
+			fmt.Fprintf(&buf, "\t\t}\n")
+			fmt.Fprintf(&buf, "\t\tp.%[1]s = nil\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t}\n")
+		}
+		fmt.Fprintf(&buf, "\treturn err\n")
+		fmt.Fprintf(&buf, "}\n\n")
+	}
+
+	if g.opts.Prepared.ThreadSafe {
+		for _, q := range queries {
+			fmt.Fprintf(&buf, "func (p *PreparedQueries) %s(ctx context.Context) (*sql.Stmt, error) {\n", q.prepareFn)
+			fmt.Fprintf(&buf, "\tif stmt := p.%s; stmt != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\treturn stmt, nil\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tp.%[1]sMu.Lock()\n", q.stmtField)
+			fmt.Fprintf(&buf, "\tdefer p.%[1]sMu.Unlock()\n", q.stmtField)
+			fmt.Fprintf(&buf, "\tif stmt := p.%s; stmt != nil {\n", q.stmtField)
+			fmt.Fprintf(&buf, "\t\treturn stmt, nil\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tstmt, err := p.db.PrepareContext(ctx, %s)\n", q.constName)
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn nil, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tp.%s = stmt\n", q.stmtField)
+			fmt.Fprintf(&buf, "\treturn stmt, nil\n")
+			fmt.Fprintf(&buf, "}\n\n")
+		}
+	}
+
+	for _, q := range queries {
+		if q.docComment != "" {
+			fmt.Fprintf(&buf, "// %s\n", q.docComment)
+		}
+		fmt.Fprintf(&buf, "func (p *PreparedQueries) %s(ctx context.Context", q.methodName)
+		for _, param := range q.params {
+			fmt.Fprintf(&buf, ", %s %s", param.name, param.goType)
+		}
+		fmt.Fprintf(&buf, ") (")
+		if q.returnType != "" {
+			fmt.Fprintf(&buf, "%s, ", q.returnType)
+		}
+		fmt.Fprintf(&buf, "error) {\n")
+		if g.opts.Prepared.ThreadSafe {
+			fmt.Fprintf(&buf, "\tstmt, err := p.%s(ctx)\n", q.prepareFn)
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+			fmt.Fprintf(&buf, "\t}\n")
+		} else {
+			fmt.Fprintf(&buf, "\tstmt := p.%s\n", q.stmtField)
+		}
+
+		if g.opts.Prepared.EmitMetrics {
+			fmt.Fprintf(&buf, "\trecorder := p.metrics\n")
+			fmt.Fprintf(&buf, "\tvar start time.Time\n")
+			fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+			fmt.Fprintf(&buf, "\t\tstart = time.Now()\n")
+			fmt.Fprintf(&buf, "\t}\n")
+		}
+
+		switch q.command {
+		case block.CommandExec:
+			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if g.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\treturn res, err\n")
+		case block.CommandExecResult:
+			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if g.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tresult := QueryResult{}\n")
+			fmt.Fprintf(&buf, "\tif v, err := res.LastInsertId(); err == nil {\n")
+			fmt.Fprintf(&buf, "\t\tresult.LastInsertID = v\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tif v, err := res.RowsAffected(); err == nil {\n")
+			fmt.Fprintf(&buf, "\t\tresult.RowsAffected = v\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\treturn result, nil\n")
+		case block.CommandOne:
+			fmt.Fprintf(&buf, "\trows, err := stmt.QueryContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if g.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tdefer rows.Close()\n")
+			fmt.Fprintf(&buf, "\tif !rows.Next() {\n")
+			fmt.Fprintf(&buf, "\t\tif err := rows.Err(); err != nil {\n")
+			fmt.Fprintf(&buf, "\t\t\treturn %s, err\n", q.returnZero)
+			fmt.Fprintf(&buf, "\t\t}\n")
+			fmt.Fprintf(&buf, "\t\treturn %s, sql.ErrNoRows\n", q.returnZero)
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\titem, err := %s(rows)\n", q.helper.funcName)
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn item, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tif err := rows.Err(); err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn item, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\treturn item, nil\n")
+		case block.CommandMany:
+			fmt.Fprintf(&buf, "\trows, err := stmt.QueryContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if g.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn nil, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tdefer rows.Close()\n")
+			fmt.Fprintf(&buf, "\titems := make([]%s, 0)\n", q.rowType)
+			fmt.Fprintf(&buf, "\tfor rows.Next() {\n")
+			fmt.Fprintf(&buf, "\t\titem, err := %s(rows)\n", q.helper.funcName)
+			fmt.Fprintf(&buf, "\t\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\t\treturn nil, err\n")
+			fmt.Fprintf(&buf, "\t\t}\n")
+			fmt.Fprintf(&buf, "\t\titems = append(items, item)\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\tif err := rows.Err(); err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn nil, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\treturn items, nil\n")
+		}
+		fmt.Fprintf(&buf, "}\n\n")
+	}
+
+	formatted, err := imports.Process("", buf.Bytes(), nil)
+	if err != nil {
+		return File{}, err
+	}
+	return File{Path: "prepared.go", Content: formatted}, nil
 }
 
 func (g *Generator) buildQueryFunc(q queryInfo) (*ast.FuncDecl, error) {

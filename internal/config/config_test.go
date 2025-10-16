@@ -64,6 +64,46 @@ queries = ["queries/*.sql"]
 	if !slices.Equal(result.Plan.Queries, expectedQueries) {
 		t.Fatalf("unexpected query files: %v", result.Plan.Queries)
 	}
+
+	if result.Plan.PreparedQueries != (PreparedQueries{}) {
+		t.Fatalf("expected prepared queries defaults to zero values, got %+v", result.Plan.PreparedQueries)
+	}
+}
+
+func TestLoadPreparedQueriesConfig(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	copyFixtureDir(t, tempDir, "schemas")
+	copyFixtureDir(t, tempDir, "queries")
+
+	configPath := writeConfig(t, tempDir, `
+package = "demo"
+out = "gen"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[prepared_queries]
+enabled = true
+metrics = true
+thread_safe = true
+`)
+
+	result, err := Load(configPath, LoadOptions{})
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	prepared := result.Plan.PreparedQueries
+	if !prepared.Enabled {
+		t.Fatalf("expected prepared queries enabled")
+	}
+	if !prepared.Metrics {
+		t.Fatalf("expected metrics flag set")
+	}
+	if !prepared.ThreadSafe {
+		t.Fatalf("expected thread_safe flag set")
+	}
 }
 
 func TestLoadInvalidPackage(t *testing.T) {
@@ -141,6 +181,33 @@ queries = ["queries/*.sql"]
 	}
 }
 
+func TestLoadPreparedQueriesUnknownKeysStrict(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+
+	configPath := writeConfig(t, tempDir, `
+package = "demo"
+out = "gen"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[prepared_queries]
+unknown = true
+`)
+
+	_, err := Load(configPath, LoadOptions{Strict: true})
+	if err == nil {
+		t.Fatal("expected strict mode to reject unknown prepared_queries keys")
+	}
+	if !strings.Contains(err.Error(), "unknown prepared_queries keys") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "unknown") {
+		t.Fatalf("error should mention offending key, got: %v", err)
+	}
+}
+
 func TestLoadStrictUnknownKeys(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +230,40 @@ extra = "value"
 	}
 	if !strings.Contains(err.Error(), "extra") {
 		t.Fatalf("error should mention offending key, got: %v", err)
+	}
+}
+
+func TestLoadPreparedQueriesUnknownKeysWarning(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	copyFixtureDir(t, tempDir, "schemas")
+	copyFixtureDir(t, tempDir, "queries")
+
+	configPath := writeConfig(t, tempDir, `
+package = "demo"
+out = "gen"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[prepared_queries]
+unknown = true
+`)
+
+	result, err := Load(configPath, LoadOptions{})
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	if len(result.Warnings) != 1 {
+		t.Fatalf("expected one warning, got %v", result.Warnings)
+	}
+	warning := result.Warnings[0]
+	if !strings.Contains(warning, "unknown prepared_queries keys") {
+		t.Fatalf("warning missing prepared_queries message: %q", warning)
+	}
+	if !strings.Contains(warning, "unknown") {
+		t.Fatalf("warning should mention offending key, got: %q", warning)
 	}
 }
 

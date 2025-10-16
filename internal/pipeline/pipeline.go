@@ -287,7 +287,14 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
 	}
 
-	generator := codegen.New(codegen.Options{Package: plan.Package})
+	generator := codegen.New(codegen.Options{
+		Package: plan.Package,
+		Prepared: codegen.PreparedOptions{
+			Enabled:     plan.PreparedQueries.Enabled,
+			EmitMetrics: plan.PreparedQueries.Metrics,
+			ThreadSafe:  plan.PreparedQueries.ThreadSafe,
+		},
+	})
 	generatedFiles, err := generator.Generate(ctx, catalog, analyses)
 	if err != nil {
 		return summary, fmt.Errorf("code generation: %w", err)

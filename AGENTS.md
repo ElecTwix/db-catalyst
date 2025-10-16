@@ -16,5 +16,6 @@
 - Errors should bubble with file:line hints; log via slog text handler respecting verbosity.
 - Determinism: sort map/slice outputs before writing files or comparing goldens.
 - Tests use cmp.Diff and golden fixtures; update snapshots intentionally.
+- Prepared wrappers are opt-in via `[prepared_queries]` (`enabled`, `metrics`, `thread_safe`); defaults keep legacy output untouched.
 - Generated code must look hand-written: exported identifiers documented, names descriptive.
 - No Cursor/Copilot overrides exist; rely on db-catalyst-spec.md for deeper guidance.

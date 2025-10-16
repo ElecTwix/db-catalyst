@@ -28,13 +28,28 @@ var validDrivers = map[Driver]struct{}{
 	DriverMattN:   {},
 }
 
+// PreparedQueriesConfig captures optional prepared statement generation settings.
+type PreparedQueriesConfig struct {
+	Enabled    bool `toml:"enabled"`
+	Metrics    bool `toml:"metrics"`
+	ThreadSafe bool `toml:"thread_safe"`
+}
+
+// PreparedQueries is the normalized configuration forwarded to the pipeline.
+type PreparedQueries struct {
+	Enabled    bool
+	Metrics    bool
+	ThreadSafe bool
+}
+
 // Config mirrors the expected db-catalyst TOML schema.
 type Config struct {
-	Package      string   `toml:"package"`
-	Out          string   `toml:"out"`
-	SQLiteDriver Driver   `toml:"sqlite_driver"`
-	Schemas      []string `toml:"schemas"`
-	Queries      []string `toml:"queries"`
+	Package         string                `toml:"package"`
+	Out             string                `toml:"out"`
+	SQLiteDriver    Driver                `toml:"sqlite_driver"`
+	Schemas         []string              `toml:"schemas"`
+	Queries         []string              `toml:"queries"`
+	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
 }
 
 // LoadOptions tunes config loading behavior.
@@ -45,11 +60,12 @@ type LoadOptions struct {
 
 // JobPlan is the fully-resolved configuration used by downstream stages.
 type JobPlan struct {
-	Package      string
-	Out          string
-	SQLiteDriver Driver
-	Schemas      []string
-	Queries      []string
+	Package         string
+	Out             string
+	SQLiteDriver    Driver
+	Schemas         []string
+	Queries         []string
+	PreparedQueries PreparedQueries
 }
 
 // Result wraps a loaded job plan alongside any non-fatal warnings.
@@ -83,6 +99,19 @@ func Load(path string, opts LoadOptions) (Result, error) {
 			return res, errors.New(message)
 		}
 		// TODO: surface warnings through structured logging once CLI wiring exists.
+		res.Warnings = append(res.Warnings, message)
+	}
+
+	preparedUnknown, err := collectUnknownPreparedKeys(data)
+	if err != nil {
+		return res, fmt.Errorf("%s: %w", path, err)
+	}
+	if len(preparedUnknown) > 0 {
+		slices.Sort(preparedUnknown)
+		message := fmt.Sprintf("%s: unknown prepared_queries keys: %s", path, strings.Join(preparedUnknown, ", "))
+		if opts.Strict {
+			return res, errors.New(message)
+		}
 		res.Warnings = append(res.Warnings, message)
 	}
 
@@ -122,12 +151,19 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		return res, fmt.Errorf("%s: %w", path, err)
 	}
 
+	prepared := PreparedQueries{
+		Enabled:    cfg.PreparedQueries.Enabled,
+		Metrics:    cfg.PreparedQueries.Metrics,
+		ThreadSafe: cfg.PreparedQueries.ThreadSafe,
+	}
+
 	res.Plan = JobPlan{
-		Package:      cfg.Package,
-		Out:          out,
-		SQLiteDriver: driver,
-		Schemas:      schemas,
-		Queries:      queries,
+		Package:         cfg.Package,
+		Out:             out,
+		SQLiteDriver:    driver,
+		Schemas:         schemas,
+		Queries:         queries,
+		PreparedQueries: prepared,
 	}
 
 	return res, nil
@@ -140,11 +176,12 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 	}
 
 	known := map[string]struct{}{
-		"package":       {},
-		"out":           {},
-		"sqlite_driver": {},
-		"schemas":       {},
-		"queries":       {},
+		"package":          {},
+		"out":              {},
+		"sqlite_driver":    {},
+		"schemas":          {},
+		"queries":          {},
+		"prepared_queries": {},
 	}
 
 	unknown := make([]string, 0)
@@ -154,6 +191,33 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		}
 	}
 
+	return unknown, nil
+}
+
+func collectUnknownPreparedKeys(data []byte) ([]string, error) {
+	var raw map[string]any
+	if err := toml.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	value, ok := raw["prepared_queries"]
+	if !ok {
+		return nil, nil
+	}
+	record, ok := value.(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	known := map[string]struct{}{
+		"enabled":     {},
+		"metrics":     {},
+		"thread_safe": {},
+	}
+	unknown := make([]string, 0)
+	for key := range record {
+		if _, ok := known[key]; !ok {
+			unknown = append(unknown, key)
+		}
+	}
 	return unknown, nil
 }
 
