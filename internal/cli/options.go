@@ -37,6 +37,11 @@ func Parse(args []string) (Options, error) {
 	fs.BoolVar(&opts.Verbose, "verbose", false, "Enable verbose logging")
 	fs.BoolVar(&opts.Verbose, "v", false, "Enable verbose logging")
 
+	if len(args) == 0 {
+		usage := Usage(fs)
+		return Options{}, fmt.Errorf("%w\n\n%s", flag.ErrHelp, usage)
+	}
+
 	if err := fs.Parse(args); err != nil {
 		usage := Usage(fs)
 		if errors.Is(err, flag.ErrHelp) {

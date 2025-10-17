@@ -13,6 +13,9 @@
 # Install the CLI (binary lands in $(go env GOBIN) or GOPATH/bin)
 go install ./cmd/db-catalyst
 
+# View CLI usage
+db-catalyst --help
+
 # Run the smoke test suite
 make test
 

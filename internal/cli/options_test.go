@@ -7,8 +7,21 @@ import (
 	"testing"
 )
 
-func TestParseDefaults(t *testing.T) {
-	opts, err := Parse(nil)
+func TestParseNoArgsShowsHelp(t *testing.T) {
+	_, err := Parse(nil)
+	if err == nil {
+		t.Fatalf("expected error for missing arguments")
+	}
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("error = %v, want flag.ErrHelp", err)
+	}
+	if !strings.Contains(err.Error(), "Usage of db-catalyst") {
+		t.Fatalf("error message missing usage: %q", err.Error())
+	}
+}
+
+func TestParseDefaultsWithConfigFlag(t *testing.T) {
+	opts, err := Parse([]string{"--config", "db-catalyst.toml"})
 	if err != nil {
 		t.Fatalf("Parse returned error: %v", err)
 	}
