@@ -9,10 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"log/slog"
-
 	"github.com/electwix/db-catalyst/internal/cli"
 	"github.com/electwix/db-catalyst/internal/fileset"
+	"github.com/electwix/db-catalyst/internal/logging"
 	"github.com/electwix/db-catalyst/internal/pipeline"
 	queryanalyzer "github.com/electwix/db-catalyst/internal/query/analyzer"
 )
@@ -33,12 +32,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	level := slog.LevelInfo
-	if opts.Verbose {
-		level = slog.LevelDebug
-	}
-	handler := slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: level})
-	logger := slog.New(handler)
+	logger := logging.New(logging.Options{
+		Verbose: opts.Verbose,
+		Writer:  stderr,
+	})
 
 	env := pipeline.Environment{
 		Logger: logger,
