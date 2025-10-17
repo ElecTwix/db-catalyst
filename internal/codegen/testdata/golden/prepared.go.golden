@@ -21,17 +21,21 @@ type PreparedConfig struct {
 }
 
 type PreparedQueries struct {
-	queries          *Queries
-	db               PrepareDB
-	metrics          PreparedMetricsRecorder
-	closeOnce        sync.Once
-	closeErr         error
-	stmtCreateUser   *sql.Stmt
-	stmtCreateUserMu sync.Mutex
-	stmtGetUser      *sql.Stmt
-	stmtGetUserMu    sync.Mutex
-	stmtListUsers    *sql.Stmt
-	stmtListUsersMu  sync.Mutex
+	queries                 *Queries
+	db                      PrepareDB
+	metrics                 PreparedMetricsRecorder
+	closeOnce               sync.Once
+	closeErr                error
+	stmtCreateUser          *sql.Stmt
+	stmtCreateUserMu        sync.Mutex
+	stmtDeleteUser          *sql.Stmt
+	stmtDeleteUserMu        sync.Mutex
+	stmtGetUser             *sql.Stmt
+	stmtGetUserMu           sync.Mutex
+	stmtListUsers           *sql.Stmt
+	stmtListUsersMu         sync.Mutex
+	stmtUpdateUserCredits   *sql.Stmt
+	stmtUpdateUserCreditsMu sync.Mutex
 }
 
 func (p *PreparedQueries) Raw() *Queries {
@@ -58,6 +62,14 @@ func (p *PreparedQueries) Close() error {
 			p.stmtCreateUser = nil
 		}
 		p.stmtCreateUserMu.Unlock()
+		p.stmtDeleteUserMu.Lock()
+		if p.stmtDeleteUser != nil {
+			if closeErr := p.stmtDeleteUser.Close(); err == nil && closeErr != nil {
+				err = closeErr
+			}
+			p.stmtDeleteUser = nil
+		}
+		p.stmtDeleteUserMu.Unlock()
 		p.stmtGetUserMu.Lock()
 		if p.stmtGetUser != nil {
 			if closeErr := p.stmtGetUser.Close(); err == nil && closeErr != nil {
@@ -74,6 +86,14 @@ func (p *PreparedQueries) Close() error {
 			p.stmtListUsers = nil
 		}
 		p.stmtListUsersMu.Unlock()
+		p.stmtUpdateUserCreditsMu.Lock()
+		if p.stmtUpdateUserCredits != nil {
+			if closeErr := p.stmtUpdateUserCredits.Close(); err == nil && closeErr != nil {
+				err = closeErr
+			}
+			p.stmtUpdateUserCredits = nil
+		}
+		p.stmtUpdateUserCreditsMu.Unlock()
 		p.closeErr = err
 	})
 	return p.closeErr
@@ -93,6 +113,23 @@ func (p *PreparedQueries) prepareCreateUser(ctx context.Context) (*sql.Stmt, err
 		return nil, err
 	}
 	p.stmtCreateUser = stmt
+	return stmt, nil
+}
+
+func (p *PreparedQueries) prepareDeleteUser(ctx context.Context) (*sql.Stmt, error) {
+	if stmt := p.stmtDeleteUser; stmt != nil {
+		return stmt, nil
+	}
+	p.stmtDeleteUserMu.Lock()
+	defer p.stmtDeleteUserMu.Unlock()
+	if stmt := p.stmtDeleteUser; stmt != nil {
+		return stmt, nil
+	}
+	stmt, err := p.db.PrepareContext(ctx, queryDeleteUser)
+	if err != nil {
+		return nil, err
+	}
+	p.stmtDeleteUser = stmt
 	return stmt, nil
 }
 
@@ -130,6 +167,23 @@ func (p *PreparedQueries) prepareListUsers(ctx context.Context) (*sql.Stmt, erro
 	return stmt, nil
 }
 
+func (p *PreparedQueries) prepareUpdateUserCredits(ctx context.Context) (*sql.Stmt, error) {
+	if stmt := p.stmtUpdateUserCredits; stmt != nil {
+		return stmt, nil
+	}
+	p.stmtUpdateUserCreditsMu.Lock()
+	defer p.stmtUpdateUserCreditsMu.Unlock()
+	if stmt := p.stmtUpdateUserCredits; stmt != nil {
+		return stmt, nil
+	}
+	stmt, err := p.db.PrepareContext(ctx, queryUpdateUserCredits)
+	if err != nil {
+		return nil, err
+	}
+	p.stmtUpdateUserCredits = stmt
+	return stmt, nil
+}
+
 func (p *PreparedQueries) CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error) {
 	stmt, err := p.prepareCreateUser(ctx)
 	if err != nil {
@@ -145,6 +199,33 @@ func (p *PreparedQueries) CreateUser(ctx context.Context, email sql.NullString, 
 		recorder.ObservePreparedQuery(ctx, "CreateUser", time.Since(start), err)
 	}
 	return res, err
+}
+
+func (p *PreparedQueries) DeleteUser(ctx context.Context, id int64) (QueryResult, error) {
+	stmt, err := p.prepareDeleteUser(ctx)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	recorder := p.metrics
+	var start time.Time
+	if recorder != nil {
+		start = time.Now()
+	}
+	res, err := stmt.ExecContext(ctx, id)
+	if recorder != nil {
+		recorder.ObservePreparedQuery(ctx, "DeleteUser", time.Since(start), err)
+	}
+	if err != nil {
+		return QueryResult{}, err
+	}
+	result := QueryResult{}
+	if v, err := res.LastInsertId(); err == nil {
+		result.LastInsertID = v
+	}
+	if v, err := res.RowsAffected(); err == nil {
+		result.RowsAffected = v
+	}
+	return result, nil
 }
 
 // GetUser fetches a single user by identifier.
@@ -212,4 +293,21 @@ func (p *PreparedQueries) ListUsers(ctx context.Context) ([]ListUsersRow, error)
 		return nil, err
 	}
 	return items, nil
+}
+
+func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
+	stmt, err := p.prepareUpdateUserCredits(ctx)
+	if err != nil {
+		return nil, err
+	}
+	recorder := p.metrics
+	var start time.Time
+	if recorder != nil {
+		start = time.Now()
+	}
+	res, err := stmt.ExecContext(ctx, credits, id)
+	if recorder != nil {
+		recorder.ObservePreparedQuery(ctx, "UpdateUserCredits", time.Since(start), err)
+	}
+	return res, err
 }

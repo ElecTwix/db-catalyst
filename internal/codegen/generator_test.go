@@ -144,6 +144,33 @@ func sampleCatalogAndAnalyses() (*model.Catalog, []analyzer.Result) {
 				{Name: "credits", Style: parser.ParamStylePositional, GoType: "float64", Nullable: true},
 			},
 		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
+					Name:    "UpdateUserCredits",
+					Command: block.CommandExec,
+					SQL:     "UPDATE users SET credits = ? WHERE id = ?",
+				},
+				Verb: parser.VerbUpdate,
+			},
+			Params: []analyzer.ResultParam{
+				{Name: "credits", Style: parser.ParamStylePositional, GoType: "float64", Nullable: true},
+				{Name: "id", Style: parser.ParamStylePositional, GoType: "int64", Nullable: false},
+			},
+		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
+					Name:    "DeleteUser",
+					Command: block.CommandExecResult,
+					SQL:     "DELETE FROM users WHERE id = ?",
+				},
+				Verb: parser.VerbDelete,
+			},
+			Params: []analyzer.ResultParam{
+				{Name: "id", Style: parser.ParamStylePositional, GoType: "int64", Nullable: false},
+			},
+		},
 	}
 
 	return catalog, analyses

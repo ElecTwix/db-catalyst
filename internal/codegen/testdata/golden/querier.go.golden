@@ -7,8 +7,10 @@ import (
 
 type Querier interface {
 	CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error)
+	DeleteUser(ctx context.Context, id int64) (QueryResult, error)
 	GetUser(ctx context.Context, id int64) (GetUserRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
