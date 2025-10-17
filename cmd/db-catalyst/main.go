@@ -57,7 +57,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	printDiagnostics(stderr, summary.Diagnostics)
 
 	if runErr != nil {
-		fmt.Fprintln(stderr, runErr.Error())
+		var diagErr *pipeline.DiagnosticsError
+		if !errors.As(runErr, &diagErr) {
+			fmt.Fprintln(stderr, runErr.Error())
+		}
 		var writeErr *pipeline.WriteError
 		if errors.As(runErr, &writeErr) {
 			return 2

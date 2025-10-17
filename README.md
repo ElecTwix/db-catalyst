@@ -10,8 +10,8 @@
 ## Quick Start
 
 ```bash
-# Build the CLI
-go build ./cmd/db-catalyst
+# Install the CLI (binary lands in $(go env GOBIN) or GOPATH/bin)
+go install ./cmd/db-catalyst
 
 # Run the smoke test suite
 make test
