@@ -171,6 +171,30 @@ func sampleCatalogAndAnalyses() (*model.Catalog, []analyzer.Result) {
 				{Name: "id", Style: parser.ParamStylePositional, GoType: "int64", Nullable: false},
 			},
 		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
+					Name:    "SummarizeCredits",
+					Command: block.CommandOne,
+					SQL: `WITH RECURSIVE credit_totals AS (
+    SELECT id, credits FROM users
+    UNION ALL
+    SELECT u.id, u.credits FROM users u JOIN credit_totals c ON u.id > c.id
+)
+SELECT COUNT(*) AS total_users,
+       SUM(credit_totals.credits) AS sum_credits,
+       AVG(credit_totals.credits) AS avg_credit
+FROM credit_totals;`,
+					Doc: "SummarizeCredits aggregates user credits across a recursive rollup.",
+				},
+				Verb: parser.VerbSelect,
+			},
+			Columns: []analyzer.ResultColumn{
+				{Name: "total_users", GoType: "int64", Nullable: false},
+				{Name: "sum_credits", GoType: "float64", Nullable: true},
+				{Name: "avg_credit", GoType: "float64", Nullable: true},
+			},
+		},
 	}
 
 	return catalog, analyses

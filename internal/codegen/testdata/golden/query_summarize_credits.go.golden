@@ -1,0 +1,39 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+)
+
+const querySummarizeCredits string = `WITH RECURSIVE credit_totals AS (
+    SELECT id, credits FROM users
+    UNION ALL
+    SELECT u.id, u.credits FROM users u JOIN credit_totals c ON u.id > c.id
+)
+SELECT COUNT(*) AS total_users,
+       SUM(credit_totals.credits) AS sum_credits,
+       AVG(credit_totals.credits) AS avg_credit
+FROM credit_totals;`
+
+// SummarizeCredits aggregates user credits across a recursive rollup.
+func (q *Queries) SummarizeCredits(ctx context.Context) (SummarizeCreditsRow, error) {
+	rows, err := q.db.QueryContext(ctx, querySummarizeCredits)
+	if err != nil {
+		return SummarizeCreditsRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return SummarizeCreditsRow{}, err
+		}
+		return SummarizeCreditsRow{}, sql.ErrNoRows
+	}
+	item, err := scanSummarizeCreditsRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
+}

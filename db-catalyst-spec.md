@@ -161,7 +161,8 @@ Reuse the schema tokenizer to avoid duplication. Query parsing occurs in two pas
 2. **Statement analysis:** Tokenize the SQL body. Determine primary verb (SELECT/INSERT/UPDATE/DELETE). For `SELECT`, derive output columns; for DML, determine input parameters only.
 
 Rather than full SQL parsing, rely on heuristics anchored on SQLite semantics:
-- For `SELECT`, collect column expressions up to the `FROM`. Track explicit aliases using `AS` or implicit `columnName`. Joins simply append available column contexts; we match `table.column` against the catalog.
+- For `SELECT`, collect column expressions up to the `FROM`. Track explicit aliases using `AS` or implicit `columnName`. Joins and aliases are resolved against a scope that also includes earlier CTE definitions.
+- CTE prologues (`WITH` / `WITH RECURSIVE`) are parsed ahead of the main statement; each CTE records its body SQL, column list, and diagnostics. Recursive terms must return the same column count as the anchor.
 - Subqueries and expressions default to user-defined column names; if a column lacks an alias and we cannot infer a simple column name, raise a “missing column alias” diagnostic.
 - ORDER BY/GROUP BY clauses are identified and preserved but do not affect metadata.
 
@@ -181,7 +182,7 @@ For each parameter, store:
 For SELECT queries, build a slice of result columns:
 - Each item contains `Name`, `Type`, `Nullable`, `Doc`.
 - `Name` uses the alias if present; otherwise use raw column name after `table.` removal.
-- `Type` derives from the catalog column when resolved; otherwise try to infer from SQLite type affinity rules. If unresolved, mark as `interface{}` and warn.
+- `Type` derives from the catalog column (including columns referenced through CTEs) when resolved. Aggregates (`COUNT`, `SUM`, `MIN`, `MAX`, `AVG`) map to concrete Go types based on their operands, and require aliases so generated code surfaces stable identifiers. If inference still fails, mark as `interface{}` and warn.
 
 Errors are fatal when:
 - A referenced table/column is unknown.
@@ -195,7 +196,7 @@ Errors are fatal when:
 Generated package contains:
 
 - `models.go`: Go structs representing tables referenced by queries. Each struct contains exported fields with JSON tags by default (toggle via `--no-json-tags`). Fields use pointer/nullable types per column nullability.
-- `querier.go`: Defines `type Querier interface` with methods per query, and a `type Queries struct { db DBTX }` implementation where `DBTX` is `interface{ ExecContext, QueryContext, QueryRowContext }`.
+- `querier.go`: Defines `type Querier interface` with methods per query, and a `type Queries struct { db DBTX }` implementation where `DBTX` is `interface{ ExecContext, QueryContext, QueryRowContext }`. Generated method signatures mirror analyzer metadata so CTE/aggregate outputs surface their concrete Go types.
 - `query_<name>.go`: One file per query block containing the SQL string constant and method implementation. This keeps diff noise minimal.
 - `_helpers.go`: Shared utilities for scanning rows, wrappers for optional transactions, and error helper `wrapError` (only if needed).
 

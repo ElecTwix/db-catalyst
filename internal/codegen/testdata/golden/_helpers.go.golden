@@ -28,3 +28,17 @@ func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
 	}
 	return item, nil
 }
+
+type SummarizeCreditsRow struct {
+	TotalUsers int64
+	SumCredits sql.NullFloat64
+	AvgCredit  sql.NullFloat64
+}
+
+func scanSummarizeCreditsRow(rows sql.Rows) (SummarizeCreditsRow, error) {
+	var item SummarizeCreditsRow
+	if err := rows.Scan(&item.TotalUsers, &item.SumCredits, &item.AvgCredit); err != nil {
+		return item, err
+	}
+	return item, nil
+}

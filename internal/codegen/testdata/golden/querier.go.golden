@@ -10,6 +10,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id int64) (QueryResult, error)
 	GetUser(ctx context.Context, id int64) (GetUserRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
+	SummarizeCredits(ctx context.Context) (SummarizeCreditsRow, error)
 	UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error)
 }
 type DBTX interface {

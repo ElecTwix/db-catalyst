@@ -55,6 +55,214 @@ WHERE users.id = :id AND users.email = :email;`,
 			},
 		},
 		{
+			name:    "cte passthrough",
+			catalog: catalog,
+			sql: `WITH latest AS (
+    SELECT u.id, u.email FROM users u WHERE u.status = :status
+)
+SELECT latest.id, latest.email FROM latest;`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "int64" || res.Columns[0].Nullable {
+					t.Errorf("unexpected first column %+v", res.Columns[0])
+				}
+				if res.Columns[1].GoType != "string" || !res.Columns[1].Nullable {
+					t.Errorf("unexpected second column %+v", res.Columns[1])
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+				if res.Params[0].Name != "status" || res.Params[0].GoType != "string" {
+					t.Errorf("unexpected param %+v", res.Params[0])
+				}
+			},
+		},
+		{
+			name:    "recursive cte counter",
+			catalog: catalog,
+			sql: `WITH RECURSIVE numbers(id, depth) AS (
+    SELECT u.id, 0 FROM users u WHERE u.id = :user_id
+    UNION ALL
+    SELECT u.id, numbers.depth + 1 FROM users u JOIN numbers ON u.id = numbers.id
+)
+SELECT numbers.id, numbers.depth FROM numbers;`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "int64" || res.Columns[0].Nullable {
+					t.Errorf("unexpected id column %+v", res.Columns[0])
+				}
+				if res.Columns[1].GoType != "interface{}" || !res.Columns[1].Nullable {
+					t.Errorf("unexpected depth column %+v", res.Columns[1])
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+				if res.Params[0].Name != "userId" || res.Params[0].GoType != "int64" {
+					t.Errorf("unexpected param %+v", res.Params[0])
+				}
+				foundWarning := false
+				for _, d := range res.Diagnostics {
+					if d.Severity == analyzer.SeverityWarning && strings.Contains(d.Message, "defaulting to interface{}") {
+						foundWarning = true
+						break
+					}
+				}
+				if !foundWarning {
+					t.Fatalf("expected warning about interface{} fallback, got %+v", res.Diagnostics)
+				}
+			},
+		},
+		{
+			name:    "recursive cte column mismatch",
+			catalog: catalog,
+			sql: `WITH RECURSIVE bad_cte(id, depth) AS (
+    SELECT u.id, 0 FROM users u
+    UNION ALL
+    SELECT u.id, bad_cte.depth, u.email FROM users u JOIN bad_cte ON bad_cte.id = u.id
+)
+SELECT id, depth FROM bad_cte;`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) == 0 {
+					t.Fatalf("expected diagnostics, got none")
+				}
+				found := false
+				for _, d := range res.Diagnostics {
+					if d.Severity == analyzer.SeverityError && strings.Contains(d.Message, "projects") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatalf("expected column count diagnostic, got %+v", res.Diagnostics)
+				}
+			},
+		},
+		{
+			name:    "cte join with aliases",
+			catalog: catalog,
+			sql: `WITH flagged AS (
+    SELECT u.id, u.email FROM users u WHERE u.status = :status
+)
+SELECT u.id, flagged.email
+FROM users u
+JOIN flagged ON flagged.id = u.id;`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "int64" || res.Columns[0].Nullable {
+					t.Errorf("unexpected first column %+v", res.Columns[0])
+				}
+				if res.Columns[1].GoType != "string" || !res.Columns[1].Nullable {
+					t.Errorf("unexpected second column %+v", res.Columns[1])
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+				if res.Params[0].Name != "status" || res.Params[0].GoType != "string" {
+					t.Errorf("unexpected param %+v", res.Params[0])
+				}
+			},
+		},
+		{
+			name:    "aggregate count star alias",
+			catalog: catalog,
+			sql:     "SELECT COUNT(*) AS total FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.GoType != "int64" || col.Nullable {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+			},
+		},
+		{
+			name:    "aggregate count column not nullable",
+			catalog: catalog,
+			sql:     "SELECT COUNT(users.email) AS email_count FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.GoType != "int64" || col.Nullable {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+			},
+		},
+		{
+			name:    "aggregate sum nullable integer",
+			catalog: catalog,
+			sql:     "SELECT SUM(users.credits) AS total_credits FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.GoType != "int64" || !col.Nullable {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+			},
+		},
+		{
+			name:    "aggregate max text column",
+			catalog: catalog,
+			sql:     "SELECT MAX(users.email) AS max_email FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.GoType != "string" || !col.Nullable {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+			},
+		},
+		{
+			name:    "cte aggregate propagation",
+			catalog: catalog,
+			sql: `WITH totals(count_users) AS (
+    SELECT COUNT(*) AS count_users FROM users
+)
+SELECT totals.count_users FROM totals;`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.GoType != "int64" || col.Nullable {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+			},
+		},
+		{
 			name:    "unknown table diagnostic",
 			catalog: catalog,
 			sql:     "SELECT orders.id FROM orders;",
@@ -169,6 +377,49 @@ WHERE users.email = ? AND ? = users.id;`,
 	}
 }
 
+func TestAnalyzerAggregateRequiresAlias(t *testing.T) {
+	catalog := buildTestCatalog()
+	blk := block.Block{
+		Path:   "query/agg_missing_alias.sql",
+		Line:   1,
+		Column: 1,
+		SQL:    "SELECT COUNT(*) FROM users;",
+	}
+	q, diags := parser.Parse(blk)
+	if len(diags) == 0 {
+		t.Fatalf("expected parser diagnostic for missing alias")
+	}
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "requires alias") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected requires alias diagnostic, got %+v", diags)
+	}
+
+	res := analyzer.New(catalog).Analyze(q)
+	if len(res.Columns) != 1 {
+		t.Fatalf("expected 1 column, got %d", len(res.Columns))
+	}
+	col := res.Columns[0]
+	if col.GoType != "int64" || col.Nullable {
+		t.Errorf("expected COUNT(*) column to be int64 and not nullable, got %+v", col)
+	}
+	found = false
+	for _, d := range res.Diagnostics {
+		if strings.Contains(d.Message, "requires alias") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected analyzer to surface alias diagnostic, got %+v", res.Diagnostics)
+	}
+}
+
 func BenchmarkAnalyzeSelect(b *testing.B) {
 	cat := buildTestCatalog()
 	blk := block.Block{
@@ -199,6 +450,7 @@ func buildTestCatalog() *model.Catalog {
 					{Name: "id", Type: "INTEGER", NotNull: true},
 					{Name: "email", Type: "TEXT", NotNull: false},
 					{Name: "status", Type: "NUMERIC", NotNull: false},
+					{Name: "credits", Type: "INTEGER", NotNull: false},
 				},
 			},
 		},

@@ -43,8 +43,50 @@ func TestPipelineDryRun(t *testing.T) {
 	if writer.count != 0 {
 		t.Fatalf("writer invoked %d times during dry-run, want 0", writer.count)
 	}
-	if len(summary.Analyses) != 1 {
-		t.Fatalf("Analyses = %d, want 1", len(summary.Analyses))
+	if len(summary.Analyses) != 2 {
+		t.Fatalf("Analyses = %d, want 2", len(summary.Analyses))
+	}
+
+	var (
+		listUsersFound bool
+		summarizeFound bool
+		helperContent  string
+		queryFound     bool
+	)
+
+	for _, analysis := range summary.Analyses {
+		switch analysis.Query.Block.Name {
+		case "ListUsers":
+			listUsersFound = true
+			if analysis.Query.Block.Command != block.CommandMany {
+				t.Fatalf("ListUsers command = %v, want CommandMany", analysis.Query.Block.Command)
+			}
+		case "SummarizeCredits":
+			summarizeFound = true
+			if analysis.Query.Block.Command != block.CommandOne {
+				t.Fatalf("SummarizeCredits command = %v, want CommandOne", analysis.Query.Block.Command)
+			}
+			if len(analysis.Columns) != 3 {
+				t.Fatalf("SummarizeCredits columns = %d, want 3", len(analysis.Columns))
+			}
+			if col := analysis.Columns[0]; col.Name != "total_users" || col.GoType != "int64" || col.Nullable {
+				t.Fatalf("total_users column = %+v, want int64 non-null", col)
+			}
+			if col := analysis.Columns[1]; col.Name != "sum_credits" || col.GoType != "float64" || !col.Nullable {
+				t.Fatalf("sum_credits column = %+v, want float64 nullable", col)
+			}
+			if col := analysis.Columns[2]; col.Name != "avg_credit" || col.GoType != "float64" || !col.Nullable {
+				t.Fatalf("avg_credit column = %+v, want float64 nullable", col)
+			}
+			if len(analysis.Params) != 0 {
+				t.Fatalf("SummarizeCredits params = %v, want none", analysis.Params)
+			}
+		default:
+			t.Fatalf("unexpected query %q in analyses", analysis.Query.Block.Name)
+		}
+	}
+	if !listUsersFound || !summarizeFound {
+		t.Fatalf("expected analyses for ListUsers and SummarizeCredits, got %+v", summary.Analyses)
 	}
 
 	outPrefix := filepath.Join(filepath.Dir(configPath), "gen") + string(os.PathSeparator)
@@ -52,6 +94,21 @@ func TestPipelineDryRun(t *testing.T) {
 		if !strings.HasPrefix(file.Path, outPrefix) {
 			t.Fatalf("file path %q does not reside under %q", file.Path, outPrefix)
 		}
+		if strings.HasSuffix(file.Path, "_helpers.go") {
+			helperContent = string(file.Content)
+		}
+		if strings.HasSuffix(file.Path, "query_summarize_credits.go") {
+			queryFound = true
+		}
+	}
+	if !queryFound {
+		t.Fatalf("query_summarize_credits.go not emitted; files = %+v", summary.Files)
+	}
+	if !strings.Contains(helperContent, "type SummarizeCreditsRow struct") ||
+		!strings.Contains(helperContent, "TotalUsers int64") ||
+		!strings.Contains(helperContent, "SumCredits sql.NullFloat64") ||
+		!strings.Contains(helperContent, "AvgCredit  sql.NullFloat64") && !strings.Contains(helperContent, "AvgCredit sql.NullFloat64") {
+		t.Fatalf("_helpers.go missing expected SummarizeCreditsRow fields\n%s", helperContent)
 	}
 }
 
@@ -70,19 +127,51 @@ func TestPipelineListQueries(t *testing.T) {
 	if writer.count != 0 {
 		t.Fatalf("writer invoked %d times when listing, want 0", writer.count)
 	}
-	if len(summary.Analyses) != 1 {
-		t.Fatalf("Analyses = %d, want 1", len(summary.Analyses))
+	if len(summary.Analyses) != 2 {
+		t.Fatalf("Analyses = %d, want 2", len(summary.Analyses))
 	}
 
-	analysis := summary.Analyses[0]
-	if analysis.Query.Block.Name != "ListUsers" {
-		t.Fatalf("query name = %q, want ListUsers", analysis.Query.Block.Name)
+	var (
+		listUsersFound bool
+		summarizeFound bool
+	)
+
+	for _, analysis := range summary.Analyses {
+		switch analysis.Query.Block.Name {
+		case "ListUsers":
+			listUsersFound = true
+			if analysis.Query.Block.Command != block.CommandMany {
+				t.Fatalf("ListUsers command = %v, want CommandMany", analysis.Query.Block.Command)
+			}
+			if len(analysis.Params) != 0 {
+				t.Fatalf("ListUsers params = %v, want none", analysis.Params)
+			}
+		case "SummarizeCredits":
+			summarizeFound = true
+			if analysis.Query.Block.Command != block.CommandOne {
+				t.Fatalf("SummarizeCredits command = %v, want CommandOne", analysis.Query.Block.Command)
+			}
+			if len(analysis.Columns) != 3 {
+				t.Fatalf("SummarizeCredits columns = %d, want 3", len(analysis.Columns))
+			}
+			if col := analysis.Columns[0]; col.Name != "total_users" || col.GoType != "int64" || col.Nullable {
+				t.Fatalf("total_users column = %+v, want int64 non-null", col)
+			}
+			if col := analysis.Columns[1]; col.Name != "sum_credits" || col.GoType != "float64" || !col.Nullable {
+				t.Fatalf("sum_credits column = %+v, want float64 nullable", col)
+			}
+			if col := analysis.Columns[2]; col.Name != "avg_credit" || col.GoType != "float64" || !col.Nullable {
+				t.Fatalf("avg_credit column = %+v, want float64 nullable", col)
+			}
+			if len(analysis.Params) != 0 {
+				t.Fatalf("SummarizeCredits params = %v, want none", analysis.Params)
+			}
+		default:
+			t.Fatalf("unexpected query %q in analyses", analysis.Query.Block.Name)
+		}
 	}
-	if analysis.Query.Block.Command != block.CommandMany {
-		t.Fatalf("command = %v, want CommandMany", analysis.Query.Block.Command)
-	}
-	if len(analysis.Params) != 0 {
-		t.Fatalf("params = %v, want none", analysis.Params)
+	if !listUsersFound || !summarizeFound {
+		t.Fatalf("expected analyses for ListUsers and SummarizeCredits, got %+v", summary.Analyses)
 	}
 	if len(summary.Diagnostics) != 0 {
 		t.Fatalf("Diagnostics = %v, want none", summary.Diagnostics)

@@ -10,10 +10,7 @@ type typeInfo struct {
 func resolveType(goType string, nullable bool) typeInfo {
 	base := strings.TrimSpace(goType)
 	if base == "" {
-		base = "any"
-	}
-	if base == "interface{}" {
-		base = "any"
+		base = "interface{}"
 	}
 	if nullable {
 		switch base {

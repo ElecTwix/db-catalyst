@@ -25,6 +25,9 @@ WHERE u.status = :status AND u.score > ? AND u.id = ?1;`,
 	if q.Verb != VerbSelect {
 		t.Fatalf("expected VerbSelect, got %v", q.Verb)
 	}
+	if len(q.CTEs) != 0 {
+		t.Fatalf("expected no CTEs, got %d", len(q.CTEs))
+	}
 	if len(q.Columns) != 3 {
 		t.Fatalf("expected 3 columns, got %d", len(q.Columns))
 	}
@@ -108,7 +111,7 @@ func TestParseParametersNumbered(t *testing.T) {
 	}
 }
 
-func TestParseVerbUnsupported(t *testing.T) {
+func TestParseSelectWithCTE(t *testing.T) {
 	blk := block.Block{
 		Path:   "query/cte.sql",
 		Line:   1,
@@ -119,12 +122,119 @@ func TestParseVerbUnsupported(t *testing.T) {
 SELECT value FROM cte;`,
 	}
 
-	_, diags := Parse(blk)
-	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	q, diags := Parse(blk)
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
 	}
-	if want := "unsupported query verb"; !strings.Contains(diags[0].Message, want) {
-		t.Fatalf("expected diagnostic to contain %q, got %q", want, diags[0].Message)
+	if q.Verb != VerbSelect {
+		t.Fatalf("expected VerbSelect, got %v", q.Verb)
+	}
+	if len(q.CTEs) != 1 {
+		t.Fatalf("expected 1 CTE, got %d", len(q.CTEs))
+	}
+	cte := q.CTEs[0]
+	if cte.Name != "cte" {
+		t.Fatalf("expected CTE name cte, got %q", cte.Name)
+	}
+	if len(cte.Columns) != 0 {
+		t.Fatalf("expected no CTE columns, got %d", len(cte.Columns))
+	}
+	if got := cte.SelectSQL; got != "SELECT 1 AS value" {
+		t.Fatalf("unexpected CTE SQL %q", got)
+	}
+	if len(q.Columns) != 1 {
+		t.Fatalf("expected 1 result column, got %d", len(q.Columns))
+	}
+	if q.Columns[0].Expr != "value" {
+		t.Fatalf("expected first column expr value, got %q", q.Columns[0].Expr)
+	}
+}
+
+func TestParseWithRecursiveCTE(t *testing.T) {
+	blk := block.Block{
+		Path:   "query/recursive.sql",
+		Line:   1,
+		Column: 1,
+		SQL: `WITH RECURSIVE ancestors(id, depth) AS (
+    SELECT id, 0 FROM users WHERE id = :target_id
+    UNION ALL
+    SELECT p.parent_id, a.depth + 1
+    FROM parents p
+    JOIN ancestors a ON a.id = p.child_id
+)
+SELECT id, depth FROM ancestors;`,
+	}
+
+	q, diags := Parse(blk)
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if q.Verb != VerbSelect {
+		t.Fatalf("expected VerbSelect, got %v", q.Verb)
+	}
+	if len(q.CTEs) != 1 {
+		t.Fatalf("expected 1 CTE, got %d", len(q.CTEs))
+	}
+	cte := q.CTEs[0]
+	if cte.Name != "ancestors" {
+		t.Fatalf("expected CTE name ancestors, got %q", cte.Name)
+	}
+	if len(cte.Columns) != 2 || cte.Columns[0] != "id" || cte.Columns[1] != "depth" {
+		t.Fatalf("unexpected CTE columns: %+v", cte.Columns)
+	}
+	if !strings.Contains(cte.SelectSQL, "UNION ALL") {
+		t.Fatalf("expected recursive CTE SQL to contain UNION ALL, got %q", cte.SelectSQL)
+	}
+	if !strings.Contains(cte.SelectSQL, ":target_id") {
+		t.Fatalf("expected recursive CTE SQL to reference :target_id, got %q", cte.SelectSQL)
+	}
+	if len(q.Params) != 1 {
+		t.Fatalf("expected 1 param, got %d", len(q.Params))
+	}
+	if q.Params[0].Name != "targetId" {
+		t.Fatalf("unexpected param name %q", q.Params[0].Name)
+	}
+	if len(q.Columns) != 2 {
+		t.Fatalf("expected 2 result columns, got %d", len(q.Columns))
+	}
+}
+
+func TestParseInsertWithCTE(t *testing.T) {
+	blk := block.Block{
+		Path:   "query/insert_cte.sql",
+		Line:   1,
+		Column: 1,
+		SQL: `WITH active_users AS (
+    SELECT id FROM users WHERE status = :status
+)
+INSERT INTO snapshots(user_id)
+SELECT id FROM active_users;`,
+	}
+
+	q, diags := Parse(blk)
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	if q.Verb != VerbInsert {
+		t.Fatalf("expected VerbInsert, got %v", q.Verb)
+	}
+	if len(q.CTEs) != 1 {
+		t.Fatalf("expected 1 CTE, got %d", len(q.CTEs))
+	}
+	if got := q.CTEs[0].SelectSQL; got != "SELECT id FROM users WHERE status = :status" {
+		t.Fatalf("unexpected CTE SQL %q", got)
+	}
+	if len(q.Params) != 1 {
+		t.Fatalf("expected 1 param, got %d", len(q.Params))
+	}
+	if q.Params[0].Name != "status" {
+		t.Fatalf("unexpected param name %q", q.Params[0].Name)
+	}
+	if q.Params[0].Style != ParamStyleNamed {
+		t.Fatalf("unexpected param style %+v", q.Params[0])
+	}
+	if len(q.Columns) != 0 {
+		t.Fatalf("expected no result columns for INSERT, got %d", len(q.Columns))
 	}
 }
 

@@ -17,6 +17,7 @@ type Query struct {
 	Verb        Verb
 	Columns     []Column
 	Params      []Param
+	CTEs        []CTE
 	Diagnostics []Diagnostic
 }
 
@@ -36,6 +37,14 @@ type Column struct {
 	Table  string
 	Line   int
 	Column int
+}
+
+type CTE struct {
+	Name      string
+	Columns   []string
+	SelectSQL string
+	Line      int
+	Column    int
 }
 
 type Param struct {
@@ -91,30 +100,36 @@ func Parse(blk block.Block) (Query, []Diagnostic) {
 		return finalizeQuery(q, diags)
 	}
 
-	verb, verbIdx := determineVerb(tokens)
+	posIdx := newPositionIndex(blk.SQL)
+	verb, verbIdx, ctes, verbDiags := determineVerb(tokens, blk, posIdx)
+	diags = append(diags, verbDiags...)
 	if verb == VerbUnknown {
-		if verbIdx >= 0 && verbIdx < len(tokens) {
-			tok := tokens[verbIdx]
-			diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "unsupported query verb %s", tok.Text))
-		} else {
-			diags = append(diags, Diagnostic{
-				Path:     blk.Path,
-				Line:     blk.Line,
-				Column:   blk.Column,
-				Message:  "could not determine query verb",
-				Severity: SeverityError,
-			})
+		if len(verbDiags) == 0 {
+			if verbIdx >= 0 && verbIdx < len(tokens) {
+				tok := tokens[verbIdx]
+				diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "unsupported query verb %s", tok.Text))
+			} else {
+				diags = append(diags, Diagnostic{
+					Path:     blk.Path,
+					Line:     blk.Line,
+					Column:   blk.Column,
+					Message:  "could not determine query verb",
+					Severity: SeverityError,
+				})
+			}
 		}
 		return finalizeQuery(q, diags)
 	}
 	q.Verb = verb
+	if len(ctes) > 0 {
+		q.CTEs = ctes
+	}
 
 	params, paramDiags := collectParams(tokens, blk)
 	q.Params = params
 	diags = append(diags, paramDiags...)
 
 	if verb == VerbSelect {
-		posIdx := newPositionIndex(blk.SQL)
 		columns, columnDiags := parseSelectColumns(tokens, verbIdx, blk, posIdx)
 		q.Columns = columns
 		diags = append(diags, columnDiags...)
@@ -146,30 +161,209 @@ func diagnosticFromError(blk block.Block, err error) Diagnostic {
 	}
 }
 
-func determineVerb(tokens []tokenizer.Token) (Verb, int) {
-	for i, tok := range tokens {
+func determineVerb(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (Verb, int, []CTE, []Diagnostic) {
+	ctes := make([]CTE, 0, 2)
+	diags := make([]Diagnostic, 0, 2)
+
+	i := 0
+	for i < len(tokens) {
+		tok := tokens[i]
 		if tok.Kind == tokenizer.KindEOF {
 			break
 		}
+		if tok.Kind == tokenizer.KindDocComment {
+			i++
+			continue
+		}
 		if tok.Kind != tokenizer.KindKeyword && tok.Kind != tokenizer.KindIdentifier {
+			i++
 			continue
 		}
 		text := strings.ToUpper(tok.Text)
+		if text == "WITH" {
+			list, nextIdx, listDiags := parseCTEList(tokens, i+1, blk, pos)
+			if len(list) > 0 {
+				ctes = append(ctes, list...)
+			}
+			if len(listDiags) > 0 {
+				diags = append(diags, listDiags...)
+				return VerbUnknown, -1, ctes, diags
+			}
+			i = nextIdx
+			continue
+		}
 		switch text {
 		case "SELECT":
-			return VerbSelect, i
+			return VerbSelect, i, ctes, diags
 		case "INSERT":
-			return VerbInsert, i
+			return VerbInsert, i, ctes, diags
 		case "UPDATE":
-			return VerbUpdate, i
+			return VerbUpdate, i, ctes, diags
 		case "DELETE":
-			return VerbDelete, i
+			return VerbDelete, i, ctes, diags
 		}
 		if tok.Kind == tokenizer.KindKeyword {
-			return VerbUnknown, i
+			return VerbUnknown, i, ctes, diags
 		}
+		i++
 	}
-	return VerbUnknown, -1
+
+	return VerbUnknown, -1, ctes, diags
+}
+
+func parseCTEList(tokens []tokenizer.Token, idx int, blk block.Block, pos positionIndex) ([]CTE, int, []Diagnostic) {
+	ctes := make([]CTE, 0, 2)
+	diags := make([]Diagnostic, 0, 2)
+	i := idx
+
+	for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
+		i++
+	}
+
+	if i < len(tokens) && strings.ToUpper(tokens[i].Text) == "RECURSIVE" {
+		i++
+	}
+
+	for {
+		for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
+			i++
+		}
+		if i >= len(tokens) {
+			if idx > 0 && idx-1 < len(tokens) {
+				withTok := tokens[idx-1]
+				diags = append(diags, makeDiag(blk, withTok.Line, withTok.Column, SeverityError, "WITH clause missing CTE definition"))
+			}
+			return ctes, i, diags
+		}
+
+		nameTok := tokens[i]
+		if nameTok.Kind != tokenizer.KindIdentifier {
+			diags = append(diags, makeDiag(blk, nameTok.Line, nameTok.Column, SeverityError, "expected CTE name"))
+			return ctes, i, diags
+		}
+		cte := CTE{
+			Name: tokenizer.NormalizeIdentifier(nameTok.Text),
+		}
+		cte.Line, cte.Column = actualPosition(blk, nameTok.Line, nameTok.Column)
+		i++
+
+		if i < len(tokens) && tokens[i].Kind == tokenizer.KindSymbol && tokens[i].Text == "(" {
+			i++
+			columns := make([]string, 0, 4)
+			for {
+				if i >= len(tokens) {
+					diags = append(diags, makeDiag(blk, nameTok.Line, nameTok.Column, SeverityError, "unterminated column list for CTE %s", cte.Name))
+					return ctes, i, diags
+				}
+				tok := tokens[i]
+				if tok.Kind == tokenizer.KindSymbol && tok.Text == ")" {
+					i++
+					break
+				}
+				if tok.Kind == tokenizer.KindSymbol && tok.Text == "," {
+					i++
+					continue
+				}
+				if tok.Kind != tokenizer.KindIdentifier {
+					diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "expected column name in CTE %s", cte.Name))
+					return ctes, i, diags
+				}
+				columns = append(columns, tokenizer.NormalizeIdentifier(tok.Text))
+				i++
+			}
+			cte.Columns = columns
+		}
+
+		for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
+			i++
+		}
+		if i >= len(tokens) {
+			diags = append(diags, makeDiag(blk, nameTok.Line, nameTok.Column, SeverityError, "expected AS for CTE %s", cte.Name))
+			return ctes, i, diags
+		}
+		asTok := tokens[i]
+		if strings.ToUpper(asTok.Text) != "AS" {
+			diags = append(diags, makeDiag(blk, asTok.Line, asTok.Column, SeverityError, "expected AS for CTE %s", cte.Name))
+			return ctes, i, diags
+		}
+		i++
+
+		for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
+			i++
+		}
+		if i >= len(tokens) {
+			diags = append(diags, makeDiag(blk, asTok.Line, asTok.Column, SeverityError, "missing CTE body for %s", cte.Name))
+			return ctes, i, diags
+		}
+		openTok := tokens[i]
+		if openTok.Kind != tokenizer.KindSymbol || openTok.Text != "(" {
+			diags = append(diags, makeDiag(blk, openTok.Line, openTok.Column, SeverityError, "expected ( to start CTE %s", cte.Name))
+			return ctes, i, diags
+		}
+		i++
+		bodyStart := i
+		depth := 1
+		bodyEnd := -1
+		hasSelect := false
+
+	bodyLoop:
+		for i < len(tokens) {
+			tok := tokens[i]
+			if strings.ToUpper(tok.Text) == "SELECT" {
+				hasSelect = true
+			}
+			if tok.Kind == tokenizer.KindSymbol {
+				switch tok.Text {
+				case "(":
+					depth++
+				case ")":
+					depth--
+					if depth == 0 {
+						bodyEnd = i
+						break bodyLoop
+					}
+				}
+			}
+			i++
+		}
+
+		if bodyEnd == -1 {
+			diags = append(diags, makeDiag(blk, openTok.Line, openTok.Column, SeverityError, "unterminated CTE %s definition", cte.Name))
+			return ctes, i, diags
+		}
+		if !hasSelect {
+			diags = append(diags, makeDiag(blk, openTok.Line, openTok.Column, SeverityError, "CTE %s must contain a SELECT", cte.Name))
+			return ctes, i, diags
+		}
+		if bodyEnd <= bodyStart {
+			diags = append(diags, makeDiag(blk, openTok.Line, openTok.Column, SeverityError, "CTE %s must contain a SELECT", cte.Name))
+			return ctes, i, diags
+		}
+
+		inner := tokens[bodyStart:bodyEnd]
+		startTok := inner[0]
+		endTok := inner[len(inner)-1]
+		startOffset := pos.offset(startTok)
+		endOffset := pos.offset(endTok) + len(endTok.Text)
+		if endOffset > len(pos.sql) {
+			endOffset = len(pos.sql)
+		}
+		cte.SelectSQL = strings.TrimSpace(pos.sql[startOffset:endOffset])
+		i = bodyEnd + 1
+
+		ctes = append(ctes, cte)
+
+		for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
+			i++
+		}
+		if i < len(tokens) && tokens[i].Kind == tokenizer.KindSymbol && tokens[i].Text == "," {
+			i++
+			continue
+		}
+		break
+	}
+
+	return ctes, i, diags
 }
 
 func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagnostic) {

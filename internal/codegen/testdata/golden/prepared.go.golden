@@ -34,6 +34,8 @@ type PreparedQueries struct {
 	stmtGetUserMu           sync.Mutex
 	stmtListUsers           *sql.Stmt
 	stmtListUsersMu         sync.Mutex
+	stmtSummarizeCredits    *sql.Stmt
+	stmtSummarizeCreditsMu  sync.Mutex
 	stmtUpdateUserCredits   *sql.Stmt
 	stmtUpdateUserCreditsMu sync.Mutex
 }
@@ -86,6 +88,14 @@ func (p *PreparedQueries) Close() error {
 			p.stmtListUsers = nil
 		}
 		p.stmtListUsersMu.Unlock()
+		p.stmtSummarizeCreditsMu.Lock()
+		if p.stmtSummarizeCredits != nil {
+			if closeErr := p.stmtSummarizeCredits.Close(); err == nil && closeErr != nil {
+				err = closeErr
+			}
+			p.stmtSummarizeCredits = nil
+		}
+		p.stmtSummarizeCreditsMu.Unlock()
 		p.stmtUpdateUserCreditsMu.Lock()
 		if p.stmtUpdateUserCredits != nil {
 			if closeErr := p.stmtUpdateUserCredits.Close(); err == nil && closeErr != nil {
@@ -164,6 +174,23 @@ func (p *PreparedQueries) prepareListUsers(ctx context.Context) (*sql.Stmt, erro
 		return nil, err
 	}
 	p.stmtListUsers = stmt
+	return stmt, nil
+}
+
+func (p *PreparedQueries) prepareSummarizeCredits(ctx context.Context) (*sql.Stmt, error) {
+	if stmt := p.stmtSummarizeCredits; stmt != nil {
+		return stmt, nil
+	}
+	p.stmtSummarizeCreditsMu.Lock()
+	defer p.stmtSummarizeCreditsMu.Unlock()
+	if stmt := p.stmtSummarizeCredits; stmt != nil {
+		return stmt, nil
+	}
+	stmt, err := p.db.PrepareContext(ctx, querySummarizeCredits)
+	if err != nil {
+		return nil, err
+	}
+	p.stmtSummarizeCredits = stmt
 	return stmt, nil
 }
 
@@ -293,6 +320,41 @@ func (p *PreparedQueries) ListUsers(ctx context.Context) ([]ListUsersRow, error)
 		return nil, err
 	}
 	return items, nil
+}
+
+// SummarizeCredits aggregates user credits across a recursive rollup.
+func (p *PreparedQueries) SummarizeCredits(ctx context.Context) (SummarizeCreditsRow, error) {
+	stmt, err := p.prepareSummarizeCredits(ctx)
+	if err != nil {
+		return SummarizeCreditsRow{}, err
+	}
+	recorder := p.metrics
+	var start time.Time
+	if recorder != nil {
+		start = time.Now()
+	}
+	rows, err := stmt.QueryContext(ctx)
+	if recorder != nil {
+		recorder.ObservePreparedQuery(ctx, "SummarizeCredits", time.Since(start), err)
+	}
+	if err != nil {
+		return SummarizeCreditsRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return SummarizeCreditsRow{}, err
+		}
+		return SummarizeCreditsRow{}, sql.ErrNoRows
+	}
+	item, err := scanSummarizeCreditsRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
 }
 
 func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
