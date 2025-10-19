@@ -48,11 +48,13 @@ type CTE struct {
 }
 
 type Param struct {
-	Name   string
-	Style  ParamStyle
-	Order  int
-	Line   int
-	Column int
+	Name          string
+	Style         ParamStyle
+	Order         int
+	Line          int
+	Column        int
+	IsVariadic    bool
+	VariadicCount int
 }
 
 type ParamStyle int
@@ -366,25 +368,216 @@ func parseCTEList(tokens []tokenizer.Token, idx int, blk block.Block, pos positi
 	return ctes, i, diags
 }
 
+type variadicGroup struct {
+	placeholderIdxs []int
+	numberIdxs      []int
+	numbers         []int
+}
+
+func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
+	groups := make(map[int]variadicGroup)
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind != tokenizer.KindKeyword && tok.Kind != tokenizer.KindIdentifier {
+			continue
+		}
+		if strings.ToUpper(tok.Text) != "IN" {
+			continue
+		}
+
+		j := i + 1
+		for j < len(tokens) && tokens[j].Kind == tokenizer.KindDocComment {
+			j++
+		}
+		if j >= len(tokens) || tokens[j].Kind != tokenizer.KindSymbol || tokens[j].Text != "(" {
+			continue
+		}
+
+		depth := 1
+		placeholderIdxs := make([]int, 0, 4)
+		numberIdxs := make([]int, 0, 4)
+		numbers := make([]int, 0, 4)
+		valid := true
+		hasNumber := false
+		hasPlain := false
+
+		for k := j + 1; k < len(tokens) && depth > 0; {
+			t := tokens[k]
+			if t.Kind == tokenizer.KindDocComment {
+				k++
+				continue
+			}
+			if t.Kind == tokenizer.KindSymbol {
+				switch t.Text {
+				case "(":
+					depth++
+					k++
+					continue
+				case ")":
+					depth--
+					k++
+					continue
+				case ",":
+					k++
+					continue
+				case "?":
+					if depth != 1 {
+						valid = false
+						break
+					}
+					placeholderIdxs = append(placeholderIdxs, k)
+					numVal := 0
+					numIdx := -1
+					if k+1 < len(tokens) {
+						next := tokens[k+1]
+						if next.Kind == tokenizer.KindNumber && next.Line == t.Line && next.Column == t.Column+1 {
+							parsed, err := strconv.Atoi(next.Text)
+							if err != nil || parsed <= 0 {
+								valid = false
+								break
+							}
+							numVal = parsed
+							numIdx = k + 1
+							numberIdxs = append(numberIdxs, numIdx)
+							hasNumber = true
+							k += 2
+							numbers = append(numbers, numVal)
+							continue
+						}
+					}
+					hasPlain = true
+					numbers = append(numbers, numVal)
+					k++
+					continue
+				default:
+					if depth == 1 {
+						valid = false
+						break
+					}
+					k++
+					continue
+				}
+			} else if t.Kind == tokenizer.KindEOF {
+				valid = false
+				break
+			} else {
+				if depth == 1 {
+					valid = false
+					break
+				}
+				k++
+				continue
+			}
+		}
+
+		if !valid || depth != 0 {
+			continue
+		}
+		if len(placeholderIdxs) < 2 {
+			continue
+		}
+		if hasNumber && hasPlain {
+			continue
+		}
+		if hasNumber {
+			for idx := 1; idx < len(numbers); idx++ {
+				if numbers[idx] != numbers[0]+idx {
+					valid = false
+					break
+				}
+			}
+			if !valid {
+				continue
+			}
+		}
+
+		groups[placeholderIdxs[0]] = variadicGroup{
+			placeholderIdxs: placeholderIdxs,
+			numberIdxs:      numberIdxs,
+			numbers:         numbers,
+		}
+	}
+	return groups
+}
+
+func nextAvailableOrder(used map[int]int) int {
+	order := 1
+	for {
+		if _, exists := used[order]; !exists {
+			return order
+		}
+		order++
+	}
+}
+
 func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagnostic) {
 	params := make([]Param, 0, 4)
 	diags := make([]Diagnostic, 0, 2)
 	numbered := make(map[int]int)
 	named := make(map[string]int)
+	groups := detectVariadicGroups(tokens)
+	skipIndices := make(map[int]struct{})
 
 	i := 0
 	for i < len(tokens) {
+		if _, skip := skipIndices[i]; skip {
+			i++
+			continue
+		}
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindSymbol {
 			switch tok.Text {
 			case "?":
-				order := 1
-				for {
-					if _, exists := numbered[order]; !exists {
-						break
+				if group, ok := groups[i]; ok {
+					conflict := false
+					for _, num := range group.numbers {
+						if num <= 0 {
+							continue
+						}
+						if _, exists := numbered[num]; exists {
+							conflict = true
+							break
+						}
 					}
-					order++
+					if !conflict {
+						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+						order := 0
+						if len(group.numbers) > 0 && group.numbers[0] > 0 {
+							order = group.numbers[0]
+						} else {
+							order = nextAvailableOrder(numbered)
+						}
+						name := fmt.Sprintf("arg%d", order)
+						params = append(params, Param{
+							Name:          name,
+							Style:         ParamStylePositional,
+							Order:         order,
+							Line:          actualLine,
+							Column:        actualColumn,
+							IsVariadic:    true,
+							VariadicCount: len(group.placeholderIdxs),
+						})
+						paramIdx := len(params) - 1
+						numbered[order] = paramIdx
+						for _, num := range group.numbers {
+							if num <= 0 {
+								continue
+							}
+							numbered[num] = paramIdx
+						}
+						for _, idx := range group.placeholderIdxs[1:] {
+							skipIndices[idx] = struct{}{}
+						}
+						for _, idx := range group.numberIdxs {
+							skipIndices[idx] = struct{}{}
+						}
+						i++
+						continue
+					}
+					delete(groups, i)
 				}
+
+				order := nextAvailableOrder(numbered)
 				actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
 				if i+1 < len(tokens) {
 					nextTok := tokens[i+1]

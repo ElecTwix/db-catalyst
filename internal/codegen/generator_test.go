@@ -16,6 +16,7 @@ import (
 
 func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
+	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
 	g := New(Options{Package: "store", EmitJSONTags: true})
 
@@ -35,6 +36,12 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 
 	for _, file := range first {
 		goldenPath := filepath.Join("testdata", "golden", file.Path+".golden")
+		if updateGolden {
+			if err := os.WriteFile(goldenPath, file.Content, 0o644); err != nil {
+				t.Fatalf("write golden %s: %v", goldenPath, err)
+			}
+			continue
+		}
 		want, err := os.ReadFile(goldenPath)
 		if err != nil {
 			t.Fatalf("read golden %s: %v", goldenPath, err)
@@ -47,6 +54,7 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 
 func TestGeneratorPreparedQueries(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
+	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
 	g := New(Options{Package: "store", Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
 
@@ -68,6 +76,12 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 	}
 
 	goldenPath := filepath.Join("testdata", "golden", "prepared.go.golden")
+	if updateGolden {
+		if err := os.WriteFile(goldenPath, prepared.Content, 0o644); err != nil {
+			t.Fatalf("write golden %s: %v", goldenPath, err)
+		}
+		return
+	}
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden %s: %v\n%s", goldenPath, err, prepared.Content)
@@ -128,6 +142,30 @@ func sampleCatalogAndAnalyses() (*model.Catalog, []analyzer.Result) {
 			Columns: []analyzer.ResultColumn{
 				{Name: "id", Table: "users", GoType: "int64", Nullable: false},
 				{Name: "email", Table: "users", GoType: "string", Nullable: true},
+			},
+		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
+					Name:    "ListUsersByIDs",
+					Command: block.CommandMany,
+					SQL:     "SELECT id, email FROM users WHERE id IN (?1, ?2, ?3)",
+				},
+				Verb: parser.VerbSelect,
+			},
+			Columns: []analyzer.ResultColumn{
+				{Name: "id", Table: "users", GoType: "int64", Nullable: false},
+				{Name: "email", Table: "users", GoType: "string", Nullable: true},
+			},
+			Params: []analyzer.ResultParam{
+				{
+					Name:          "ids",
+					Style:         parser.ParamStylePositional,
+					GoType:        "int64",
+					Nullable:      false,
+					IsVariadic:    true,
+					VariadicCount: 3,
+				},
 			},
 		},
 		{

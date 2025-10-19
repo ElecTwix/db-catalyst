@@ -264,6 +264,56 @@ func TestParseInsertVerb(t *testing.T) {
 	}
 }
 
+func TestParseVariadicInClause(t *testing.T) {
+	tests := []struct {
+		name      string
+		sql       string
+		wantCount int
+	}{
+		{
+			name:      "UnnamedPlaceholders",
+			sql:       "SELECT id FROM users WHERE id IN (?, ?, ?)",
+			wantCount: 3,
+		},
+		{
+			name:      "NumberedPlaceholders",
+			sql:       "SELECT id FROM users WHERE id IN (?1, ?2, ?3, ?4)",
+			wantCount: 4,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			blk := block.Block{
+				Path:   "query/variadic.sql",
+				Line:   1,
+				Column: 1,
+				SQL:    tc.sql,
+			}
+			q, diags := Parse(blk)
+			if len(diags) != 0 {
+				t.Fatalf("unexpected diagnostics: %+v", diags)
+			}
+			if len(q.Params) != 1 {
+				t.Fatalf("expected 1 param, got %d", len(q.Params))
+			}
+			param := q.Params[0]
+			if !param.IsVariadic {
+				t.Fatalf("expected variadic parameter")
+			}
+			if param.VariadicCount != tc.wantCount {
+				t.Fatalf("expected variadic count %d, got %d", tc.wantCount, param.VariadicCount)
+			}
+			if param.Style != ParamStylePositional {
+				t.Fatalf("expected positional style, got %v", param.Style)
+			}
+			if param.Name != "arg1" {
+				t.Fatalf("expected param name arg1, got %q", param.Name)
+			}
+		})
+	}
+}
+
 func BenchmarkParseSelect(b *testing.B) {
 	blk := block.Block{
 		Path:   "query/bench.sql",

@@ -106,9 +106,16 @@ func formatParams(params []queryanalyzer.ResultParam) string {
 	}
 	parts := make([]string, 0, len(params))
 	for _, param := range params {
-		segment := param.Name + ":" + param.GoType
+		segment := param.Name
+		if param.IsVariadic {
+			segment += "..."
+		}
+		segment += ":" + param.GoType
 		if param.Nullable {
 			segment += "?"
+		}
+		if param.IsVariadic && param.VariadicCount > 0 {
+			segment += fmt.Sprintf("[x%d]", param.VariadicCount)
 		}
 		parts = append(parts, segment)
 	}

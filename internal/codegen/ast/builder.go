@@ -156,8 +156,12 @@ type queryInfo struct {
 }
 
 type paramSpec struct {
-	name   string
-	goType string
+	name          string
+	goType        string
+	variadic      bool
+	variadicCount int
+	sliceName     string
+	argExpr       string
 }
 
 type helperSpec struct {
@@ -262,7 +266,7 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 		params := b.buildParams(res.Params)
 		args := make([]string, 0, len(params))
 		for _, p := range params {
-			args = append(args, p.name)
+			args = append(args, p.argExpr)
 		}
 		stmtField := "stmt" + methodName
 		prepareFn := "prepare" + methodName
@@ -324,8 +328,27 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 		} else {
 			used[name] = 1
 		}
+
 		typeInfo := resolveType(p.GoType, p.Nullable)
-		result = append(result, paramSpec{name: name, goType: typeInfo.GoType})
+		spec := paramSpec{
+			name:          name,
+			goType:        typeInfo.GoType,
+			variadic:      p.IsVariadic,
+			variadicCount: p.VariadicCount,
+			argExpr:       name,
+		}
+		if p.IsVariadic {
+			sliceName := name + "Args"
+			if _, exists := used[sliceName]; exists {
+				sliceName = UniqueName(sliceName, used)
+			} else {
+				used[sliceName] = 1
+			}
+			spec.sliceName = sliceName
+			spec.argExpr = sliceName + "..."
+		}
+
+		result = append(result, spec)
 	}
 	return result
 }
@@ -394,7 +417,11 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: expr})
+			paramType := expr
+			if p.variadic {
+				paramType = &goast.Ellipsis{Elt: expr}
+			}
+			params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 		}
 		results := []*goast.Field{}
 		if q.returnType != "" {
@@ -686,6 +713,10 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 		}
 		fmt.Fprintf(&buf, "func (p *PreparedQueries) %s(ctx context.Context", q.methodName)
 		for _, param := range q.params {
+			if param.variadic {
+				fmt.Fprintf(&buf, ", %s ...%s", param.name, param.goType)
+				continue
+			}
 			fmt.Fprintf(&buf, ", %s %s", param.name, param.goType)
 		}
 		fmt.Fprintf(&buf, ") (")
@@ -707,6 +738,16 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 			fmt.Fprintf(&buf, "\tvar start time.Time\n")
 			fmt.Fprintf(&buf, "\tif recorder != nil {\n")
 			fmt.Fprintf(&buf, "\t\tstart = time.Now()\n")
+			fmt.Fprintf(&buf, "\t}\n")
+		}
+
+		for _, param := range q.params {
+			if !param.variadic {
+				continue
+			}
+			fmt.Fprintf(&buf, "\t%[1]s := make([]any, len(%[2]s))\n", param.sliceName, param.name)
+			fmt.Fprintf(&buf, "\tfor i := range %[1]s {\n", param.name)
+			fmt.Fprintf(&buf, "\t\t%[1]s[i] = %[2]s[i]\n", param.sliceName, param.name)
 			fmt.Fprintf(&buf, "\t}\n")
 		}
 
@@ -825,7 +866,11 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 		if err != nil {
 			return nil, err
 		}
-		params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: expr})
+		paramType := expr
+		if p.variadic {
+			paramType = &goast.Ellipsis{Elt: expr}
+		}
+		params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 	}
 
 	results := []*goast.Field{}
@@ -840,6 +885,15 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	results = append(results, &goast.Field{Type: errorType})
 
 	body := make([]goast.Stmt, 0)
+
+	for _, p := range q.params {
+		if !p.variadic {
+			continue
+		}
+		makeStmt := mustParseStmt(fmt.Sprintf("%s := make([]any, len(%s))", p.sliceName, p.name))
+		loopStmt := mustParseStmt(fmt.Sprintf("for i := range %s {\n%s[i] = %s[i]\n}", p.name, p.sliceName, p.name))
+		body = append(body, makeStmt, loopStmt)
+	}
 
 	switch q.command {
 	case block.CommandExec:

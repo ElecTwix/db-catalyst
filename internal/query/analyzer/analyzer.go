@@ -31,10 +31,12 @@ type ResultColumn struct {
 }
 
 type ResultParam struct {
-	Name     string
-	Style    parser.ParamStyle
-	GoType   string
-	Nullable bool
+	Name          string
+	Style         parser.ParamStyle
+	GoType        string
+	Nullable      bool
+	IsVariadic    bool
+	VariadicCount int
 }
 
 type Diagnostic struct {
@@ -180,10 +182,12 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 	paramInfos := inferParamTypes(a.Catalog, q, workingScope)
 	for idx, param := range q.Params {
 		rp := ResultParam{
-			Name:     param.Name,
-			Style:    param.Style,
-			GoType:   "interface{}",
-			Nullable: true,
+			Name:          param.Name,
+			Style:         param.Style,
+			GoType:        "interface{}",
+			Nullable:      true,
+			IsVariadic:    param.IsVariadic,
+			VariadicCount: param.VariadicCount,
 		}
 		if info, ok := paramInfos[idx]; ok {
 			rp.GoType = info.GoType

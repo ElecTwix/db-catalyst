@@ -1,0 +1,29 @@
+package store
+
+import "context"
+
+const queryListUsersByIDs string = `SELECT id, email FROM users WHERE id IN (?1, ?2, ?3)`
+
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids ...int64) ([]ListUsersByIDsRow, error) {
+	idsArgs := make([]any, len(ids))
+	for i := range ids {
+		idsArgs[i] = ids[i]
+	}
+	rows, err := q.db.QueryContext(ctx, queryListUsersByIDs, idsArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]ListUsersByIDsRow, 0)
+	for rows.Next() {
+		item, err := scanListUsersByIDsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

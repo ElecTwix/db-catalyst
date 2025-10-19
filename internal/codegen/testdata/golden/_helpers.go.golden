@@ -16,6 +16,19 @@ func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
 	return item, nil
 }
 
+type ListUsersByIDsRow struct {
+	Id    int64
+	Email sql.NullString
+}
+
+func scanListUsersByIDsRow(rows sql.Rows) (ListUsersByIDsRow, error) {
+	var item ListUsersByIDsRow
+	if err := rows.Scan(&item.Id, &item.Email); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
 type ListUsersRow struct {
 	Id    int64
 	Email sql.NullString
