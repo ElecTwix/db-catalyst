@@ -18,14 +18,16 @@ Future database support (PostgreSQL, MySQL) is accepted as a possibility but exp
 1. **Simplicity:** The codebase should be approachable by a single Go developer in a day. Components must be linear, naming obvious, and data structures transparent.
 2. **Idiomatic Go:** Generated code should look like it was handwritten by an experienced Go engineer: context-first signatures, zero magic globals, narrow interfaces, and clear error handling.
 3. **Low friction:** Minimal configuration, intuitive CLI defaults, and legible error messages. Users should get from SQL files to usable Go in a single command with sensible defaults.
-4. **Speed:** Compilation must be fast, but not at the expense of clarity. Favor simple, single-pass parsers over complex runtime introspection as long as performance stays responsive on typical projects (< 5k lines SQL).
-5. **Determinism:** Given the same inputs, the tool must produce byte-for-byte identical output. Determinism matters for reproducible builds and code review sanity.
+4. **Production Compatibility:** Work with real-world SQLite schemas by gracefully ignoring advanced features that don't affect Go code generation, rather than forcing users to simplify their schemas.
+5. **Speed:** Compilation must be fast, but not at the expense of clarity. Favor simple, single-pass parsers over complex runtime introspection as long as performance stays responsive on typical projects (< 5k lines SQL).
+6. **Determinism:** Given the same inputs, the tool must produce byte-for-byte identical output. Determinism matters for reproducible builds and code review sanity.
 
 Non-goals:
 - Supporting SQL dialects beyond SQLite.
 - Running migrations or connecting to live databases.
 - Emitting code for other languages/runtimes.
 - Implementing plugin systems or remote execution.
+- Full validation of SQLite schemas (runtime constraints like CHECK are database responsibility).
 
 ## 3. High-Level Architecture
 
@@ -88,17 +90,24 @@ Tokenizer requirements:
 
 ### 5.2 Grammar Coverage
 
-Support a subset of SQLite DDL:
+Support a permissive subset of SQLite DDL with graceful handling of advanced features:
 - `CREATE TABLE [schema.]name ( column_def [, ...] [ table_constraint [, ...] ]) [WITHOUT ROWID];`
 - `column_def := name type [column_constraint ...]`
 - `type :=` one or two identifiers (e.g., `INTEGER`, `DOUBLE PRECISION`). Collect raw type string for mapping.
-- Column constraints: `PRIMARY KEY`, `NOT NULL`, `DEFAULT literal`, `REFERENCES table(column)`.
-- Table constraints: `PRIMARY KEY (column list)`, `UNIQUE (column list)`, `FOREIGN KEY (column list) REFERENCES table(column list)`.
-- `CREATE UNIQUE INDEX` / `CREATE INDEX` on single table columns.
+- Column constraints: `PRIMARY KEY`, `NOT NULL`, `DEFAULT expression` (complex expressions captured as opaque strings), `REFERENCES table(column)` (ON DELETE/ON UPDATE clauses ignored).
+- Table constraints: `PRIMARY KEY (column list)`, `UNIQUE (column list)`, `FOREIGN KEY (column list) REFERENCES table(column list)` (action clauses ignored), `CHECK (expression)` (entirely ignored for code generation).
+- `CREATE UNIQUE INDEX` / `CREATE INDEX` with column ordering (DESC/ASC ignored) and optional WHERE clauses (ignored for code generation).
 - Optional limited support for `CREATE VIEW` with stored SQL string (no attempt to parse the view body—store raw string for documentation; treat view columns like query metadata only when user queries them).
 - `ALTER TABLE <table> ADD COLUMN <column_def>`.
 
-Anything outside this subset triggers a descriptive error urging the user to simplify their schema files. The tool never attempts to handle triggers, virtual tables, FTS, or generated columns in v0.
+**Permissive Parsing Strategy:** The parser intentionally skips or ignores SQLite features that don't affect Go code generation:
+- CHECK constraints are parsed but discarded (runtime validation only)
+- Complex DEFAULT expressions (function calls, subqueries) are captured as opaque strings
+- Foreign key action clauses (ON DELETE SET NULL, ON UPDATE CASCADE) are ignored
+- Partial index WHERE clauses are ignored
+- Index column ordering (DESC/ASC) is ignored
+
+This approach allows the tool to work with production SQLite schemas while focusing only on metadata needed for type-safe Go code generation.
 
 ### 5.3 Catalog Data Structures
 
@@ -123,12 +132,39 @@ type Column struct {
     Name       string
     Type       SQLiteType // raw normalized string; mapping deferred
     NotNull    bool
-    Default    *Value
+    Default    *string    // Opaque default expression string, nil if no default
     References *ForeignKeyRef // optional single-column FK
 }
 ```
 
+**Note:** The `Default` field stores opaque default expressions as strings rather than parsed values, since complex defaults (like `unixepoch()`) don't affect Go code generation but are preserved for documentation purposes.
+
 All structs hold source position metadata for user-facing errors. Keep types plain—no interfaces or generics beyond Go's basic collections.
+
+### 5.4 Permissive Parsing Strategy
+
+db-catalyst employs a **permissive parsing strategy** that prioritizes compatibility with production SQLite schemas over strict validation. The parser extracts only the metadata needed for Go code generation and gracefully ignores features that are runtime-only.
+
+**Ignored Features (不影响代码生成):**
+- `CHECK (expression)` constraints - entirely skipped (runtime validation)
+- Complex `DEFAULT` expressions - captured as opaque strings, not parsed
+- Foreign key action clauses - `ON DELETE SET NULL`, `ON UPDATE CASCADE`, etc. ignored
+- Partial index `WHERE` clauses - ignored (optimization-only)
+- Index column ordering - `DESC`/`ASC` keywords ignored
+- Advanced SQLite features - triggers, virtual tables, FTS, etc.
+
+**Benefits:**
+- Works with existing production schemas without modification
+- Focuses engineering effort on code generation, not SQLite validation
+- Reduces maintenance burden by not implementing full SQLite parser
+- Faster development cycles for users
+
+**Trade-offs:**
+- Some schema validation is deferred to runtime (which is appropriate)
+- Complex default values are not type-checked at generation time
+- Generated code may be slightly less optimized for edge cases
+
+This approach aligns with the project's simplicity goal while dramatically improving real-world usability.
 
 ## 6. Query Parsing and Analysis
 

@@ -81,7 +81,9 @@ func (s *Scanner) scan() error {
 		case isSymbolRune(r):
 			s.consumeSymbol()
 		default:
-			return s.errorf(s.line, s.column, "unexpected character %q", r)
+			startLine, startCol := s.line, s.column
+			s.advance()
+			s.emitToken(KindSymbol, string(r), startLine, startCol)
 		}
 	}
 	s.emitToken(KindEOF, "", s.line, s.column)

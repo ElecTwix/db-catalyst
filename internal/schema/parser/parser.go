@@ -163,7 +163,7 @@ func (p *Parser) parseCreateTable(createTok tokenizer.Token) {
 			continue
 		}
 		if tok.Kind == tokenizer.KindKeyword {
-			if tok.Text == "CONSTRAINT" || tok.Text == "PRIMARY" || tok.Text == "UNIQUE" || tok.Text == "FOREIGN" {
+			if tok.Text == "CONSTRAINT" || tok.Text == "PRIMARY" || tok.Text == "UNIQUE" || tok.Text == "FOREIGN" || tok.Text == "CHECK" {
 				p.parseTableConstraint(table)
 				continue
 			}
@@ -284,16 +284,20 @@ func (p *Parser) parseTableConstraint(table *model.Table) {
 		if !ok {
 			return
 		}
+		fkEnd := refLast
+		if extra := p.skipForeignKeyActions(); extra.Line != 0 {
+			fkEnd = extra
+		}
 		fk := &model.ForeignKey{
 			Name:    constraintName,
 			Columns: cols,
 			Ref:     *ref,
-			Span:    tokenizer.SpanBetween(start, refLast),
+			Span:    tokenizer.SpanBetween(start, fkEnd),
 		}
 		table.ForeignKeys = append(table.ForeignKeys, fk)
 	case "CHECK":
-		p.addDiagToken(tok, SeverityWarning, "CHECK constraints are ignored")
-		p.skipUntilClauseEnd()
+		p.advance()
+		p.skipCheckConstraint()
 	default:
 		p.addDiagToken(tok, SeverityError, "unsupported table constraint %s", tok.Text)
 		p.skipUntilClauseEnd()
@@ -322,18 +326,26 @@ func (p *Parser) parseCreateIndex(createTok tokenizer.Token, unique bool) {
 	if !ok {
 		return
 	}
+	tail := last
+	if tok := p.current(); (tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier) && strings.EqualFold(tok.Text, "WHERE") {
+		whereTok := p.advance()
+		tail = whereTok
+		if exprLast := p.skipStatementTail(); exprLast.Line != 0 {
+			tail = exprLast
+		}
+	}
 	idx := &model.Index{
 		Name:    name,
 		Unique:  unique,
 		Columns: cols,
-		Span:    tokenizer.SpanBetween(createTok, last),
+		Span:    tokenizer.SpanBetween(createTok, tail),
 	}
 	table := p.lookupTable(tableName)
 	if table == nil {
 		p.addDiagSpan(idx.Span, SeverityError, "index %q references unknown table %q", name, tableName)
 	} else {
 		table.Indexes = append(table.Indexes, idx)
-		idxSpan := tokenizer.SpanBetween(nameTok, last)
+		idxSpan := tokenizer.SpanBetween(nameTok, tail)
 		table.Span = table.Span.Extend(tokenizer.Token{File: idxSpan.File, Line: idxSpan.EndLine, Column: idxSpan.EndColumn})
 	}
 	if p.matchSymbol(";") {
@@ -487,7 +499,6 @@ func (p *Parser) parseColumnDefinition() (*columnResult, bool) {
 			return res, false
 		}
 		if tok.Kind != tokenizer.KindKeyword {
-			p.addDiagToken(tok, SeverityError, "unexpected token %q in column definition", tok.Text)
 			res.lastTok = tok
 			p.advance()
 			continue
@@ -532,21 +543,29 @@ func (p *Parser) parseColumnDefinition() (*columnResult, bool) {
 			referTok := p.advance()
 			ref, last, ok := p.parseForeignKeyRef()
 			if ok {
+				fkEnd := last
+				if extra := p.skipForeignKeyActions(); extra.Line != 0 {
+					fkEnd = extra
+				}
 				res.column.References = ref
 				res.foreign = &model.ForeignKey{
 					Columns: []string{res.column.Name},
 					Ref:     *ref,
-					Span:    tokenizer.SpanBetween(referTok, last),
+					Span:    tokenizer.SpanBetween(referTok, fkEnd),
 				}
-				res.lastTok = last
+				res.lastTok = fkEnd
 			}
 		case "UNIQUE":
 			uniqTok := p.advance()
 			res.unique = &model.UniqueKey{Columns: []string{res.column.Name}, Span: tokenizer.NewSpan(uniqTok)}
 			res.lastTok = uniqTok
 		case "CHECK":
-			p.addDiagToken(tok, SeverityWarning, "CHECK constraints are ignored")
-			p.skipUntilClauseEnd()
+			checkTok := p.advance()
+			if last := p.skipCheckConstraint(); last.Line != 0 {
+				res.lastTok = last
+			} else {
+				res.lastTok = checkTok
+			}
 			return res, true
 		default:
 			p.addDiagToken(tok, SeverityWarning, "unsupported column constraint %s", tok.Text)
@@ -600,6 +619,7 @@ func (p *Parser) parseColumnNameList() ([]string, tokenizer.Token, bool) {
 		}
 		names = append(names, name)
 		last = nameTok
+		last = p.skipColumnOrderingTokens(last)
 		if p.matchSymbol(",") {
 			last = p.advance()
 			continue
@@ -621,36 +641,206 @@ func (p *Parser) parseDefaultValue() (*model.Value, tokenizer.Token) {
 	case tokenizer.KindBlob:
 		p.advance()
 		return &model.Value{Kind: model.ValueKindBlob, Text: tok.Text, Span: tokenizer.NewSpan(tok)}, tok
-	case tokenizer.KindKeyword, tokenizer.KindIdentifier:
-		parts := []tokenizer.Token{tok}
-		last := tok
-		p.advance()
-		for {
-			next := p.current()
-			if next.Kind != tokenizer.KindKeyword && next.Kind != tokenizer.KindIdentifier {
-				break
-			}
-			if _, isConstraint := columnConstraintStarters[next.Text]; isConstraint {
-				break
-			}
-			parts = append(parts, next)
-			last = next
-			p.advance()
-		}
-		textParts := make([]string, len(parts))
-		for i, part := range parts {
-			textParts[i] = part.Text
-		}
-		value := &model.Value{
-			Kind: model.ValueKindKeyword,
-			Text: strings.Join(textParts, " "),
-			Span: tokenizer.SpanBetween(parts[0], last),
-		}
-		return value, last
-	default:
-		p.addDiagToken(tok, SeverityError, "unsupported DEFAULT expression starting with %s", tok.Kind.String())
+	}
+	tokens, last := p.collectDefaultExpressionTokens()
+	if len(tokens) == 0 {
 		return nil, tok
 	}
+	kind := model.ValueKindUnknown
+	allKeywords := true
+	for _, part := range tokens {
+		if part.Kind != tokenizer.KindKeyword {
+			allKeywords = false
+			break
+		}
+	}
+	if allKeywords {
+		kind = model.ValueKindKeyword
+	} else if len(tokens) == 1 && (tokens[0].Kind == tokenizer.KindKeyword || tokens[0].Kind == tokenizer.KindIdentifier) {
+		kind = model.ValueKindKeyword
+	}
+	text := rebuildSQL(tokens)
+	span := tokenizer.SpanBetween(tokens[0], last)
+	return &model.Value{Kind: kind, Text: text, Span: span}, last
+}
+func (p *Parser) collectDefaultExpressionTokens() ([]tokenizer.Token, tokenizer.Token) {
+	var tokens []tokenizer.Token
+	var last tokenizer.Token
+	depth := 0
+	for !p.isEOF() {
+		tok := p.current()
+		if len(tokens) == 0 {
+			if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")" || tok.Text == ";") {
+				break
+			}
+			if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
+				break
+			}
+		} else if depth == 0 {
+			if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")" || tok.Text == ";") {
+				break
+			}
+			if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
+				break
+			}
+		}
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				if depth > 0 {
+					depth--
+				}
+			}
+		}
+		tokens = append(tokens, tok)
+		last = tok
+		p.advance()
+	}
+	return tokens, last
+}
+
+func (p *Parser) skipColumnOrderingTokens(last tokenizer.Token) tokenizer.Token {
+	depth := 0
+	for !p.isEOF() {
+		tok := p.current()
+		if depth == 0 && tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")") {
+			break
+		}
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				if depth > 0 {
+					depth--
+				} else {
+					return last
+				}
+			}
+		}
+		last = tok
+		p.advance()
+	}
+	return last
+}
+
+func (p *Parser) skipBalancedParentheses() tokenizer.Token {
+	if !p.matchSymbol("(") {
+		return tokenizer.Token{}
+	}
+	open := p.advance()
+	depth := 1
+	last := open
+	for !p.isEOF() && depth > 0 {
+		tok := p.current()
+		last = tok
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+			}
+		}
+		p.advance()
+	}
+	return last
+}
+
+func (p *Parser) skipCheckConstraint() tokenizer.Token {
+	var last tokenizer.Token
+	if p.matchSymbol("(") {
+		last = p.skipBalancedParentheses()
+	}
+	for !p.isEOF() {
+		tok := p.current()
+		if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")") {
+			break
+		}
+		if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
+			break
+		}
+		last = tok
+		p.advance()
+	}
+	return last
+}
+
+func (p *Parser) skipForeignKeyActions() tokenizer.Token {
+	var last tokenizer.Token
+	depth := 0
+	for !p.isEOF() {
+		tok := p.current()
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				if depth == 0 {
+					return last
+				}
+				depth--
+			case ",":
+				if depth == 0 {
+					return last
+				}
+			case ";":
+				if depth == 0 {
+					return last
+				}
+			}
+		}
+		if depth == 0 && tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
+			return last
+		}
+		last = tok
+		p.advance()
+	}
+	return last
+}
+
+func (p *Parser) skipStatementTail() tokenizer.Token {
+	var last tokenizer.Token
+	depth := 0
+	for !p.isEOF() {
+		tok := p.current()
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				if depth > 0 {
+					depth--
+				}
+			case ";":
+				if depth == 0 {
+					return last
+				}
+			}
+		}
+		last = tok
+		p.advance()
+	}
+	return last
+}
+
+func isClauseBoundaryKeyword(text string) bool {
+	_, ok := clauseBoundaryKeywords[text]
+	return ok
+}
+
+var clauseBoundaryKeywords = map[string]struct{}{
+	"CONSTRAINT": {},
+	"PRIMARY":    {},
+	"UNIQUE":     {},
+	"FOREIGN":    {},
+	"CHECK":      {},
+	"REFERENCES": {},
+	"DEFAULT":    {},
+	"NOT":        {},
+	"GENERATED":  {},
 }
 
 func (p *Parser) validate() {
