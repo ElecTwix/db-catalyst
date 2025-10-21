@@ -29,6 +29,7 @@ type Options struct {
 	Package      string
 	EmitJSONTags bool
 	Prepared     PreparedOptions
+	TypeResolver *TypeResolver
 }
 
 // File represents an AST file ready for rendering.
@@ -79,21 +80,21 @@ func (b *Builder) Build(ctx context.Context, catalog *model.Catalog, analyses []
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, File{Path: "models.go", Node: node})
+		files = append(files, File{Path: "models.gen.go", Node: node})
 	}
 
 	querierNode, err := b.buildQuerierFile(packageName, queries)
 	if err != nil {
 		return nil, err
 	}
-	files = append(files, File{Path: "querier.go", Node: querierNode})
+	files = append(files, File{Path: "querier.gen.go", Node: querierNode})
 
 	if len(helperPtrs) > 0 {
 		helperNode, err := b.buildHelpersFile(packageName, helperPtrs)
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, File{Path: "_helpers.go", Node: helperNode})
+		files = append(files, File{Path: "_helpers.gen.go", Node: helperNode})
 	}
 
 	queryFiles, err := b.buildQueryFiles(packageName, queries)
@@ -228,7 +229,12 @@ func (b *Builder) buildTableModel(tbl *model.Table) *tableModel {
 		} else {
 			used[goName] = 1
 		}
-		typeInfo := resolveType(analyzer.SQLiteTypeToGo(col.Type), !col.NotNull)
+		var typeInfo typeInfo
+		if b.opts.TypeResolver != nil {
+			typeInfo = b.opts.TypeResolver.ResolveType(col.Type, !col.NotNull)
+		} else {
+			typeInfo = resolveType(analyzer.SQLiteTypeToGo(col.Type), !col.NotNull)
+		}
 		if typeInfo.UsesSQLNull {
 			needsSQL = true
 		}
@@ -329,7 +335,12 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 			used[name] = 1
 		}
 
-		typeInfo := resolveType(p.GoType, p.Nullable)
+		var typeInfo typeInfo
+		if b.opts.TypeResolver != nil {
+			typeInfo = b.opts.TypeResolver.ResolveType(p.GoType, p.Nullable)
+		} else {
+			typeInfo = resolveType(p.GoType, p.Nullable)
+		}
 		spec := paramSpec{
 			name:          name,
 			goType:        typeInfo.GoType,
@@ -372,7 +383,12 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 		} else {
 			used[fieldName] = 1
 		}
-		typeInfo := resolveType(col.GoType, col.Nullable)
+		var typeInfo typeInfo
+		if b.opts.TypeResolver != nil {
+			typeInfo = b.opts.TypeResolver.ResolveType(col.GoType, col.Nullable)
+		} else {
+			typeInfo = resolveType(col.GoType, col.Nullable)
+		}
 		fields = append(fields, helperField{name: fieldName, goType: typeInfo.GoType})
 	}
 	return &helperSpec{rowTypeName: rowTypeName, funcName: funcName, fields: fields}
@@ -380,6 +396,29 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 
 func (b *Builder) buildModelsFile(pkg string, models []*tableModel) (*goast.File, error) {
 	file := &goast.File{Name: goast.NewIdent(pkg)}
+
+	// Collect imports needed for custom types
+	importSet := make(map[string]struct{})
+	if b.opts.TypeResolver != nil && b.opts.TypeResolver.transformer != nil {
+		for _, mapping := range b.opts.TypeResolver.transformer.GetCustomTypes() {
+			if importPath, _, err := b.opts.TypeResolver.transformer.GetImportsForCustomType(mapping); err == nil {
+				importSet[importPath] = struct{}{}
+			}
+		}
+	}
+
+	// Add imports if needed
+	if len(importSet) > 0 {
+		importDecls := make([]goast.Spec, 0, len(importSet))
+		for importPath := range importSet {
+			importDecls = append(importDecls, &goast.ImportSpec{
+				Path: &goast.BasicLit{Kind: token.STRING, Value: strconv.Quote(importPath)},
+			})
+		}
+		importDecl := &goast.GenDecl{Tok: token.IMPORT, Specs: importDecls}
+		file.Decls = append(file.Decls, importDecl)
+	}
+
 	decls := make([]goast.Decl, 0, len(models))
 	for _, mdl := range models {
 		fields := make([]*goast.Field, 0, len(mdl.fields))
@@ -402,7 +441,7 @@ func (b *Builder) buildModelsFile(pkg string, models []*tableModel) (*goast.File
 		decl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{typeSpec}}
 		decls = append(decls, decl)
 	}
-	file.Decls = decls
+	file.Decls = append(file.Decls, decls...)
 	return file, nil
 }
 
@@ -856,7 +895,7 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 	if err != nil {
 		return File{}, err
 	}
-	return File{Path: "prepared.go", Node: node, Raw: formatted}, nil
+	return File{Path: "prepared.gen.go", Node: node, Raw: formatted}, nil
 }
 
 func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {

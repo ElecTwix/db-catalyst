@@ -28,6 +28,21 @@ var validDrivers = map[Driver]struct{}{
 	DriverMattN:   {},
 }
 
+// CustomTypeMapping defines how a custom type maps to SQLite and Go types.
+type CustomTypeMapping struct {
+	CustomType string `toml:"custom_type"`
+	SQLiteType string `toml:"sqlite_type"`
+	GoType     string `toml:"go_type"`
+	GoImport   string `toml:"go_import"`
+	GoPackage  string `toml:"go_package"`
+	Pointer    bool   `toml:"pointer"`
+}
+
+// CustomTypesConfig captures custom type mappings.
+type CustomTypesConfig struct {
+	Mappings []CustomTypeMapping `toml:"mapping"`
+}
+
 // PreparedQueriesConfig captures optional prepared statement generation settings.
 type PreparedQueriesConfig struct {
 	Enabled    bool `toml:"enabled"`
@@ -49,6 +64,7 @@ type Config struct {
 	SQLiteDriver    Driver                `toml:"sqlite_driver"`
 	Schemas         []string              `toml:"schemas"`
 	Queries         []string              `toml:"queries"`
+	CustomTypes     CustomTypesConfig     `toml:"custom_types"`
 	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
 }
 
@@ -65,6 +81,7 @@ type JobPlan struct {
 	SQLiteDriver    Driver
 	Schemas         []string
 	Queries         []string
+	CustomTypes     []CustomTypeMapping
 	PreparedQueries PreparedQueries
 }
 
@@ -163,6 +180,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		SQLiteDriver:    driver,
 		Schemas:         schemas,
 		Queries:         queries,
+		CustomTypes:     cfg.CustomTypes.Mappings,
 		PreparedQueries: prepared,
 	}
 
@@ -181,6 +199,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		"sqlite_driver":    {},
 		"schemas":          {},
 		"queries":          {},
+		"custom_types":     {},
 		"prepared_queries": {},
 	}
 

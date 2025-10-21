@@ -20,6 +20,7 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
 	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
+	"github.com/electwix/db-catalyst/internal/transform"
 )
 
 // Environment captures external dependencies used by the pipeline.
@@ -288,7 +289,8 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	generator := codegen.New(codegen.Options{
-		Package: plan.Package,
+		Package:     plan.Package,
+		CustomTypes: plan.CustomTypes,
 		Prepared: codegen.PreparedOptions{
 			Enabled:     plan.PreparedQueries.Enabled,
 			EmitMetrics: plan.PreparedQueries.Metrics,
@@ -305,6 +307,37 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		finalPath := filepath.Join(outDir, file.Path)
 		finalFiles = append(finalFiles, codegen.File{Path: finalPath, Content: file.Content})
 	}
+
+	// Generate schema.gen.sql if custom types are defined
+	if len(plan.CustomTypes) > 0 {
+		transformer := transform.New(plan.CustomTypes)
+		for _, schemaPath := range plan.Schemas {
+			contents, readErr := os.ReadFile(schemaPath)
+			if readErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema for transformation: %v", readErr)))
+				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
+			}
+
+			// Validate custom types in schema
+			missing := transformer.ValidateCustomTypes(contents)
+			if len(missing) > 0 {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("custom types used but not defined: %v", missing)))
+				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: fmt.Errorf("undefined custom types")}
+			}
+
+			// Transform schema
+			transformed, transformErr := transformer.TransformSchema(contents)
+			if transformErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("transform schema: %v", transformErr)))
+				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: transformErr}
+			}
+
+			// Add schema.gen.sql to output files
+			schemaPath := filepath.Join(outDir, "schema.gen.sql")
+			finalFiles = append(finalFiles, codegen.File{Path: schemaPath, Content: transformed})
+		}
+	}
+
 	summary.Files = finalFiles
 
 	if opts.DryRun {

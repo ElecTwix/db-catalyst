@@ -7,8 +7,10 @@ import (
 
 	astbuilder "github.com/electwix/db-catalyst/internal/codegen/ast"
 	"github.com/electwix/db-catalyst/internal/codegen/render"
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/schema/model"
+	"github.com/electwix/db-catalyst/internal/transform"
 )
 
 type PreparedOptions struct {
@@ -21,6 +23,7 @@ type Options struct {
 	Package      string
 	EmitJSONTags bool
 	Prepared     PreparedOptions
+	CustomTypes  []config.CustomTypeMapping
 }
 
 type Generator struct {
@@ -41,9 +44,14 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 		return nil, err
 	}
 
+	// Create transformer for custom types
+	transformer := transform.New(g.opts.CustomTypes)
+	typeResolver := astbuilder.NewTypeResolver(transformer)
+
 	builder := astbuilder.New(astbuilder.Options{
 		Package:      g.opts.Package,
 		EmitJSONTags: g.opts.EmitJSONTags,
+		TypeResolver: typeResolver,
 		Prepared: astbuilder.PreparedOptions{
 			Enabled:     g.opts.Prepared.Enabled,
 			EmitMetrics: g.opts.Prepared.EmitMetrics,
