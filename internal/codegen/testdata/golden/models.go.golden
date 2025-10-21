@@ -1,9 +1,0 @@
-package store
-
-import "database/sql"
-
-type Users struct {
-	Id      int64           `json:"id"`
-	Email   sql.NullString  `json:"email"`
-	Credits sql.NullFloat64 `json:"credits"`
-}

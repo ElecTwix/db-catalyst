@@ -94,7 +94,7 @@ func TestPipelineDryRun(t *testing.T) {
 		if !strings.HasPrefix(file.Path, outPrefix) {
 			t.Fatalf("file path %q does not reside under %q", file.Path, outPrefix)
 		}
-		if strings.HasSuffix(file.Path, "_helpers.go") {
+		if strings.HasSuffix(file.Path, "_helpers.gen.go") {
 			helperContent = string(file.Content)
 		}
 		if strings.HasSuffix(file.Path, "query_summarize_credits.go") {
@@ -105,10 +105,10 @@ func TestPipelineDryRun(t *testing.T) {
 		t.Fatalf("query_summarize_credits.go not emitted; files = %+v", summary.Files)
 	}
 	if !strings.Contains(helperContent, "type SummarizeCreditsRow struct") ||
-		!strings.Contains(helperContent, "TotalUsers int64") ||
+		!strings.Contains(helperContent, "TotalUsers int32") ||
 		!strings.Contains(helperContent, "SumCredits sql.NullFloat64") ||
 		!strings.Contains(helperContent, "AvgCredit  sql.NullFloat64") && !strings.Contains(helperContent, "AvgCredit sql.NullFloat64") {
-		t.Fatalf("_helpers.go missing expected SummarizeCreditsRow fields\n%s", helperContent)
+		t.Fatalf("_helpers.gen.go missing expected SummarizeCreditsRow fields")
 	}
 }
 

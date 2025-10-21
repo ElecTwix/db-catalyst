@@ -268,7 +268,15 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
 	}
 
-	analyzer := queryanalyzer.New(catalog)
+	// Convert custom types config to map for analyzer
+	customTypesMap := make(map[string]config.CustomTypeMapping)
+	if len(plan.CustomTypes) > 0 {
+		for _, mapping := range plan.CustomTypes {
+			customTypesMap[mapping.CustomType] = mapping
+		}
+	}
+
+	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
 	for _, q := range queries {
 		result := analyzer.Analyze(q)
 		analyses = append(analyses, result)

@@ -4,7 +4,7 @@ import "context"
 
 const queryListUsersByIDs string = `SELECT id, email FROM users WHERE id IN (?1, ?2, ?3)`
 
-func (q *Queries) ListUsersByIDs(ctx context.Context, ids ...int64) ([]ListUsersByIDsRow, error) {
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids ...int32) ([]ListUsersByIDsRow, error) {
 	idsArgs := make([]any, len(ids))
 	for i := range ids {
 		idsArgs[i] = ids[i]

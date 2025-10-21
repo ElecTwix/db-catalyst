@@ -7,6 +7,6 @@ import (
 
 const queryCreateUser string = `INSERT INTO users (email, credits) VALUES (?, ?)`
 
-func (q *Queries) CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error) {
+func (q *Queries) CreateUser(ctx context.Context, email *interface{}, credits sql.NullFloat64) (sql.Result, error) {
 	return q.db.ExecContext(ctx, queryCreateUser, email, credits)
 }

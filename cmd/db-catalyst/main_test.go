@@ -23,7 +23,7 @@ func TestRunDryRun(t *testing.T) {
 		t.Fatalf("unexpected stderr output: %q", stderr.String())
 	}
 
-	expected := filepath.Join(filepath.Dir(configPath), "gen", "querier.go")
+	expected := filepath.Join(filepath.Dir(configPath), "gen", "querier.gen.go")
 	if !strings.Contains(stdout.String(), expected) {
 		t.Fatalf("stdout %q missing generated file %q", stdout.String(), expected)
 	}

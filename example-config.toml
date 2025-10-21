@@ -1,0 +1,5 @@
+package = "mydb"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schema.sql"]
+queries = ["query.sql"]

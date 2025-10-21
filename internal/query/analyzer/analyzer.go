@@ -6,6 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	"github.com/electwix/db-catalyst/internal/query/parser"
 	"github.com/electwix/db-catalyst/internal/schema/model"
@@ -13,7 +14,8 @@ import (
 )
 
 type Analyzer struct {
-	Catalog *model.Catalog
+	Catalog     *model.Catalog
+	CustomTypes map[string]config.CustomTypeMapping
 }
 
 type Result struct {
@@ -102,7 +104,11 @@ type posKey struct {
 }
 
 func New(catalog *model.Catalog) *Analyzer {
-	return &Analyzer{Catalog: catalog}
+	return &Analyzer{Catalog: catalog, CustomTypes: nil}
+}
+
+func NewWithCustomTypes(catalog *model.Catalog, customTypes map[string]config.CustomTypeMapping) *Analyzer {
+	return &Analyzer{Catalog: catalog, CustomTypes: customTypes}
 }
 
 func (a *Analyzer) Analyze(q parser.Query) Result {
@@ -138,7 +144,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 	baseScope := newQueryScope()
 	if hasCatalog {
 		for name, table := range catalog.Tables {
-			entry := scopeEntryFromTable(table)
+			entry := a.scopeEntryFromTable(table)
 			baseScope.addEntry(name, entry)
 		}
 	} else {
@@ -179,7 +185,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		}
 	}
 
-	paramInfos := inferParamTypes(a.Catalog, q, workingScope)
+	paramInfos := a.inferParamTypes(q, workingScope)
 	for idx, param := range q.Params {
 		rp := ResultParam{
 			Name:          param.Name,
@@ -974,13 +980,13 @@ func (s *queryScope) lookup(alias, column string) (scopeColumn, *scopeEntry, sco
 	return scopeColumn{}, nil, scopeLookupColumnNotFound
 }
 
-func scopeEntryFromTable(tbl *model.Table) *scopeEntry {
+func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
 	cols := make(map[string]scopeColumn, len(tbl.Columns))
 	for _, col := range tbl.Columns {
 		cols[normalizeIdent(col.Name)] = scopeColumn{
 			name:     col.Name,
 			owner:    tbl.Name,
-			goType:   SQLiteTypeToGo(col.Type),
+			goType:   a.SQLiteTypeToGo(col.Type),
 			nullable: !col.NotNull,
 		}
 	}
@@ -1244,7 +1250,8 @@ func (p textIndex) offset(tok tokenizer.Token) int {
 	return idx
 }
 
-func inferParamTypes(cat *model.Catalog, q parser.Query, scope *queryScope) map[int]paramInfo {
+func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope) map[int]paramInfo {
+	cat := a.Catalog
 	if cat == nil || len(q.Params) == 0 {
 		return nil
 	}
@@ -1292,13 +1299,13 @@ func inferParamTypes(cat *model.Catalog, q parser.Query, scope *queryScope) map[
 			}
 		}
 
-		if info, found := schemaInfoForColumn(cat, table, column); found {
+		if info, found := a.schemaInfoForColumn(cat, table, column); found {
 			infos[paramIdx] = info
 		}
 	}
 
 	if q.Verb == parser.VerbInsert {
-		inferInsertParams(cat, tokens, paramIndexByToken, infos)
+		a.inferInsertParams(cat, tokens, paramIndexByToken, infos)
 	}
 
 	if len(infos) == 0 {
@@ -1307,7 +1314,7 @@ func inferParamTypes(cat *model.Catalog, q parser.Query, scope *queryScope) map[
 	return infos
 }
 
-func schemaInfoForColumn(cat *model.Catalog, tableName, columnName string) (paramInfo, bool) {
+func (a *Analyzer) schemaInfoForColumn(cat *model.Catalog, tableName, columnName string) (paramInfo, bool) {
 	table := lookupTable(cat, tableName)
 	if table == nil {
 		return paramInfo{}, false
@@ -1317,7 +1324,7 @@ func schemaInfoForColumn(cat *model.Catalog, tableName, columnName string) (para
 		return paramInfo{}, false
 	}
 	return paramInfo{
-		GoType:   SQLiteTypeToGo(column.Type),
+		GoType:   a.SQLiteTypeToGo(column.Type),
 		Nullable: !column.NotNull,
 	}, true
 }
@@ -1422,7 +1429,7 @@ func isIdentifierToken(tok tokenizer.Token) bool {
 	return tok.Kind == tokenizer.KindIdentifier
 }
 
-func inferInsertParams(cat *model.Catalog, tokens []tokenizer.Token, paramIndexByToken map[int]int, infos map[int]paramInfo) {
+func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Token, paramIndexByToken map[int]int, infos map[int]paramInfo) {
 	tableName, columns, paramOrder := parseInsertStructure(tokens, paramIndexByToken)
 	if tableName == "" || len(columns) == 0 || len(paramOrder) == 0 {
 		return
@@ -1445,7 +1452,7 @@ func inferInsertParams(cat *model.Catalog, tokens []tokenizer.Token, paramIndexB
 			continue
 		}
 		infos[paramIdx] = paramInfo{
-			GoType:   SQLiteTypeToGo(schemaCol.Type),
+			GoType:   a.SQLiteTypeToGo(schemaCol.Type),
 			Nullable: !schemaCol.NotNull,
 		}
 	}
@@ -1547,6 +1554,37 @@ func actualTokenLine(q parser.Query, tok tokenizer.Token) int {
 	return q.Block.Line + tok.Line
 }
 
+func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
+	// First check if we have custom type mappings
+	if a.CustomTypes != nil {
+		// Check if the sqliteType matches any custom type mapping
+		for _, mapping := range a.CustomTypes {
+			if normalizeSQLiteType(mapping.SQLiteType) == normalizeSQLiteType(sqliteType) {
+				return mapping.GoType
+			}
+		}
+	}
+
+	// Fall back to default SQLite type mapping
+	base := normalizeSQLiteType(sqliteType)
+	switch base {
+	case "INTEGER":
+		return "int64"
+	case "REAL":
+		return "float64"
+	case "TEXT":
+		return "string"
+	case "BLOB":
+		return "[]byte"
+	case "NUMERIC":
+		return "string"
+	default:
+		return "interface{}"
+	}
+}
+
+// SQLiteTypeToGo is a convenience function that uses default type mapping
+// (kept for backward compatibility where no custom types are needed)
 func SQLiteTypeToGo(sqliteType string) string {
 	base := normalizeSQLiteType(sqliteType)
 	switch base {

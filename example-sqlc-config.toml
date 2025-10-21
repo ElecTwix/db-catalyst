@@ -1,0 +1,32 @@
+package = "gen"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schema.sql"]
+queries = ["query.sql"]
+
+[prepared_queries]
+enabled = true
+emit_empty_slices = true
+
+[custom_types]
+# Map custom types used in schema to SQLite and Go types
+[[custom_types.mapping]]
+custom_type = "idwrap"
+sqlite_type = "BLOB"
+go_type = "IDWrap"
+go_import = "the-dev-tools/server/pkg/idwrap"
+go_package = "idwrap"
+
+[[custom_types.mapping]]
+custom_type = "trigger_type"
+sqlite_type = "TEXT"
+go_type = "TriggerType"
+go_import = "the-dev-tools/server/pkg/model/result/mresultapi"
+go_package = "mresultapi"
+
+[[custom_types.mapping]]
+custom_type = "http_resp"
+sqlite_type = "BLOB"
+go_type = "HttpResp"
+go_import = "the-dev-tools/server/pkg/model/result/mresultapi"
+go_package = "mresultapi"

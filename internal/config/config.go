@@ -43,6 +43,38 @@ type CustomTypesConfig struct {
 	Mappings []CustomTypeMapping `toml:"mapping"`
 }
 
+// DatabaseTypeOverride defines db_type to go_type mappings (sqlc compatibility).
+type DatabaseTypeOverride struct {
+	DatabaseType string `toml:"db_type"`
+	GoType       string `toml:"go_type"`
+}
+
+// ColumnOverride defines column-specific type overrides (sqlc compatibility).
+type ColumnOverride struct {
+	Column string      `toml:"column"`
+	GoType interface{} `toml:"go_type"` // Can be string or complex object
+}
+
+// GoTypeDetails captures complex go_type configuration (sqlc compatibility).
+type GoTypeDetails struct {
+	Import  string `toml:"import"`
+	Package string `toml:"package"`
+	Type    string `toml:"type"`
+	Pointer bool   `toml:"pointer"`
+}
+
+// OverridesConfig captures sqlc-style overrides.
+type OverridesConfig struct {
+	DatabaseTypes []DatabaseTypeOverride `toml:"overrides"`
+	Columns       []ColumnOverride       `toml:"overrides"`
+}
+
+// GenerationOptions captures additional generation options (sqlc compatibility).
+type GenerationOptions struct {
+	EmitEmptySlices     bool `toml:"emit_empty_slices"`
+	EmitPreparedQueries bool `toml:"emit_prepared_queries"`
+}
+
 // PreparedQueriesConfig captures optional prepared statement generation settings.
 type PreparedQueriesConfig struct {
 	Enabled    bool `toml:"enabled"`

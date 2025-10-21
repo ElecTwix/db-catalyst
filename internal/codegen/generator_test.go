@@ -66,16 +66,16 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 
 	var prepared *File
 	for i := range files {
-		if files[i].Path == "prepared.go" {
+		if files[i].Path == "prepared.gen.go" {
 			prepared = &files[i]
 			break
 		}
 	}
 	if prepared == nil {
-		t.Fatalf("prepared.go not emitted")
+		t.Fatalf("prepared.gen.go not emitted")
 	}
 
-	goldenPath := filepath.Join("testdata", "golden", "prepared.go.golden")
+	goldenPath := filepath.Join("testdata", "golden", "prepared.gen.go.golden")
 	if updateGolden {
 		if err := os.WriteFile(goldenPath, prepared.Content, 0o644); err != nil {
 			t.Fatalf("write golden %s: %v", goldenPath, err)
