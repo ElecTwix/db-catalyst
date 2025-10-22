@@ -6,6 +6,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/pelletier/go-toml/v2 v2.2.4
 	golang.org/x/tools v0.38.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

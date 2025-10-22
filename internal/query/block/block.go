@@ -19,13 +19,16 @@ const (
 )
 
 type Block struct {
-	Path    string
-	Name    string
-	Command Command
-	SQL     string
-	Doc     string
-	Line    int
-	Column  int
+	Path        string
+	Name        string
+	Command     Command
+	SQL         string
+	Doc         string
+	Line        int
+	Column      int
+	StartOffset int
+	EndOffset   int
+	Suffix      string
 }
 
 func (c Command) String() string {
@@ -163,15 +166,23 @@ func Slice(path string, src []byte) ([]Block, error) {
 		if sqlStart > sqlEnd {
 			sqlStart = sqlEnd
 		}
-		sql := trimSQL(text[sqlStart:sqlEnd])
+		raw := text[sqlStart:sqlEnd]
+		sql := trimSQL(raw)
+		suffix := ""
+		if len(sql) < len(raw) {
+			suffix = raw[len(sql):]
+		}
 		blocks = append(blocks, Block{
-			Path:    path,
-			Name:    m.name,
-			Command: m.command,
-			SQL:     sql,
-			Doc:     formatDoc(m.docLines),
-			Line:    m.line.line,
-			Column:  m.column,
+			Path:        path,
+			Name:        m.name,
+			Command:     m.command,
+			SQL:         sql,
+			Doc:         formatDoc(m.docLines),
+			Line:        m.line.line,
+			Column:      m.column,
+			StartOffset: sqlStart,
+			EndOffset:   sqlEnd,
+			Suffix:      suffix,
 		})
 	}
 	return blocks, nil

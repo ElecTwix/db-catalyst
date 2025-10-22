@@ -32,11 +32,13 @@ const (
 )
 
 type Column struct {
-	Expr   string
-	Alias  string
-	Table  string
-	Line   int
-	Column int
+	Expr        string
+	Alias       string
+	Table       string
+	Line        int
+	Column      int
+	StartOffset int
+	EndOffset   int
 }
 
 type CTE struct {
@@ -789,11 +791,13 @@ func buildColumn(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (
 	expr := strings.TrimSpace(pos.sql[startOffset:endOffset])
 	line, column := actualPosition(blk, startTok.Line, startTok.Column)
 	col := Column{
-		Expr:   expr,
-		Alias:  alias,
-		Table:  table,
-		Line:   line,
-		Column: column,
+		Expr:        expr,
+		Alias:       alias,
+		Table:       table,
+		Line:        line,
+		Column:      column,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
 	}
 	if aliasTok != nil {
 		line, column = actualPosition(blk, aliasTok.Line, aliasTok.Column)

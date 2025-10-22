@@ -986,7 +986,7 @@ func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
 		cols[normalizeIdent(col.Name)] = scopeColumn{
 			name:     col.Name,
 			owner:    tbl.Name,
-			goType:   col.Type, // Store SQLite type, let TypeResolver handle conversion
+			goType:   a.SQLiteTypeToGo(col.Type),
 			nullable: !col.NotNull,
 		}
 	}
