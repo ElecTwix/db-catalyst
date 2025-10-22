@@ -29,6 +29,10 @@ go test ./internal/config -run TestLoadConfig
 
 Project planning lives in [`db-catalyst-spec.md`](db-catalyst-spec.md) and `docs/`.
 
+## Migrating from sqlc
+
+Coming from sqlc? Check out our comprehensive [migration guide](docs/migrating-from-sqlc.md) for step-by-step instructions to convert your existing sqlc projects to db-catalyst.
+
 ## Feature Flags
 
 - [`docs/feature-flags.md`](docs/feature-flags.md) documents the configuration surface, including the `[prepared_queries]` toggles for metrics and thread-safe statement initialization.
