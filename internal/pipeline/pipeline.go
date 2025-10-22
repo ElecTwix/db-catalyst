@@ -272,7 +272,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	customTypesMap := make(map[string]config.CustomTypeMapping)
 	if len(plan.CustomTypes) > 0 {
 		for _, mapping := range plan.CustomTypes {
-			customTypesMap[mapping.CustomType] = mapping
+			customTypesMap[mapping.SQLiteType] = mapping
 		}
 	}
 

@@ -3,6 +3,7 @@ package ast
 import (
 	"strings"
 
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
@@ -21,38 +22,73 @@ func NewTypeResolver(transformer *transform.Transformer) *TypeResolver {
 	return &TypeResolver{transformer: transformer}
 }
 
-func (r *TypeResolver) ResolveType(sqlType string, nullable bool) typeInfo {
-	// Check if this is a custom type first
-	if r.transformer != nil && r.transformer.IsCustomType(sqlType) {
-		goType, isPointer, err := r.transformer.GetGoTypeForCustomType(sqlType)
-		if err != nil {
-			// Fall back to interface{} if mapping is incomplete
-			return typeInfo{GoType: "interface{}", UsesSQLNull: false}
-		}
+// findCustomMappingBySQLiteType looks up a custom type mapping by SQLite type
+func (r *TypeResolver) findCustomMappingBySQLiteType(sqlType string) *config.CustomTypeMapping {
+	if r.transformer == nil {
+		return nil
+	}
 
-		importPath, packageName, err := r.transformer.GetImportsForCustomType(sqlType)
-		if err != nil {
-			// Custom type without import - use just the type name
-			return typeInfo{GoType: goType, UsesSQLNull: false}
+	// Iterate through all custom type mappings to find one with matching SQLite type
+	for _, customTypeName := range r.transformer.GetCustomTypes() {
+		mapping := r.transformer.FindCustomTypeMapping(customTypeName)
+		if mapping != nil && mapping.SQLiteType == sqlType {
+			return mapping
 		}
+	}
+	return nil
+}
 
-		// Handle nullable custom types
-		if nullable && !isPointer {
+func (r *TypeResolver) ResolveType(typeOrSqlType string, nullable bool) typeInfo {
+	// Check if this is already a Go type (contains package qualifiers like "example.IDWrap")
+	if strings.Contains(typeOrSqlType, ".") || strings.HasPrefix(typeOrSqlType, "*") {
+		// This is already a Go type, handle nullable logic
+		goType := typeOrSqlType
+		if nullable && !strings.HasPrefix(goType, "*") {
 			goType = "*" + goType
-		} else if isPointer {
-			// Already a pointer type
 		}
+		return typeInfo{GoType: goType, UsesSQLNull: false}
+	}
 
-		return typeInfo{
-			GoType:      goType,
-			UsesSQLNull: false,
-			Import:      importPath,
-			Package:     packageName,
+	// This is a SQLite type, check if it has a custom type mapping
+	if r.transformer != nil {
+		// Look for a custom type mapping for this SQLite type
+		if customMapping := r.findCustomMappingBySQLiteType(typeOrSqlType); customMapping != nil {
+			goType, isPointer, err := r.transformer.GetGoTypeForCustomType(customMapping.CustomType)
+			if err != nil {
+				// Fall back to interface{} if mapping is incomplete
+				return typeInfo{GoType: "interface{}", UsesSQLNull: false}
+			}
+
+			// Handle nullable custom types BEFORE import check
+			if isPointer {
+				// Config says this should always be a pointer type
+				if !strings.HasPrefix(goType, "*") {
+					goType = "*" + goType
+				}
+			} else if nullable {
+				// Add pointer for nullable columns only if not already a pointer
+				if !strings.HasPrefix(goType, "*") {
+					goType = "*" + goType
+				}
+			}
+
+			importPath, packageName, err := r.transformer.GetImportsForCustomType(customMapping.CustomType)
+			if err != nil {
+				// Custom type without import - use just the type name
+				return typeInfo{GoType: goType, UsesSQLNull: false}
+			}
+
+			return typeInfo{
+				GoType:      goType,
+				UsesSQLNull: false,
+				Import:      importPath,
+				Package:     packageName,
+			}
 		}
 	}
 
 	// Handle standard SQLite types
-	goType := r.sqliteTypeToGo(sqlType)
+	goType := r.sqliteTypeToGo(typeOrSqlType)
 	return r.resolveStandardType(goType, nullable)
 }
 

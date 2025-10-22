@@ -986,7 +986,7 @@ func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
 		cols[normalizeIdent(col.Name)] = scopeColumn{
 			name:     col.Name,
 			owner:    tbl.Name,
-			goType:   a.SQLiteTypeToGo(col.Type),
+			goType:   col.Type, // Store SQLite type, let TypeResolver handle conversion
 			nullable: !col.NotNull,
 		}
 	}
@@ -1555,13 +1555,13 @@ func actualTokenLine(q parser.Query, tok tokenizer.Token) int {
 }
 
 func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
-	// First check if we have custom type mappings
+	// First check if the SQLite type has a custom type mapping
 	if a.CustomTypes != nil {
-		// Check if the sqliteType matches any custom type mapping
-		for _, mapping := range a.CustomTypes {
-			if normalizeSQLiteType(mapping.SQLiteType) == normalizeSQLiteType(sqliteType) {
-				return mapping.GoType
-			}
+		normalizedType := normalizeSQLiteType(sqliteType)
+		if mapping, exists := a.CustomTypes[normalizedType]; exists {
+			// Return the base Go type from custom type
+			// Note: pointer logic is handled separately by the TypeResolver during code generation
+			return mapping.GoType
 		}
 	}
 
