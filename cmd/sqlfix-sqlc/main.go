@@ -47,7 +47,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	sqlcCfg, err := sqlcconfig.Load(sqlcPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
 		return 1
 	}
 
@@ -58,7 +58,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if errors.Is(err, os.ErrNotExist) {
 			existing = config.Config{}
 		} else {
-			fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
 			return 1
 		}
 	}
@@ -69,31 +69,31 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	output, err := toml.Marshal(existing)
 	if err != nil {
-		fmt.Fprintf(stderr, "sqlfix-sqlc: marshal db-catalyst config: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: marshal db-catalyst config: %v\n", err)
 		return 1
 	}
 
 	if dryRun {
 		if _, err := stdout.Write(output); err != nil {
-			fmt.Fprintf(stderr, "sqlfix-sqlc: write output: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: write output: %v\n", err)
 			return 1
 		}
 	} else {
 		if err := ensureDir(outPath); err != nil {
-			fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
 			return 1
 		}
 		if err := os.WriteFile(outPath, output, 0o644); err != nil {
-			fmt.Fprintf(stderr, "sqlfix-sqlc: write %s: %v\n", outPath, err)
+			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: write %s: %v\n", outPath, err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "wrote %s with %d mappings\n", outPath, len(merged))
+		_, _ = fmt.Fprintf(stdout, "wrote %s with %d mappings\n", outPath, len(merged))
 	}
 
 	if len(warnings) > 0 {
 		sort.Strings(warnings)
 		for _, w := range warnings {
-			fmt.Fprintf(stderr, "warning: %s\n", w)
+			_, _ = fmt.Fprintf(stderr, "warning: %s\n", w)
 		}
 	}
 

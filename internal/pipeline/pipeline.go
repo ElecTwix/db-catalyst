@@ -112,7 +112,7 @@ func (w *osWriter) WriteFile(path string, data []byte) error {
 		if !success {
 			_ = os.Remove(tmpName)
 		}
-		tmp.Close()
+		_ = tmp.Close()
 	}()
 	if w.perm != 0 {
 		if err := tmp.Chmod(w.perm); err != nil {

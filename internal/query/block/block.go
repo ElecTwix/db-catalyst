@@ -211,12 +211,13 @@ func splitLines(text string) []lineInfo {
 		end := idx
 		next := idx
 		if next < len(text) {
-			if text[next] == '\r' {
+			switch text[next] {
+			case '\r':
 				next++
 				if next < len(text) && text[next] == '\n' {
 					next++
 				}
-			} else if text[next] == '\n' {
+			case '\n':
 				next++
 			}
 		}

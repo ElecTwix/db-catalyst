@@ -63,9 +63,10 @@ func TestConvertOverrides(t *testing.T) {
 	for _, m := range mappings {
 		switch m.SQLiteType {
 		case "TEXT":
-			if m.GoType == "Label" {
+			switch m.GoType {
+			case "Label":
 				dbType = m
-			} else if m.GoType == "Status" {
+			case "Status":
 				column = m
 			}
 		}

@@ -89,13 +89,13 @@ func main() {
 
 	reports, err := runner.Rewrite(ctx, paths)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "rewrite: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "rewrite: %v\n", err)
 		os.Exit(1)
 	}
 
 	catalogWarnings := runner.CatalogWarnings()
 	for _, warn := range catalogWarnings {
-		fmt.Fprintf(os.Stderr, "%s\n", warn)
+		_, _ = fmt.Fprintf(os.Stderr, "%s\n", warn)
 	}
 
 	totalAliases := 0
@@ -116,30 +116,30 @@ func main() {
 		if starCount > 0 {
 			segments = append(segments, fmt.Sprintf("expanded %d star projection(s)", starCount))
 		}
-		fmt.Fprintf(os.Stdout, "%s: %s\n", rep.Path, strings.Join(segments, "; "))
+		_, _ = fmt.Fprintf(os.Stdout, "%s: %s\n", rep.Path, strings.Join(segments, "; "))
 	}
 
 	for _, rep := range reports {
 		for _, warn := range rep.Warnings {
-			fmt.Fprintf(os.Stderr, "%s\n", warn)
+			_, _ = fmt.Fprintf(os.Stderr, "%s\n", warn)
 		}
 		for _, skipped := range rep.Skipped {
-			fmt.Fprintf(os.Stderr, "%s: skipped %q (%s)\n", rep.Path, skipped.Expr, skipped.Reason)
+			_, _ = fmt.Fprintf(os.Stderr, "%s: skipped %q (%s)\n", rep.Path, skipped.Expr, skipped.Reason)
 		}
 	}
 
 	if totalAliases == 0 && totalStars == 0 {
 		if dryRun {
-			fmt.Fprintln(os.Stdout, "sqlfix (dry-run): no changes")
+			_, _ = fmt.Fprintln(os.Stdout, "sqlfix (dry-run): no changes")
 		} else {
-			fmt.Fprintln(os.Stdout, "sqlfix: no changes")
+			_, _ = fmt.Fprintln(os.Stdout, "sqlfix: no changes")
 		}
 		return
 	}
 
 	if !dryRun {
-		fmt.Fprintf(os.Stdout, "sqlfix: added %d alias(es), expanded %d star projection(s)\n", totalAliases, totalStars)
+		_, _ = fmt.Fprintf(os.Stdout, "sqlfix: added %d alias(es), expanded %d star projection(s)\n", totalAliases, totalStars)
 	} else {
-		fmt.Fprintf(os.Stdout, "sqlfix (dry-run): would add %d alias(es), expand %d star projection(s)\n", totalAliases, totalStars)
+		_, _ = fmt.Fprintf(os.Stdout, "sqlfix (dry-run): would add %d alias(es), expand %d star projection(s)\n", totalAliases, totalStars)
 	}
 }

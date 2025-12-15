@@ -25,10 +25,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	opts, err := cli.Parse(args)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stdout, err.Error())
+			_, _ = fmt.Fprintln(stdout, err.Error())
 			return 0
 		}
-		fmt.Fprintln(stderr, err.Error())
+		_, _ = fmt.Fprintln(stderr, err.Error())
 		return 1
 	}
 
@@ -59,7 +59,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if runErr != nil {
 		var diagErr *pipeline.DiagnosticsError
 		if !errors.As(runErr, &diagErr) {
-			fmt.Fprintln(stderr, runErr.Error())
+			_, _ = fmt.Fprintln(stderr, runErr.Error())
 		}
 		var writeErr *pipeline.WriteError
 		if errors.As(runErr, &writeErr) {
@@ -75,7 +75,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	if opts.DryRun {
 		for _, file := range summary.Files {
-			fmt.Fprintln(stdout, file.Path)
+			_, _ = fmt.Fprintln(stdout, file.Path)
 		}
 		return 0
 	}
@@ -89,14 +89,14 @@ func printDiagnostics(w io.Writer, diags []queryanalyzer.Diagnostic) {
 		if diag.Severity == queryanalyzer.SeverityError {
 			level = "error"
 		}
-		fmt.Fprintf(w, "%s:%d:%d: %s [%s]\n", diag.Path, diag.Line, diag.Column, diag.Message, level)
+		_, _ = fmt.Fprintf(w, "%s:%d:%d: %s [%s]\n", diag.Path, diag.Line, diag.Column, diag.Message, level)
 	}
 }
 
 func printQuerySummary(w io.Writer, analyses []queryanalyzer.Result) {
 	for _, analysis := range analyses {
 		params := formatParams(analysis.Params)
-		fmt.Fprintf(w, "%s %s %s\n", analysis.Query.Block.Name, analysis.Query.Block.Command.String(), params)
+		_, _ = fmt.Fprintf(w, "%s %s %s\n", analysis.Query.Block.Name, analysis.Query.Block.Command.String(), params)
 	}
 }
 

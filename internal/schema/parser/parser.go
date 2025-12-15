@@ -371,7 +371,7 @@ func (p *Parser) parseCreateView(createTok tokenizer.Token) {
 	}
 	p.advance()
 	var sqlTokens []tokenizer.Token
-	var last tokenizer.Token = createTok
+	last := createTok
 	for !p.isEOF() {
 		tok := p.current()
 		if tok.Kind == tokenizer.KindSymbol && tok.Text == ";" {

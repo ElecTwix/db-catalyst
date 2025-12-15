@@ -223,7 +223,7 @@ func formatCatalog(cat *model.Catalog) string {
 }
 
 func fmtf(b *strings.Builder, format string, args ...any) {
-	_, _ = b.WriteString(fmt.Sprintf(format, args...))
+	_, _ = fmt.Fprintf(b, format, args...)
 }
 
 func lookupTable(t *testing.T, cat *model.Catalog, name string) *model.Table {

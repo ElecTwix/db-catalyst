@@ -429,7 +429,6 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 					}
 					placeholderIdxs = append(placeholderIdxs, k)
 					numVal := 0
-					numIdx := -1
 					if k+1 < len(tokens) {
 						next := tokens[k+1]
 						if next.Kind == tokenizer.KindNumber && next.Line == t.Line && next.Column == t.Column+1 {
@@ -439,7 +438,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 								break
 							}
 							numVal = parsed
-							numIdx = k + 1
+							numIdx := k + 1
 							numberIdxs = append(numberIdxs, numIdx)
 							hasNumber = true
 							k += 2

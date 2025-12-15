@@ -575,7 +575,7 @@ func parseAggregateExpr(expr string) (aggregateExpr, bool) {
 	if funcName == "" {
 		return aggregateExpr{}, false
 	}
-	kind := aggregateKindUnknown
+	var kind aggregateKind
 	switch strings.ToUpper(funcName) {
 	case "COUNT":
 		kind = aggregateKindCount
@@ -1610,7 +1610,7 @@ func normalizeSQLiteType(sqliteType string) string {
 	}
 	upper := strings.ToUpper(s)
 	for i, r := range upper {
-		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
 			return upper[:i]
 		}
 	}

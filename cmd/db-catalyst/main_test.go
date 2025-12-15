@@ -88,13 +88,13 @@ func copyFile(t *testing.T, dst, src string) {
 	if err != nil {
 		t.Fatalf("open %q: %v", src, err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		t.Fatalf("create %q: %v", dst, err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err := io.Copy(out, in); err != nil {
 		t.Fatalf("copy %q -> %q: %v", src, dst, err)
