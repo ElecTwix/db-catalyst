@@ -1,3 +1,4 @@
+// Package transform handles custom type transformations.
 package transform
 
 import (
@@ -111,7 +112,7 @@ func (t *Transformer) ExtractCustomTypesFromSchema(input []byte) []string {
 		}
 	}
 
-	var result []string
+	result := make([]string, 0, len(found))
 	for customType := range found {
 		result = append(result, customType)
 	}

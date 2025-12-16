@@ -1,3 +1,4 @@
+// Package ast provides types and logic for building Go ASTs.
 package ast
 
 import (
@@ -229,7 +230,7 @@ func (b *Builder) buildTableModel(tbl *model.Table) *tableModel {
 		} else {
 			used[goName] = 1
 		}
-		var typeInfo typeInfo
+		var typeInfo TypeInfo
 		if b.opts.TypeResolver != nil {
 			typeInfo = b.opts.TypeResolver.ResolveType(col.Type, !col.NotNull)
 		} else {
@@ -335,7 +336,7 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 			used[name] = 1
 		}
 
-		var typeInfo typeInfo
+		var typeInfo TypeInfo
 		if b.opts.TypeResolver != nil {
 			typeInfo = b.opts.TypeResolver.ResolveType(p.GoType, p.Nullable)
 		} else {
@@ -383,7 +384,7 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 		} else {
 			used[fieldName] = 1
 		}
-		var typeInfo typeInfo
+		var typeInfo TypeInfo
 		if b.opts.TypeResolver != nil {
 			typeInfo = b.opts.TypeResolver.ResolveType(col.GoType, col.Nullable)
 		} else {

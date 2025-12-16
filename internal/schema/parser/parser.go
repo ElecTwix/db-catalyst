@@ -1,3 +1,4 @@
+// Package parser implements a DDL parser for SQLite schemas.
 package parser
 
 import (
@@ -844,7 +845,7 @@ var clauseBoundaryKeywords = map[string]struct{}{
 }
 
 func (p *Parser) validate() {
-	var tableKeys []string
+	tableKeys := make([]string, 0, len(p.catalog.Tables))
 	for key := range p.catalog.Tables {
 		tableKeys = append(tableKeys, key)
 	}
@@ -853,7 +854,7 @@ func (p *Parser) validate() {
 		table := p.catalog.Tables[key]
 		p.validateTable(table)
 	}
-	var viewKeys []string
+	viewKeys := make([]string, 0, len(p.catalog.Views))
 	for key := range p.catalog.Views {
 		viewKeys = append(viewKeys, key)
 	}

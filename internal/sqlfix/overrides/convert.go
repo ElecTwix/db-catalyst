@@ -1,3 +1,4 @@
+// Package overrides handles conversion of sqlc configuration overrides to db-catalyst format.
 package overrides
 
 import (

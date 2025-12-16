@@ -1,3 +1,4 @@
+// Package block handles the parsing of SQL query blocks.
 package block
 
 import (
@@ -8,16 +9,23 @@ import (
 	"unicode/utf8"
 )
 
+// Command represents the type of query (one, many, exec, etc.).
 type Command int
 
 const (
+	// CommandUnknown indicates an unrecognized command.
 	CommandUnknown Command = iota
+	// CommandOne indicates a query returning a single row.
 	CommandOne
+	// CommandMany indicates a query returning multiple rows.
 	CommandMany
+	// CommandExec indicates a query that executes without returning rows.
 	CommandExec
+	// CommandExecResult indicates a query that returns execution result (rows affected, etc.).
 	CommandExecResult
 )
 
+// Block represents a parsed SQL query block.
 type Block struct {
 	Path        string
 	Name        string
@@ -46,6 +54,7 @@ func (c Command) String() string {
 	}
 }
 
+// ParseCommand parses a command tag (e.g., ":one") into a Command.
 func ParseCommand(tag string) (Command, bool) {
 	switch strings.ToLower(tag) {
 	case ":one":
@@ -61,6 +70,7 @@ func ParseCommand(tag string) (Command, bool) {
 	}
 }
 
+// Slice extracts query blocks from a SQL file.
 func Slice(path string, src []byte) ([]Block, error) {
 	if !utf8.Valid(src) {
 		return nil, fmt.Errorf("%s:1:1: input is not valid UTF-8", path)

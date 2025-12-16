@@ -1,3 +1,4 @@
+// Package codegen orchestrates the generation of Go code from SQL.
 package codegen
 
 import (
@@ -13,12 +14,14 @@ import (
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
+// PreparedOptions configures prepared statement generation.
 type PreparedOptions struct {
 	Enabled     bool
 	EmitMetrics bool
 	ThreadSafe  bool
 }
 
+// Options configures the Generator.
 type Options struct {
 	Package      string
 	EmitJSONTags bool
@@ -26,19 +29,23 @@ type Options struct {
 	CustomTypes  []config.CustomTypeMapping
 }
 
+// Generator produces Go code from parsed schemas and queries.
 type Generator struct {
 	opts Options
 }
 
+// File represents a generated source file.
 type File struct {
 	Path    string
 	Content []byte
 }
 
+// New creates a new Generator.
 func New(opts Options) *Generator {
 	return &Generator{opts: opts}
 }
 
+// Generate builds the AST and renders Go source files.
 func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

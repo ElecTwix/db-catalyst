@@ -1,3 +1,4 @@
+// Package parser implements a SQL parser for query validation and parameter extraction.
 package parser
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Query represents a parsed SQL query with metadata.
 type Query struct {
 	Block       block.Block
 	Verb        Verb
@@ -21,16 +23,23 @@ type Query struct {
 	Diagnostics []Diagnostic
 }
 
+// Verb indicates the type of SQL statement (SELECT, INSERT, etc.).
 type Verb int
 
 const (
+	// VerbUnknown indicates an unrecognized statement type.
 	VerbUnknown Verb = iota
+	// VerbSelect indicates a SELECT statement.
 	VerbSelect
+	// VerbInsert indicates an INSERT statement.
 	VerbInsert
+	// VerbUpdate indicates an UPDATE statement.
 	VerbUpdate
+	// VerbDelete indicates a DELETE statement.
 	VerbDelete
 )
 
+// Column represents a result column in a SELECT query.
 type Column struct {
 	Expr        string
 	Alias       string
@@ -41,6 +50,7 @@ type Column struct {
 	EndOffset   int
 }
 
+// CTE represents a Common Table Expression.
 type CTE struct {
 	Name      string
 	Columns   []string
@@ -49,6 +59,7 @@ type CTE struct {
 	Column    int
 }
 
+// Param represents a query parameter.
 type Param struct {
 	Name          string
 	Style         ParamStyle
@@ -59,21 +70,29 @@ type Param struct {
 	VariadicCount int
 }
 
+// ParamStyle indicates how parameters are specified (positional or named).
 type ParamStyle int
 
 const (
+	// ParamStyleUnknown indicates an unrecognized parameter style.
 	ParamStyleUnknown ParamStyle = iota
+	// ParamStylePositional indicates parameters using '?' or '?NNN'.
 	ParamStylePositional
+	// ParamStyleNamed indicates parameters using ':name'.
 	ParamStyleNamed
 )
 
+// Severity indicates the seriousness of a diagnostic.
 type Severity int
 
 const (
+	// SeverityError indicates a fatal parsing error.
 	SeverityError Severity = iota
+	// SeverityWarning indicates a non-fatal issue.
 	SeverityWarning
 )
 
+// Diagnostic represents an issue found during parsing.
 type Diagnostic struct {
 	Path     string
 	Line     int
@@ -82,6 +101,7 @@ type Diagnostic struct {
 	Severity Severity
 }
 
+// Parse parses a query block into a structured Query object.
 func Parse(blk block.Block) (Query, []Diagnostic) {
 	q := Query{Block: blk}
 	var diags []Diagnostic
@@ -409,7 +429,8 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 				k++
 				continue
 			}
-			if t.Kind == tokenizer.KindSymbol {
+			switch t.Kind {
+			case tokenizer.KindSymbol:
 				switch t.Text {
 				case "(":
 					depth++
@@ -458,10 +479,9 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 					k++
 					continue
 				}
-			} else if t.Kind == tokenizer.KindEOF {
+			case tokenizer.KindEOF:
 				valid = false
-				break
-			} else {
+			default:
 				if depth == 1 {
 					valid = false
 					break

@@ -1,3 +1,4 @@
+// Package logging provides a configured slog logger for db-catalyst.
 package logging
 
 import (

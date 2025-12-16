@@ -56,7 +56,7 @@ func TestRunListQueries(t *testing.T) {
 
 func prepareCmdFixtures(t *testing.T) string {
 	t.Helper()
-	src := filepath.Join("testdata")
+	src := "testdata"
 	dst := t.TempDir()
 	copyTree(t, dst, src)
 	return filepath.Join(dst, "config.toml")
@@ -72,7 +72,7 @@ func copyTree(t *testing.T, dst, src string) {
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 		if entry.IsDir() {
-			if err := os.MkdirAll(dstPath, 0o755); err != nil {
+			if err := os.MkdirAll(dstPath, 0o750); err != nil {
 				t.Fatalf("MkdirAll %q: %v", dstPath, err)
 			}
 			copyTree(t, dstPath, srcPath)
@@ -84,13 +84,13 @@ func copyTree(t *testing.T, dst, src string) {
 
 func copyFile(t *testing.T, dst, src string) {
 	t.Helper()
-	in, err := os.Open(src)
+	in, err := os.Open(filepath.Clean(src))
 	if err != nil {
 		t.Fatalf("open %q: %v", src, err)
 	}
 	defer func() { _ = in.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	out, err := os.OpenFile(filepath.Clean(dst), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		t.Fatalf("create %q: %v", dst, err)
 	}

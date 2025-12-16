@@ -11,7 +11,7 @@ func TestLoadSchemaCatalog_SingleSchema(t *testing.T) {
 	dir := t.TempDir()
 	schemaPath := filepath.Join(dir, "schema.sql")
 	schema := "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);"
-	if err := os.WriteFile(schemaPath, []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(schemaPath, []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 
@@ -39,10 +39,10 @@ func TestLoadSchemaCatalog_DuplicateTableWarning(t *testing.T) {
 	first := filepath.Join(dir, "schema_one.sql")
 	second := filepath.Join(dir, "schema_two.sql")
 	ddl := "CREATE TABLE users (id INTEGER);"
-	if err := os.WriteFile(first, []byte(ddl), 0o644); err != nil {
+	if err := os.WriteFile(first, []byte(ddl), 0o600); err != nil {
 		t.Fatalf("write first schema: %v", err)
 	}
-	if err := os.WriteFile(second, []byte(ddl), 0o644); err != nil {
+	if err := os.WriteFile(second, []byte(ddl), 0o600); err != nil {
 		t.Fatalf("write second schema: %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestLoadSchemaCatalog_ParserWarnings(t *testing.T) {
 	dir := t.TempDir()
 	schemaPath := filepath.Join(dir, "schema.sql")
 	schema := "CREATE TEMP TABLE things (id INTEGER);"
-	if err := os.WriteFile(schemaPath, []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(schemaPath, []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 

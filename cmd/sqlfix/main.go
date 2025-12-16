@@ -1,3 +1,4 @@
+// Package main implements the sqlfix tool for automated SQL rewrites.
 package main
 
 import (

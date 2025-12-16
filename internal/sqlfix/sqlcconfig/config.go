@@ -1,3 +1,4 @@
+// Package sqlcconfig parses sqlc configuration files.
 package sqlcconfig
 
 import (
@@ -82,7 +83,7 @@ type GoTypeInfo struct {
 
 // Load reads and validates a sqlc configuration file.
 func Load(path string) (Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return Config{}, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -196,7 +197,7 @@ func loadColumnTypes(paths []string) (map[columnKey]string, []string, error) {
 	catalog := schemamodel.NewCatalog()
 
 	for _, path := range paths {
-		contents, err := os.ReadFile(path)
+		contents, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return nil, nil, fmt.Errorf("read schema %s: %w", path, err)
 		}

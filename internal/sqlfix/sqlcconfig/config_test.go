@@ -12,7 +12,7 @@ func TestLoadConfigParsesOverrides(t *testing.T) {
 	dir := t.TempDir()
 
 	schema := "CREATE TABLE users (id INTEGER PRIMARY KEY, status TEXT);"
-	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 
@@ -33,7 +33,7 @@ overrides:
       pointer: true
 `
 	configPath := filepath.Join(dir, "sqlc.yaml")
-	if err := os.WriteFile(configPath, []byte(sqlc), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(sqlc), 0o600); err != nil {
 		t.Fatalf("write sqlc config: %v", err)
 	}
 

@@ -1,3 +1,4 @@
+// Package config loads and validates the db-catalyst configuration.
 package config
 
 import (
@@ -127,7 +128,7 @@ type Result struct {
 func Load(path string, opts LoadOptions) (Result, error) {
 	var res Result
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return res, fmt.Errorf("read %s: %w", path, err)
 	}

@@ -5,5 +5,14 @@ linters:
   enable:
     - govet
     - staticcheck
+    - unused
+    - revive
+    - gocritic
+    - misspell
+    - gosec
+    - prealloc
+    - unconvert
+    - bodyclose
+    - ineffassign
 issues:
   exclude-use-default: false

@@ -314,7 +314,7 @@ func copyFixtureDir(t testing.TB, dstRoot, name string) {
 	}
 
 	dstDir := filepath.Join(dstRoot, name)
-	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+	if err := os.MkdirAll(dstDir, 0o750); err != nil {
 		t.Fatalf("create fixture dir: %v", err)
 	}
 
@@ -323,12 +323,12 @@ func copyFixtureDir(t testing.TB, dstRoot, name string) {
 			continue
 		}
 
-		data, err := os.ReadFile(filepath.Join(srcDir, entry.Name()))
+		data, err := os.ReadFile(filepath.Clean(filepath.Join(srcDir, entry.Name())))
 		if err != nil {
 			t.Fatalf("read fixture file: %v", err)
 		}
 
-		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), data, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dstDir, entry.Name()), data, 0o600); err != nil {
 			t.Fatalf("write fixture file: %v", err)
 		}
 	}
@@ -339,7 +339,7 @@ func writeConfig(t testing.TB, dir, contents string) string {
 
 	path := filepath.Join(dir, "db-catalyst.toml")
 	clean := strings.TrimSpace(contents) + "\n"
-	if err := os.WriteFile(path, []byte(clean), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(clean), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	return path

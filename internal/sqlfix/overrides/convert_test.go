@@ -15,7 +15,7 @@ func loadTestConfig(t *testing.T) sqlcconfig.Config {
 	dir := t.TempDir()
 
 	schema := "CREATE TABLE users (id INTEGER PRIMARY KEY, status TEXT);"
-	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 
@@ -35,7 +35,7 @@ overrides:
     go_type: github.com/example/types.Status
 `
 	configPath := filepath.Join(dir, "sqlc.yaml")
-	if err := os.WriteFile(configPath, []byte(sqlc), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(sqlc), 0o600); err != nil {
 		t.Fatalf("write sqlc config: %v", err)
 	}
 
@@ -61,8 +61,7 @@ func TestConvertOverrides(t *testing.T) {
 	var dbType config.CustomTypeMapping
 	var column config.CustomTypeMapping
 	for _, m := range mappings {
-		switch m.SQLiteType {
-		case "TEXT":
+		if m.SQLiteType == "TEXT" {
 			switch m.GoType {
 			case "Label":
 				dbType = m

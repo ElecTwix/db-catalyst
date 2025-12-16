@@ -13,7 +13,7 @@ func TestRunWritesMergedConfig(t *testing.T) {
 	dir := t.TempDir()
 
 	schema := "CREATE TABLE users (id INTEGER PRIMARY KEY, status TEXT);"
-	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 
@@ -34,7 +34,7 @@ overrides:
       pointer: true
 `
 	sqlcPath := filepath.Join(dir, "sqlc.yaml")
-	if err := os.WriteFile(sqlcPath, []byte(sqlc), 0o644); err != nil {
+	if err := os.WriteFile(sqlcPath, []byte(sqlc), 0o600); err != nil {
 		t.Fatalf("write sqlc config: %v", err)
 	}
 
@@ -46,7 +46,7 @@ queries = ["queries.sql"]
 [` + "custom_types" + `]
 `
 	dbPath := filepath.Join(dir, "db-catalyst.toml")
-	if err := os.WriteFile(dbPath, []byte(dbConfig), 0o644); err != nil {
+	if err := os.WriteFile(dbPath, []byte(dbConfig), 0o600); err != nil {
 		t.Fatalf("write db config: %v", err)
 	}
 
@@ -57,7 +57,7 @@ queries = ["queries.sql"]
 		t.Fatalf("run exit = %d, stderr = %s", exitCode, stderr.String())
 	}
 
-	data, err := os.ReadFile(outPath)
+	data, err := os.ReadFile(filepath.Clean(outPath))
 	if err != nil {
 		t.Fatalf("read out config: %v", err)
 	}
@@ -80,7 +80,7 @@ queries = ["queries.sql"]
 func TestRunDryRun(t *testing.T) {
 	dir := t.TempDir()
 	schema := "CREATE TABLE users (id INTEGER PRIMARY KEY, status TEXT);"
-	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "schema.sql"), []byte(schema), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 
@@ -93,7 +93,7 @@ overrides:
     go_type: github.com/example/types.Label
 `
 	sqlcPath := filepath.Join(dir, "sqlc.yaml")
-	if err := os.WriteFile(sqlcPath, []byte(sqlc), 0o644); err != nil {
+	if err := os.WriteFile(sqlcPath, []byte(sqlc), 0o600); err != nil {
 		t.Fatalf("write sqlc config: %v", err)
 	}
 

@@ -1,3 +1,4 @@
+// Package main implements the db-catalyst CLI.
 package main
 
 import (
@@ -39,9 +40,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	env := pipeline.Environment{
 		Logger: logger,
-		FSResolver: func(path string) (fileset.Resolver, error) {
-			return fileset.NewOSResolver(path)
-		},
+		FSResolver: fileset.NewOSResolver,
 		Writer: pipeline.NewOSWriter(),
 	}
 

@@ -180,41 +180,21 @@ func TestPipelineListQueries(t *testing.T) {
 
 func prepareFixtures(t *testing.T) string {
 	t.Helper()
-	src := filepath.Join("testdata")
+	src := "testdata"
 	dst := t.TempDir()
-	copyTree(t, dst, src)
+	copyFile(t, filepath.Join(dst, "config.toml"), filepath.Join(src, "config.toml"))
 	return filepath.Join(dst, "config.toml")
-}
-
-func copyTree(t *testing.T, dst, src string) {
-	t.Helper()
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		t.Fatalf("ReadDir %q: %v", src, err)
-	}
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-		if entry.IsDir() {
-			if err := os.MkdirAll(dstPath, 0o755); err != nil {
-				t.Fatalf("MkdirAll %q: %v", dstPath, err)
-			}
-			copyTree(t, dstPath, srcPath)
-			continue
-		}
-		copyFile(t, dstPath, srcPath)
-	}
 }
 
 func copyFile(t *testing.T, dst, src string) {
 	t.Helper()
-	in, err := os.Open(src)
+	in, err := os.Open(filepath.Clean(src))
 	if err != nil {
 		t.Fatalf("open %q: %v", src, err)
 	}
 	defer func() { _ = in.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		t.Fatalf("create %q: %v", dst, err)
 	}

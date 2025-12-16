@@ -9,11 +9,13 @@ import (
 	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// SchemaCatalog holds the parsed database schema and any warnings.
 type SchemaCatalog struct {
 	Catalog  *model.Catalog
 	Warnings []string
 }
 
+// LoadSchemaCatalog loads and parses schema files from the given paths.
 func LoadSchemaCatalog(paths []string, readFile func(string) ([]byte, error)) (SchemaCatalog, error) {
 	result := SchemaCatalog{Catalog: model.NewCatalog()}
 	if len(paths) == 0 {

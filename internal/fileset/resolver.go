@@ -1,3 +1,4 @@
+// Package fileset handles file path resolution and glob expansion.
 package fileset
 
 import (

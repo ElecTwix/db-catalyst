@@ -1,3 +1,4 @@
+// Package sqlfix implements tools for automated SQL rewrites and migration.
 package sqlfix
 
 import (
@@ -7,14 +8,17 @@ import (
 	"unicode"
 )
 
+// AliasGenerator generates unique column aliases for SQL queries.
 type AliasGenerator struct {
 	counts map[string]int
 }
 
+// NewAliasGenerator creates a new AliasGenerator.
 func NewAliasGenerator() *AliasGenerator {
 	return &AliasGenerator{counts: make(map[string]int)}
 }
 
+// Reserve marks an alias as already used to prevent collisions.
 func (g *AliasGenerator) Reserve(alias string) {
 	alias = strings.TrimSpace(alias)
 	if alias == "" {
@@ -35,6 +39,7 @@ func (g *AliasGenerator) Reserve(alias string) {
 	}
 }
 
+// Next generates a deterministic, unique alias for the given expression.
 func (g *AliasGenerator) Next(expr string) string {
 	base := deriveAliasBase(expr)
 	if base == "" {

@@ -1,3 +1,4 @@
+// Package pipeline orchestrates the entire code generation process.
 package pipeline
 
 import (
@@ -99,7 +100,7 @@ func (w *osWriter) WriteFile(path string, data []byte) error {
 		return errors.New("pipeline: empty path")
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".db-catalyst-")
@@ -176,9 +177,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	baseDir := filepath.Dir(absConfigPath)
 	resolverFn := p.Env.FSResolver
 	if resolverFn == nil {
-		resolverFn = func(path string) (fileset.Resolver, error) {
-			return fileset.NewOSResolver(path)
-		}
+		resolverFn = fileset.NewOSResolver
 	}
 
 	resolver, err := resolverFn(baseDir)
@@ -216,7 +215,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		if err := ctx.Err(); err != nil {
 			return summary, err
 		}
-		contents, readErr := os.ReadFile(schemaPath)
+		contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
 		if readErr != nil {
 			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema: %v", readErr)))
 			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
@@ -245,7 +244,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		if err := ctx.Err(); err != nil {
 			return summary, err
 		}
-		contents, readErr := os.ReadFile(queryPath)
+		contents, readErr := os.ReadFile(filepath.Clean(queryPath))
 		if readErr != nil {
 			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read queries: %v", readErr)))
 			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
@@ -320,7 +319,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	if len(plan.CustomTypes) > 0 {
 		transformer := transform.New(plan.CustomTypes)
 		for _, schemaPath := range plan.Schemas {
-			contents, readErr := os.ReadFile(schemaPath)
+			contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
 			if readErr != nil {
 				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema for transformation: %v", readErr)))
 				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
@@ -425,7 +424,7 @@ func mergeCatalog(dest, src *model.Catalog, addDiag func(queryanalyzer.Diagnosti
 }
 
 func fileMatches(path string, content []byte) (bool, error) {
-	existing, err := os.ReadFile(path)
+	existing, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return false, nil

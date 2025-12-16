@@ -133,7 +133,7 @@ func fixturePath(name string) string {
 
 func readFile(tb testing.TB, path string) []byte {
 	tb.Helper()
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		tb.Fatalf("read %s: %v", path, err)
 	}
@@ -159,7 +159,7 @@ func containsMessage(diags []Diagnostic, snippet string) bool {
 }
 
 func formatDiagnostics(diags []Diagnostic) string {
-	var parts []string
+	parts := make([]string, 0, len(diags))
 	for _, d := range diags {
 		parts = append(parts, d.Message)
 	}

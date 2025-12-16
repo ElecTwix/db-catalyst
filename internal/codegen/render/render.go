@@ -1,3 +1,4 @@
+// Package render formats and writes generated Go code.
 package render
 
 import (

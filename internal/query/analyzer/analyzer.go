@@ -1,3 +1,4 @@
+// Package analyzer validates and resolves SQL queries against a schema catalog.
 package analyzer
 
 import (
@@ -13,11 +14,13 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Analyzer validates queries against the schema catalog.
 type Analyzer struct {
 	Catalog     *model.Catalog
 	CustomTypes map[string]config.CustomTypeMapping
 }
 
+// Result contains the analysis result for a single query.
 type Result struct {
 	Query       parser.Query
 	Columns     []ResultColumn
@@ -25,6 +28,7 @@ type Result struct {
 	Diagnostics []Diagnostic
 }
 
+// ResultColumn describes a single output column of a query.
 type ResultColumn struct {
 	Name     string
 	Table    string
@@ -32,6 +36,7 @@ type ResultColumn struct {
 	Nullable bool
 }
 
+// ResultParam describes a single input parameter of a query.
 type ResultParam struct {
 	Name          string
 	Style         parser.ParamStyle
@@ -41,6 +46,7 @@ type ResultParam struct {
 	VariadicCount int
 }
 
+// Diagnostic represents an issue found during analysis.
 type Diagnostic struct {
 	Path     string
 	Line     int
@@ -49,10 +55,13 @@ type Diagnostic struct {
 	Severity Severity
 }
 
+// Severity indicates the seriousness of a diagnostic.
 type Severity int
 
 const (
+	// SeverityWarning indicates a potential issue that doesn't prevent code generation.
 	SeverityWarning Severity = iota
+	// SeverityError indicates a fatal issue that prevents code generation.
 	SeverityError
 )
 
@@ -103,14 +112,17 @@ type posKey struct {
 	column int
 }
 
+// New creates a new Analyzer with the given catalog.
 func New(catalog *model.Catalog) *Analyzer {
 	return &Analyzer{Catalog: catalog, CustomTypes: nil}
 }
 
+// NewWithCustomTypes creates a new Analyzer with the given catalog and custom type mappings.
 func NewWithCustomTypes(catalog *model.Catalog, customTypes map[string]config.CustomTypeMapping) *Analyzer {
 	return &Analyzer{Catalog: catalog, CustomTypes: customTypes}
 }
 
+// Analyze validates and resolves a parsed query.
 func (a *Analyzer) Analyze(q parser.Query) Result {
 	result := Result{
 		Query:   q,
@@ -340,11 +352,12 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 			agg, isAggregate := parseAggregateExpr(col.Expr)
 			skipLookup := false
 			if isAggregate {
-				if agg.argStar {
+				switch {
+				case agg.argStar:
 					sc.goType = "int64"
 					sc.nullable = false
 					skipLookup = true
-				} else if agg.argColumn == "" {
+				case agg.argColumn == "":
 					diags = append(diags, Diagnostic{
 						Path:     parent.Block.Path,
 						Line:     col.Line,
@@ -354,7 +367,7 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 					})
 					suppressDefaultWarning = true
 					skipLookup = true
-				} else {
+				default:
 					alias = agg.argAlias
 					columnName = agg.argColumn
 				}
@@ -591,16 +604,16 @@ func parseAggregateExpr(expr string) (aggregateExpr, bool) {
 		return aggregateExpr{}, false
 	}
 
-	close := strings.LastIndex(trimmed, ")")
-	if close < 0 || close <= open {
+	closeIdx := strings.LastIndex(trimmed, ")")
+	if closeIdx < 0 || closeIdx <= open {
 		return aggregateExpr{}, false
 	}
-	after := strings.TrimSpace(trimmed[close+1:])
+	after := strings.TrimSpace(trimmed[closeIdx+1:])
 	if after != "" {
 		return aggregateExpr{}, false
 	}
 
-	inner := strings.TrimSpace(trimmed[open+1 : close])
+	inner := strings.TrimSpace(trimmed[open+1 : closeIdx])
 	if inner == "" {
 		return aggregateExpr{kind: kind}, true
 	}
@@ -831,7 +844,8 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 			})
 			return rc, diags
 		}
-		if alias != "" {
+		switch {
+		case alias != "":
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
 				Line:     col.Line,
@@ -839,7 +853,7 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 				Message:  fmt.Sprintf("result column %q references unknown column %s.%s", rcOrExprName(rc, col), alias, columnName),
 				Severity: SeverityError,
 			})
-		} else if col.Alias != "" {
+		case col.Alias != "":
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
 				Line:     col.Line,
@@ -847,7 +861,7 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 				Message:  fmt.Sprintf("result column %q derives from expression without schema mapping", col.Alias),
 				Severity: SeverityWarning,
 			})
-		} else {
+		default:
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
 				Line:     col.Line,
@@ -1554,6 +1568,7 @@ func actualTokenLine(q parser.Query, tok tokenizer.Token) int {
 	return q.Block.Line + tok.Line
 }
 
+// SQLiteTypeToGo converts a SQLite type to a Go type.
 func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
 	// First check if the SQLite type has a custom type mapping
 	if a.CustomTypes != nil {

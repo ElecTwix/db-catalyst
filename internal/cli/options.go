@@ -1,3 +1,4 @@
+// Package cli provides the command-line interface logic for db-catalyst.
 package cli
 
 import (
@@ -8,6 +9,7 @@ import (
 	"strings"
 )
 
+// Options holds the configuration derived from command-line arguments.
 type Options struct {
 	ConfigPath   string
 	Out          string
@@ -18,6 +20,7 @@ type Options struct {
 	Args         []string
 }
 
+// Parse processes command-line arguments and returns the options.
 func Parse(args []string) (Options, error) {
 	const defaultConfig = "db-catalyst.toml"
 
@@ -54,12 +57,13 @@ func Parse(args []string) (Options, error) {
 	return opts, nil
 }
 
+// Usage returns the usage string for the command-line interface.
 func Usage(fs *flag.FlagSet) string {
 	if fs == nil {
 		return ""
 	}
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "Usage of %s:\n", fs.Name())
+	_, _ = fmt.Fprintf(&buf, "Usage of %s:\n", fs.Name())
 	out := fs.Output()
 	fs.SetOutput(&buf)
 	fs.PrintDefaults()

@@ -1,3 +1,4 @@
+// Package tokenizer scans SQL source code into tokens.
 package tokenizer
 
 import (

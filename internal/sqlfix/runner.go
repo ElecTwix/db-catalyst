@@ -16,6 +16,7 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+// NewRunner creates a new sqlfix Runner.
 func NewRunner() *Runner {
 	return &Runner{
 		readFile:  os.ReadFile,
@@ -23,6 +24,7 @@ func NewRunner() *Runner {
 	}
 }
 
+// SetCatalog sets the schema catalog used for star expansion and validation.
 func (r *Runner) SetCatalog(catalog *model.Catalog, warnings []string) {
 	if r == nil {
 		return
@@ -35,6 +37,7 @@ func (r *Runner) SetCatalog(catalog *model.Catalog, warnings []string) {
 	r.catalogWarnings = append(r.catalogWarnings[:0], warnings...)
 }
 
+// CatalogWarnings returns any warnings encountered during catalog loading.
 func (r *Runner) CatalogWarnings() []string {
 	if r == nil || len(r.catalogWarnings) == 0 {
 		return nil
@@ -44,6 +47,7 @@ func (r *Runner) CatalogWarnings() []string {
 	return out
 }
 
+// Runner executes the sqlfix logic on a set of files.
 type Runner struct {
 	Logger *slog.Logger
 	DryRun bool
@@ -61,6 +65,7 @@ type edit struct {
 	text  string
 }
 
+// Rewrite processes the given file paths and applies necessary fixes.
 func (r *Runner) Rewrite(ctx context.Context, paths []string) ([]Report, error) {
 	if r == nil {
 		return nil, errors.New("sqlfix: runner is nil")
@@ -283,5 +288,5 @@ func applyByteEdits(src []byte, edits []edit) ([]byte, error) {
 }
 
 func defaultWriteFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }

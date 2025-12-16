@@ -37,12 +37,12 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 	for _, file := range first {
 		goldenPath := filepath.Join("testdata", "golden", file.Path+".golden")
 		if updateGolden {
-			if err := os.WriteFile(goldenPath, file.Content, 0o644); err != nil {
+			if err := os.WriteFile(goldenPath, file.Content, 0o600); err != nil {
 				t.Fatalf("write golden %s: %v", goldenPath, err)
 			}
 			continue
 		}
-		want, err := os.ReadFile(goldenPath)
+		want, err := os.ReadFile(filepath.Clean(goldenPath))
 		if err != nil {
 			t.Fatalf("read golden %s: %v", goldenPath, err)
 		}
@@ -77,12 +77,12 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 
 	goldenPath := filepath.Join("testdata", "golden", "prepared.gen.go.golden")
 	if updateGolden {
-		if err := os.WriteFile(goldenPath, prepared.Content, 0o644); err != nil {
+		if err := os.WriteFile(goldenPath, prepared.Content, 0o600); err != nil {
 			t.Fatalf("write golden %s: %v", goldenPath, err)
 		}
 		return
 	}
-	want, err := os.ReadFile(goldenPath)
+	want, err := os.ReadFile(filepath.Clean(goldenPath))
 	if err != nil {
 		t.Fatalf("read golden %s: %v\n%s", goldenPath, err, prepared.Content)
 	}

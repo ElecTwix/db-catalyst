@@ -7,17 +7,20 @@ import (
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
-type typeInfo struct {
+// TypeInfo describes a resolved Go type.
+type TypeInfo struct {
 	GoType      string
 	UsesSQLNull bool
 	Import      string // For custom types
 	Package     string // For custom types
 }
 
+// TypeResolver handles mapping between SQL types and Go types.
 type TypeResolver struct {
 	transformer *transform.Transformer
 }
 
+// NewTypeResolver creates a new TypeResolver with optional custom type support.
 func NewTypeResolver(transformer *transform.Transformer) *TypeResolver {
 	return &TypeResolver{transformer: transformer}
 }
@@ -38,25 +41,26 @@ func (r *TypeResolver) findCustomMappingBySQLiteType(sqlType string) *config.Cus
 	return nil
 }
 
-func (r *TypeResolver) ResolveType(typeOrSqlType string, nullable bool) typeInfo {
+// ResolveType determines the Go type for a given SQL type or existing Go type.
+func (r *TypeResolver) ResolveType(typeOrSQLType string, nullable bool) TypeInfo {
 	// Check if this is already a Go type (contains package qualifiers like "example.IDWrap")
-	if strings.Contains(typeOrSqlType, ".") || strings.HasPrefix(typeOrSqlType, "*") {
+	if strings.Contains(typeOrSQLType, ".") || strings.HasPrefix(typeOrSQLType, "*") {
 		// This is already a Go type, handle nullable logic
-		goType := typeOrSqlType
+		goType := typeOrSQLType
 		if nullable && !strings.HasPrefix(goType, "*") {
 			goType = "*" + goType
 		}
-		return typeInfo{GoType: goType, UsesSQLNull: false}
+		return TypeInfo{GoType: goType, UsesSQLNull: false}
 	}
 
 	// This is a SQLite type, check if it has a custom type mapping
 	if r.transformer != nil {
 		// Look for a custom type mapping for this SQLite type
-		if customMapping := r.findCustomMappingBySQLiteType(typeOrSqlType); customMapping != nil {
+		if customMapping := r.findCustomMappingBySQLiteType(typeOrSQLType); customMapping != nil {
 			goType, isPointer, err := r.transformer.GetGoTypeForCustomType(customMapping.CustomType)
 			if err != nil {
 				// Fall back to interface{} if mapping is incomplete
-				return typeInfo{GoType: "interface{}", UsesSQLNull: false}
+				return TypeInfo{GoType: "interface{}", UsesSQLNull: false}
 			}
 
 			// Handle nullable custom types BEFORE import check
@@ -75,10 +79,10 @@ func (r *TypeResolver) ResolveType(typeOrSqlType string, nullable bool) typeInfo
 			importPath, packageName, err := r.transformer.GetImportsForCustomType(customMapping.CustomType)
 			if err != nil {
 				// Custom type without import - use just the type name
-				return typeInfo{GoType: goType, UsesSQLNull: false}
+				return TypeInfo{GoType: goType, UsesSQLNull: false}
 			}
 
-			return typeInfo{
+			return TypeInfo{
 				GoType:      goType,
 				UsesSQLNull: false,
 				Import:      importPath,
@@ -88,7 +92,7 @@ func (r *TypeResolver) ResolveType(typeOrSqlType string, nullable bool) typeInfo
 	}
 
 	// Handle standard SQLite types
-	goType := r.sqliteTypeToGo(typeOrSqlType)
+	goType := r.sqliteTypeToGo(typeOrSQLType)
 	return r.resolveStandardType(goType, nullable)
 }
 
@@ -98,13 +102,14 @@ func (r *TypeResolver) sqliteTypeToGo(sqlType string) string {
 
 	switch {
 	case strings.Contains(upperType, "INT"):
-		if strings.Contains(upperType, "BIGINT") {
+		switch {
+		case strings.Contains(upperType, "BIGINT"):
 			return "int64"
-		} else if strings.Contains(upperType, "SMALLINT") {
+		case strings.Contains(upperType, "SMALLINT"):
 			return "int16"
-		} else if strings.Contains(upperType, "TINYINT") {
+		case strings.Contains(upperType, "TINYINT"):
 			return "int8"
-		} else {
+		default:
 			return "int32"
 		}
 	case strings.Contains(upperType, "TEXT"), strings.Contains(upperType, "CHAR"), strings.Contains(upperType, "VARCHAR"):
@@ -122,7 +127,7 @@ func (r *TypeResolver) sqliteTypeToGo(sqlType string) string {
 	}
 }
 
-func (r *TypeResolver) resolveStandardType(goType string, nullable bool) typeInfo {
+func (r *TypeResolver) resolveStandardType(goType string, nullable bool) TypeInfo {
 	base := strings.TrimSpace(goType)
 	if base == "" {
 		base = "interface{}"
@@ -130,31 +135,31 @@ func (r *TypeResolver) resolveStandardType(goType string, nullable bool) typeInf
 	if nullable {
 		switch base {
 		case "int64":
-			return typeInfo{GoType: "sql.NullInt64", UsesSQLNull: true}
+			return TypeInfo{GoType: "sql.NullInt64", UsesSQLNull: true}
 		case "float64":
-			return typeInfo{GoType: "sql.NullFloat64", UsesSQLNull: true}
+			return TypeInfo{GoType: "sql.NullFloat64", UsesSQLNull: true}
 		case "string":
-			return typeInfo{GoType: "sql.NullString", UsesSQLNull: true}
+			return TypeInfo{GoType: "sql.NullString", UsesSQLNull: true}
 		case "bool":
-			return typeInfo{GoType: "sql.NullBool", UsesSQLNull: true}
+			return TypeInfo{GoType: "sql.NullBool", UsesSQLNull: true}
 		default:
 			// For custom types or blobs, use pointer
 			if !strings.HasPrefix(base, "*") {
-				return typeInfo{GoType: "*" + base, UsesSQLNull: false}
+				return TypeInfo{GoType: "*" + base, UsesSQLNull: false}
 			}
 		}
 	}
-	return typeInfo{GoType: base, UsesSQLNull: strings.HasPrefix(base, "sql.Null")}
+	return TypeInfo{GoType: base, UsesSQLNull: strings.HasPrefix(base, "sql.Null")}
 }
 
 // Legacy function for backward compatibility
-func resolveType(goType string, nullable bool) typeInfo {
+func resolveType(goType string, nullable bool) TypeInfo {
 	resolver := NewTypeResolver(nil)
 	return resolver.resolveStandardType(goType, nullable)
 }
 
 // CollectImports gathers all unique imports from type information
-func CollectImports(typeInfos []typeInfo) map[string]string {
+func CollectImports(typeInfos []TypeInfo) map[string]string {
 	imports := make(map[string]string)
 	for _, info := range typeInfos {
 		if info.Import != "" && info.Package != "" {
