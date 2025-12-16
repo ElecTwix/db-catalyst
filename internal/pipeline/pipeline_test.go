@@ -182,8 +182,28 @@ func prepareFixtures(t *testing.T) string {
 	t.Helper()
 	src := "testdata"
 	dst := t.TempDir()
-	copyFile(t, filepath.Join(dst, "config.toml"), filepath.Join(src, "config.toml"))
+	copyDir(t, dst, src)
 	return filepath.Join(dst, "config.toml")
+}
+
+func copyDir(t *testing.T, dst, src string) {
+	t.Helper()
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatalf("ReadDir %q: %v", src, err)
+	}
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		if entry.IsDir() {
+			if err := os.MkdirAll(dstPath, 0o750); err != nil {
+				t.Fatalf("MkdirAll %q: %v", dstPath, err)
+			}
+			copyDir(t, dstPath, srcPath)
+			continue
+		}
+		copyFile(t, dstPath, srcPath)
+	}
 }
 
 func copyFile(t *testing.T, dst, src string) {
