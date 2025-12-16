@@ -1297,24 +1297,60 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope) map[int]pa
 		if _, exists := infos[paramIdx]; exists {
 			continue
 		}
-		table, column, ok := matchEqualityReference(tokens, tokenIdx)
+		
+		isSlice := q.Params[paramIdx].IsVariadic
+		
+		var table, column string
+		var ok bool
+		
+		if isSlice {
+			table, column, ok = matchInReference(tokens, tokenIdx)
+		} 
+		
+		if !ok {
+			table, column, ok = matchEqualityReference(tokens, tokenIdx)
+		}
+		
 		if !ok {
 			continue
 		}
+		
+		var typeName string
+		var nullable bool
+		found := false
+
 		if scope != nil {
 			if resolved, _, status := scope.lookup(table, column); status == scopeLookupOK && resolved.goType != "interface{}" {
-				infos[paramIdx] = paramInfo{GoType: resolved.goType, Nullable: resolved.nullable}
-				continue
+				typeName = resolved.goType
+				nullable = resolved.nullable
+				found = true
 			} else if status == scopeLookupAliasNotFound && column != "" {
 				if fallback, _, fbStatus := scope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "interface{}" {
-					infos[paramIdx] = paramInfo{GoType: fallback.goType, Nullable: fallback.nullable}
-					continue
+					typeName = fallback.goType
+					nullable = fallback.nullable
+					found = true
 				}
 			}
 		}
 
-		if info, found := a.schemaInfoForColumn(cat, table, column); found {
-			infos[paramIdx] = info
+		if !found {
+			if info, schemaFound := a.schemaInfoForColumn(cat, table, column); schemaFound {
+				typeName = info.GoType
+				nullable = info.Nullable
+				found = true
+			}
+		}
+
+		if found {
+			if isSlice {
+				// For slices, we want the base type wrapped in a slice, and typically not nullable elements
+				// unless the column is nullable. But usually input slices are []Type.
+				// If the column is nullable, sqlc usually generates []Type (and expects no nulls or handles them).
+				// We'll stick to non-pointer slice elements for now as that's typical for IN clauses.
+				typeName = "[]" + typeName
+				nullable = false // Slices themselves aren't nullable in this context usually
+			}
+			infos[paramIdx] = paramInfo{GoType: typeName, Nullable: nullable}
 		}
 	}
 
@@ -1341,6 +1377,31 @@ func (a *Analyzer) schemaInfoForColumn(cat *model.Catalog, tableName, columnName
 		GoType:   a.SQLiteTypeToGo(column.Type),
 		Nullable: !column.NotNull,
 	}, true
+}
+
+func matchInReference(tokens []tokenizer.Token, paramIdx int) (string, string, bool) {
+	if paramIdx < 2 {
+		return "", "", false
+	}
+	// Looking for: col IN ( ? )
+	// paramIdx points to ?, so paramIdx-1 should be (, paramIdx-2 should be IN
+	if tokens[paramIdx-1].Kind != tokenizer.KindSymbol || tokens[paramIdx-1].Text != "(" {
+		return "", "", false
+	}
+	if tokens[paramIdx-2].Kind != tokenizer.KindKeyword || strings.ToUpper(tokens[paramIdx-2].Text) != "IN" {
+		// IN is a keyword.
+		// Check if tokenizer marked it as Identifier?
+		if strings.ToUpper(tokens[paramIdx-2].Text) != "IN" {
+			return "", "", false
+		}
+	}
+	// Check if IN is preceded by NOT
+	idx := paramIdx - 3
+	if idx >= 0 && tokens[idx].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[idx].Text) == "NOT" {
+		idx--
+	}
+	
+	return parseColumnReferenceBackward(tokens, idx)
 }
 
 func matchEqualityReference(tokens []tokenizer.Token, paramIdx int) (string, string, bool) {

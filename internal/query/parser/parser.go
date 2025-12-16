@@ -68,6 +68,8 @@ type Param struct {
 	Column        int
 	IsVariadic    bool
 	VariadicCount int
+	StartOffset   int
+	EndOffset     int
 }
 
 // ParamStyle indicates how parameters are specified (positional or named).
@@ -149,7 +151,7 @@ func Parse(blk block.Block) (Query, []Diagnostic) {
 		q.CTEs = ctes
 	}
 
-	params, paramDiags := collectParams(tokens, blk)
+	params, paramDiags := collectParams(tokens, blk, posIdx)
 	q.Params = params
 	diags = append(diags, paramDiags...)
 
@@ -394,6 +396,39 @@ type variadicGroup struct {
 	placeholderIdxs []int
 	numberIdxs      []int
 	numbers         []int
+	name            string // for sqlc.slice('name')
+}
+
+func isSQLCMacro(tokens []tokenizer.Token, i int) (macroType string, arg string, end int, ok bool) {
+	if i+5 >= len(tokens) {
+		return "", "", 0, false
+	}
+	// sqlc . macro ( 'arg' )
+	if tokens[i].Kind != tokenizer.KindIdentifier || tokens[i].Text != "sqlc" {
+		return "", "", 0, false
+	}
+	if tokens[i+1].Kind != tokenizer.KindSymbol || tokens[i+1].Text != "." {
+		return "", "", 0, false
+	}
+	if tokens[i+2].Kind != tokenizer.KindIdentifier {
+		return "", "", 0, false
+	}
+	macro := tokens[i+2].Text
+	if tokens[i+3].Kind != tokenizer.KindSymbol || tokens[i+3].Text != "(" {
+		return "", "", 0, false
+	}
+	if tokens[i+4].Kind != tokenizer.KindString {
+		return "", "", 0, false
+	}
+	val := tokens[i+4].Text
+	// Strip quotes
+	if len(val) >= 2 && (val[0] == '\'' || val[0] == '"') {
+		val = val[1 : len(val)-1]
+	}
+	if tokens[i+5].Kind != tokenizer.KindSymbol || tokens[i+5].Text != ")" {
+		return "", "", 0, false
+	}
+	return macro, val, i + 6, true
 }
 
 func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
@@ -415,6 +450,25 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 			continue
 		}
 
+		// Check for sqlc.slice('name') immediately inside IN ( ... )
+		// Skip whitespace/comments inside parens if necessary, but sqlc macros usually don't have comments inside
+		k := j + 1
+		for k < len(tokens) && tokens[k].Kind == tokenizer.KindDocComment {
+			k++
+		}
+		
+		if macro, name, end, ok := isSQLCMacro(tokens, k); ok && macro == "slice" {
+			// Check if closed by )
+			if end < len(tokens) && tokens[end].Kind == tokenizer.KindSymbol && tokens[end].Text == ")" {
+				groups[k] = variadicGroup{
+					placeholderIdxs: []int{k}, // Use start of macro as placeholder
+					name:            name,
+				}
+				i = end // Advance main loop
+				continue
+			}
+		}
+
 		depth := 1
 		placeholderIdxs := make([]int, 0, 4)
 		numberIdxs := make([]int, 0, 4)
@@ -423,6 +477,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 		hasNumber := false
 		hasPlain := false
 
+	TokenLoop:
 		for k := j + 1; k < len(tokens) && depth > 0; {
 			t := tokens[k]
 			if t.Kind == tokenizer.KindDocComment {
@@ -446,7 +501,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 				case "?":
 					if depth != 1 {
 						valid = false
-						break
+						break TokenLoop
 					}
 					placeholderIdxs = append(placeholderIdxs, k)
 					numVal := 0
@@ -456,7 +511,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 							parsed, err := strconv.Atoi(next.Text)
 							if err != nil || parsed <= 0 {
 								valid = false
-								break
+								break TokenLoop
 							}
 							numVal = parsed
 							numIdx := k + 1
@@ -474,17 +529,18 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 				default:
 					if depth == 1 {
 						valid = false
-						break
+						break TokenLoop
 					}
 					k++
 					continue
 				}
 			case tokenizer.KindEOF:
 				valid = false
+				break TokenLoop
 			default:
 				if depth == 1 {
 					valid = false
-					break
+					break TokenLoop
 				}
 				k++
 				continue
@@ -531,7 +587,7 @@ func nextAvailableOrder(used map[int]int) int {
 	}
 }
 
-func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagnostic) {
+func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex) ([]Param, []Diagnostic) {
 	params := make([]Param, 0, 4)
 	diags := make([]Diagnostic, 0, 2)
 	numbered := make(map[int]int)
@@ -545,6 +601,71 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 			i++
 			continue
 		}
+
+		// Check for sqlc.slice from groups
+		if group, ok := groups[i]; ok && group.name != "" {
+			actualLine, actualColumn := actualPosition(blk, tokens[i].Line, tokens[i].Column)
+			startOffset := pos.offset(tokens[i])
+			// Macro length: sqlc(4) + .(1) + slice(5) + ((1) + 'name'(len) + )(1)
+			// tokens[i] is sqlc. tokens[i+5] is ).
+			endTok := tokens[i+5]
+			endOffset := pos.offset(endTok) + len(endTok.Text)
+
+			camel := camelCaseParam(group.name)
+			params = append(params, Param{
+				Name:          camel,
+				Style:         ParamStyleNamed,
+				Order:         len(params) + 1,
+				Line:          actualLine,
+				Column:        actualColumn,
+				IsVariadic:    true,
+				VariadicCount: 0, // 0 indicates dynamic expansion
+				StartOffset:   startOffset,
+				EndOffset:     endOffset,
+			})
+			named[strings.ToLower(group.name)] = len(params) - 1
+			// Skip the whole macro: sqlc . slice ( 'name' ) = 6 tokens
+			for k := 0; k < 6; k++ {
+				skipIndices[i+k] = struct{}{}
+			}
+			i++
+			continue
+		}
+
+		// Check for sqlc.arg / sqlc.narg
+		if macro, name, end, ok := isSQLCMacro(tokens, i); ok && (macro == "arg" || macro == "narg") {
+			actualLine, actualColumn := actualPosition(blk, tokens[i].Line, tokens[i].Column)
+			startOffset := pos.offset(tokens[i])
+			endTok := tokens[end-1]
+			endOffset := pos.offset(endTok) + len(endTok.Text)
+
+			camel := camelCaseParam(name)
+			key := strings.ToLower(name)
+			
+			if idx, exists := named[key]; exists {
+				if params[idx].Name != camel {
+					diags = append(diags, makeDiag(blk, tokens[i].Line, tokens[i].Column, SeverityError, "parameter %s resolves to conflicting name %q", name, camel))
+				}
+			} else {
+				params = append(params, Param{
+					Name:          camel,
+					Style:         ParamStyleNamed,
+					Order:         len(params) + 1,
+					Line:          actualLine,
+					Column:        actualColumn,
+					StartOffset:   startOffset,
+					EndOffset:     endOffset,
+				})
+				named[key] = len(params) - 1
+			}
+			// Skip macro tokens
+			for k := i; k < end; k++ {
+				skipIndices[k] = struct{}{}
+			}
+			i = end
+			continue
+		}
+
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindSymbol {
 			switch tok.Text {
@@ -562,6 +683,11 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 					}
 					if !conflict {
 						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+						startOffset := pos.offset(tok)
+						// For multiple ?, end is last token
+						endTok := tokens[group.placeholderIdxs[len(group.placeholderIdxs)-1]]
+						endOffset := pos.offset(endTok) + len(endTok.Text)
+
 						order := 0
 						if len(group.numbers) > 0 && group.numbers[0] > 0 {
 							order = group.numbers[0]
@@ -577,6 +703,8 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 							Column:        actualColumn,
 							IsVariadic:    true,
 							VariadicCount: len(group.placeholderIdxs),
+							StartOffset:   startOffset,
+							EndOffset:     endOffset,
 						})
 						paramIdx := len(params) - 1
 						numbered[order] = paramIdx
@@ -600,6 +728,9 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 
 				order := nextAvailableOrder(numbered)
 				actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+				startOffset := pos.offset(tok)
+				endOffset := startOffset + len(tok.Text)
+
 				if i+1 < len(tokens) {
 					nextTok := tokens[i+1]
 					if nextTok.Kind == tokenizer.KindNumber && nextTok.Line == tok.Line && nextTok.Column == tok.Column+1 {
@@ -613,12 +744,15 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 									diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", order))
 								}
 							} else {
+								endOffset = pos.offset(nextTok) + len(nextTok.Text)
 								params = append(params, Param{
-									Name:   fmt.Sprintf("arg%d", order),
-									Style:  ParamStylePositional,
-									Order:  order,
-									Line:   actualLine,
-									Column: actualColumn,
+									Name:        fmt.Sprintf("arg%d", order),
+									Style:       ParamStylePositional,
+									Order:       order,
+									Line:        actualLine,
+									Column:      actualColumn,
+									StartOffset: startOffset,
+									EndOffset:   endOffset,
 								})
 								numbered[order] = len(params) - 1
 							}
@@ -628,11 +762,13 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 					}
 				}
 				params = append(params, Param{
-					Name:   fmt.Sprintf("arg%d", order),
-					Style:  ParamStylePositional,
-					Order:  order,
-					Line:   actualLine,
-					Column: actualColumn,
+					Name:        fmt.Sprintf("arg%d", order),
+					Style:       ParamStylePositional,
+					Order:       order,
+					Line:        actualLine,
+					Column:      actualColumn,
+					StartOffset: startOffset,
+					EndOffset:   endOffset,
 				})
 				numbered[order] = len(params) - 1
 				i++
@@ -645,17 +781,22 @@ func collectParams(tokens []tokenizer.Token, blk block.Block) ([]Param, []Diagno
 						key := strings.ToLower(raw)
 						camel := camelCaseParam(raw)
 						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+						startOffset := pos.offset(tok)
+						endOffset := pos.offset(nameTok) + len(nameTok.Text)
+
 						if idx, exists := named[key]; exists {
 							if params[idx].Name != camel {
 								diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel))
 							}
 						} else {
 							params = append(params, Param{
-								Name:   camel,
-								Style:  ParamStyleNamed,
-								Order:  len(params) + 1,
-								Line:   actualLine,
-								Column: actualColumn,
+								Name:        camel,
+								Style:       ParamStyleNamed,
+								Order:       len(params) + 1,
+								Line:        actualLine,
+								Column:      actualColumn,
+								StartOffset: startOffset,
+								EndOffset:   endOffset,
 							})
 							named[key] = len(params) - 1
 						}

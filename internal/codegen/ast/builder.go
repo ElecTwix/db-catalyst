@@ -158,12 +158,14 @@ type queryInfo struct {
 }
 
 type paramSpec struct {
-	name          string
-	goType        string
-	variadic      bool
-	variadicCount int
-	sliceName     string
-	argExpr       string
+	name           string
+	goType         string
+	variadic       bool
+	variadicCount  int
+	sliceName      string
+	argExpr        string
+	isDynamicSlice bool
+	marker         string
 }
 
 type helperSpec struct {
@@ -270,7 +272,30 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 		}
 		constName := "query" + methodName
 		fileName := fmt.Sprintf("query_%s.go", FileName(res.Query.Block.Name))
+		
+		// Pre-process params to identify dynamic slices and prepare SQL replacement
 		params := b.buildParams(res.Params)
+		
+		sqlLiteral := res.Query.Block.SQL
+		// Replace dynamic slice macros with markers in the SQL string
+		// We do this by iterating params in reverse offset order to avoid offset shifting
+		// 3. Apply replacements to SQL.
+		// 4. Update paramSpec with the used marker.
+		
+		// We need unique markers.
+		for i := len(params) - 1; i >= 0; i-- {
+			if params[i].isDynamicSlice {
+				pp := res.Query.Params[i]
+				marker := fmt.Sprintf("/*SLICE:%s*/", params[i].name)
+				params[i].marker = marker
+				// Replace in sqlLiteral
+				// Ensure offsets are valid
+				if pp.StartOffset >= 0 && pp.EndOffset <= len(sqlLiteral) && pp.StartOffset <= pp.EndOffset {
+					sqlLiteral = sqlLiteral[:pp.StartOffset] + marker + sqlLiteral[pp.EndOffset:]
+				}
+			}
+		}
+
 		args := make([]string, 0, len(params))
 		for _, p := range params {
 			args = append(args, p.argExpr)
@@ -281,7 +306,7 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 			methodName: methodName,
 			constName:  constName,
 			fileName:   fileName,
-			sqlLiteral: res.Query.Block.SQL,
+			sqlLiteral: sqlLiteral,
 			command:    res.Query.Block.Command,
 			docComment: res.Query.Block.Doc,
 			params:     params,
@@ -342,14 +367,22 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 		} else {
 			typeInfo = resolveType(p.GoType, p.Nullable)
 		}
+		
+		isDynamicSlice := p.IsVariadic && p.VariadicCount == 0
+		
 		spec := paramSpec{
-			name:          name,
-			goType:        typeInfo.GoType,
-			variadic:      p.IsVariadic,
-			variadicCount: p.VariadicCount,
-			argExpr:       name,
+			name:           name,
+			goType:         typeInfo.GoType,
+			variadic:       p.IsVariadic && !isDynamicSlice,
+			variadicCount:  p.VariadicCount,
+			argExpr:        name,
+			isDynamicSlice: isDynamicSlice,
 		}
-		if p.IsVariadic {
+		
+		if isDynamicSlice {
+			// For dynamic slices, the argument is just the slice name
+			spec.argExpr = name
+		} else if p.IsVariadic {
 			sliceName := name + "Args"
 			if _, exists := used[sliceName]; exists {
 				sliceName = UniqueName(sliceName, used)
@@ -925,7 +958,41 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	results = append(results, &goast.Field{Type: errorType})
 
 	body := make([]goast.Stmt, 0)
+	
+	// Handle dynamic slices
+	hasDynamic := false
+	for _, p := range q.params {
+		if p.isDynamicSlice {
+			hasDynamic = true
+			break
+		}
+	}
+	
+	if hasDynamic {
+		body = append(body, mustParseStmt(fmt.Sprintf("query := %s", q.constName)))
+		
+		// Generate slice expansion strings
+		// query = strings.Replace(query, "/*SLICE:ids*/", strings.Repeat("?, ", len(ids))[:len(strings.Repeat("?, ", len(ids)))-2], 1)
+		// Or simpler:
+		// var queryOutput strings.Builder
+		// ...
+		// But replacing marker is cleaner for AST generation.
+		
+		for _, p := range q.params {
+			if !p.isDynamicSlice {
+				continue
+			}
+			// strings.Repeat("?,", len(ids))
+			// We need to strip trailing comma.
+			// strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+			// Generate: query = strings.Replace(query, marker, strings.TrimRight(strings.Repeat("?,", len(p.name)), ","), 1)
+			
+			replaceStmt := fmt.Sprintf(`query = strings.Replace(query, "%s", strings.TrimRight(strings.Repeat("?,", len(%s)), ","), 1)`, p.marker, p.name)
+			body = append(body, mustParseStmt(replaceStmt))
+		}
+	}
 
+	// Handle variadic args expansion (for explicit IN (?,?) support)
 	for _, p := range q.params {
 		if !p.variadic {
 			continue
@@ -934,22 +1001,52 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 		loopStmt := mustParseStmt(fmt.Sprintf("for i := range %s {\n%s[i] = %s[i]\n}", p.name, p.sliceName, p.name))
 		body = append(body, makeStmt, loopStmt)
 	}
+	
+	// Collect arguments for query call
+	// If dynamic, we need to build args slice dynamically
+	callArgsName := ""
+	if hasDynamic {
+		callArgsName = "args"
+		body = append(body, mustParseStmt("args := []any{}"))
+		for _, p := range q.params {
+			switch {
+			case p.isDynamicSlice:
+				body = append(body, mustParseStmt(fmt.Sprintf("for _, v := range %s {\nargs = append(args, v)\n}", p.name)))
+			case p.variadic:
+				body = append(body, mustParseStmt(fmt.Sprintf("args = append(args, %s...)", p.sliceName)))
+			default:
+				body = append(body, mustParseStmt(fmt.Sprintf("args = append(args, %s)", p.name)))
+			}
+		}
+	}
 
 	switch q.command {
 	case block.CommandExec:
-		args := append([]string{"ctx", q.constName}, q.args...)
-		body = append(body, mustParseStmt(fmt.Sprintf("return q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		if hasDynamic {
+			body = append(body, mustParseStmt(fmt.Sprintf("return q.db.ExecContext(ctx, query, %s...)", callArgsName)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("return q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		}
 	case block.CommandExecResult:
-		args := append([]string{"ctx", q.constName}, q.args...)
-		body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		if hasDynamic {
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(ctx, query, %s...)", callArgsName)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		}
 		body = append(body, mustParseStmt("if err != nil {\nreturn QueryResult{}, err\n}"))
 		body = append(body, mustParseStmt("result := QueryResult{}"))
 		body = append(body, mustParseStmt("if v, err := res.LastInsertId(); err == nil {\nresult.LastInsertID = v\n}"))
 		body = append(body, mustParseStmt("if v, err := res.RowsAffected(); err == nil {\nresult.RowsAffected = v\n}"))
 		body = append(body, mustParseStmt("return result, nil"))
 	default:
-		args := append([]string{"ctx", q.constName}, q.args...)
-		body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(%s)", strings.Join(args, ", "))))
+		if hasDynamic {
+			body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(ctx, query, %s...)", callArgsName)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(%s)", strings.Join(args, ", "))))
+		}
 		zero := q.returnZero
 		if zero == "" {
 			zero = "nil"

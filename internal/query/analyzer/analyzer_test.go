@@ -357,6 +357,29 @@ WHERE users.email = ? AND ? = users.id;`,
 				}
 			},
 		},
+		{
+			name:    "sqlc slice parameter",
+			catalog: catalog,
+			sql:     "SELECT id FROM users WHERE id IN (sqlc.slice('ids'));",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+				p := res.Params[0]
+				if p.Name != "ids" {
+					t.Errorf("expected param name ids, got %s", p.Name)
+				}
+				if !p.IsVariadic {
+					t.Errorf("expected param to be variadic")
+				}
+				if p.GoType != "[]int64" {
+					t.Errorf("expected param type []int64, got %s", p.GoType)
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
