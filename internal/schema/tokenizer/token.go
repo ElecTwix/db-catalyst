@@ -227,6 +227,7 @@ var keywords = map[string]struct{}{
 	"ROW":           {},
 	"ROWID":         {},
 	"SET":           {},
+	"STRICT":        {},
 	"TABLE":         {},
 	"TEMP":          {},
 	"TEMPORARY":     {},

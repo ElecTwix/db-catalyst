@@ -200,16 +200,31 @@ func (p *Parser) parseCreateTable(createTok tokenizer.Token) {
 			span = span.Extend(comma)
 		}
 	}
-	if p.matchKeyword("WITHOUT") {
-		withoutTok := p.advance()
-		span = span.Extend(withoutTok)
-		if p.matchKeyword("ROWID") {
-			rowIDTok := p.advance()
-			table.WithoutRowID = true
-			span = span.Extend(rowIDTok)
-		} else {
-			p.addDiagToken(p.current(), SeverityError, "expected ROWID after WITHOUT")
+	for !p.isEOF() {
+		if p.matchKeyword("WITHOUT") {
+			withoutTok := p.advance()
+			span = span.Extend(withoutTok)
+			if p.matchKeyword("ROWID") {
+				rowIDTok := p.advance()
+				table.WithoutRowID = true
+				span = span.Extend(rowIDTok)
+			} else {
+				p.addDiagToken(p.current(), SeverityError, "expected ROWID after WITHOUT")
+			}
+			continue
 		}
+		if p.matchKeyword("STRICT") {
+			strictTok := p.advance()
+			table.Strict = true
+			span = span.Extend(strictTok)
+			continue
+		}
+		if p.matchSymbol(",") {
+			comma := p.advance()
+			span = span.Extend(comma)
+			continue
+		}
+		break
 	}
 	if p.matchSymbol(";") {
 		semi := p.advance()

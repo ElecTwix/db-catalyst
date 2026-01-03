@@ -186,8 +186,18 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 
 	workingScope := newQueryScope()
 	if tokens != nil {
+		// Populate baseScope with all aliases in the entire block (including CTEs)
+		// so that inferParamTypes can resolve columns like u.id correctly.
+		addAliasesFromTokens(baseScope, tokens)
+
+		mainIdx := findMainStatementStart(tokens)
+		mainTokens := tokens
+		if mainIdx >= 0 {
+			mainTokens = tokens[mainIdx:]
+		}
+
 		// Only add tables/CTEs that are actually referenced in FROM/JOIN/INSERT/UPDATE/DELETE
-		referenced := discoverReferencedRelations(tokens)
+		referenced := discoverReferencedRelations(mainTokens)
 		// Always include CTEs in the working scope if they are referenced
 		for _, cte := range q.CTEs {
 			referenced = append(referenced, cte.Name)
@@ -198,7 +208,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 				workingScope.addEntry(ref, entry)
 			}
 		}
-		addAliasesFromTokens(workingScope, tokens)
+		addAliasesFromTokens(workingScope, mainTokens)
 	} else {
 		workingScope = baseScope.clone()
 	}
@@ -229,7 +239,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		}
 	}
 
-	paramInfos := a.inferParamTypes(q, workingScope)
+	paramInfos := a.inferParamTypes(q, workingScope, baseScope)
 	for idx, param := range q.Params {
 		rp := ResultParam{
 			Name:          param.Name,
@@ -398,10 +408,18 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 		return nil, diags
 	}
 
-	workingScope := scope.clone()
+	workingScope := newQueryScope()
 	anchorTokens, err := tokenizer.Scan(parent.Block.Path, []byte(anchorSQL), false)
 	if err == nil {
+		referenced := discoverReferencedRelations(anchorTokens)
+		for _, ref := range referenced {
+			if entry, ok := scope.get(ref); ok {
+				workingScope.addEntry(ref, entry)
+			}
+		}
 		addAliasesFromTokens(workingScope, anchorTokens)
+	} else {
+		workingScope = scope.clone()
 	}
 
 	columnNames, colDiags := cteOutputNames(cte, anchorQuery)
@@ -1632,7 +1650,7 @@ func (p textIndex) offset(tok tokenizer.Token) int {
 	return idx
 }
 
-func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope) map[int]paramInfo {
+func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope *queryScope) map[int]paramInfo {
 	cat := a.Catalog
 	if cat == nil || len(q.Params) == 0 {
 		return nil
@@ -1692,8 +1710,17 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope) map[int]pa
 				typeName = resolved.goType
 				nullable = resolved.nullable
 				found = true
-			} else if status == scopeLookupAliasNotFound && column != "" {
-				if fallback, _, fbStatus := scope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "interface{}" {
+			}
+		}
+
+		if !found && baseScope != nil {
+			if resolved, _, status := baseScope.lookup(table, column); status == scopeLookupOK && resolved.goType != "interface{}" {
+				typeName = resolved.goType
+				nullable = resolved.nullable
+				found = true
+			} else if (status == scopeLookupAliasNotFound || status == scopeLookupAmbiguous) && column != "" {
+				// Final fallback: try global lookup in baseScope if alias not found or ambiguous
+				if fallback, _, fbStatus := baseScope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "interface{}" {
 					typeName = fallback.goType
 					nullable = fallback.nullable
 					found = true

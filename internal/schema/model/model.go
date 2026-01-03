@@ -33,6 +33,7 @@ type Table struct {
 	ForeignKeys  []*ForeignKey
 	Indexes      []*Index
 	WithoutRowID bool
+	Strict       bool
 	Span         tokenizer.Span
 }
 
