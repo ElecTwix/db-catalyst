@@ -931,7 +931,7 @@ func buildColumn(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (
 	if alias == "" && !simple {
 		if len(exprTokens) > 0 {
 			tok := exprTokens[0]
-			diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "result column requires alias"))
+			diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityWarning, "result column requires alias"))
 		}
 	}
 	if len(exprTokens) == 0 {
@@ -1011,14 +1011,22 @@ func extractAlias(tokens []tokenizer.Token) ([]tokenizer.Token, *tokenizer.Token
 }
 
 func analyzeSimpleColumn(tokens []tokenizer.Token) (table string, column string, ok bool) {
-	if len(tokens) == 1 && tokens[0].Kind == tokenizer.KindIdentifier {
-		column = tokenizer.NormalizeIdentifier(tokens[0].Text)
-		return "", column, true
+	if len(tokens) == 1 {
+		if tokens[0].Kind == tokenizer.KindIdentifier {
+			column = tokenizer.NormalizeIdentifier(tokens[0].Text)
+			return "", column, true
+		}
+		if tokens[0].Kind == tokenizer.KindSymbol && tokens[0].Text == "*" {
+			return "", "*", true
+		}
 	}
-	if len(tokens) == 3 && tokens[0].Kind == tokenizer.KindIdentifier && tokens[1].Kind == tokenizer.KindSymbol && tokens[1].Text == "." && tokens[2].Kind == tokenizer.KindIdentifier {
-		table = tokenizer.NormalizeIdentifier(tokens[0].Text)
-		column = tokenizer.NormalizeIdentifier(tokens[2].Text)
-		return table, column, true
+	if len(tokens) == 3 && tokens[1].Kind == tokenizer.KindSymbol && tokens[1].Text == "." {
+		if tokens[0].Kind == tokenizer.KindIdentifier &&
+			(tokens[2].Kind == tokenizer.KindIdentifier || (tokens[2].Kind == tokenizer.KindSymbol && tokens[2].Text == "*")) {
+			table = tokenizer.NormalizeIdentifier(tokens[0].Text)
+			column = tokenizer.NormalizeIdentifier(tokens[2].Text)
+			return table, column, true
+		}
 	}
 	return "", "", false
 }

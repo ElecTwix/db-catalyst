@@ -380,6 +380,101 @@ WHERE users.email = ? AND ? = users.id;`,
 				}
 			},
 		},
+		{
+			name:    "aggregate count star implicit alias",
+			catalog: catalog,
+			sql:     "SELECT COUNT(*) FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				col := res.Columns[0]
+				if col.Name != "count" || col.GoType != "int64" {
+					t.Errorf("unexpected aggregate column %+v", col)
+				}
+				foundWarning := false
+				for _, d := range res.Diagnostics {
+					if d.Severity == analyzer.SeverityWarning && strings.Contains(d.Message, "requires an alias; defaulting to \"count\"") {
+						foundWarning = true
+						break
+					}
+				}
+				if !foundWarning {
+					t.Errorf("expected warning about missing alias, got %+v", res.Diagnostics)
+				}
+			},
+		},
+		{
+			name:    "star expansion",
+			catalog: catalog,
+			sql:     "SELECT * FROM users;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				// 4 columns in buildTestCatalog
+				if len(res.Columns) != 4 {
+					t.Fatalf("expected 4 columns, got %d", len(res.Columns))
+				}
+				names := make(map[string]bool)
+				for _, c := range res.Columns {
+					names[c.Name] = true
+				}
+				expected := []string{"id", "email", "status", "credits"}
+				for _, name := range expected {
+					if !names[name] {
+						t.Errorf("missing expanded column %s", name)
+					}
+				}
+			},
+		},
+		{
+			name:    "insert returning star",
+			catalog: catalog,
+			sql:     "INSERT INTO users (id, email) VALUES (?, ?) RETURNING *;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 4 {
+					t.Fatalf("expected 4 columns from RETURNING *, got %d", len(res.Columns))
+				}
+				if res.Columns[0].Table != "users" {
+					t.Errorf("expected table users, got %s", res.Columns[0].Table)
+				}
+			},
+		},
+		{
+			name:    "where clause unknown column",
+			catalog: catalog,
+			sql:     "SELECT id FROM users WHERE users.unknown_col = ?;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				found := false
+				for _, d := range res.Diagnostics {
+					if strings.Contains(d.Message, "unknown column \"unknown_col\"") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected diagnostic for unknown column in WHERE clause, got %+v", res.Diagnostics)
+				}
+			},
+		},
+		{
+			name:    "order by unknown column",
+			catalog: catalog,
+			sql:     "SELECT id FROM users ORDER BY users.invalid_col;",
+			assert: func(t *testing.T, res analyzer.Result) {
+				found := false
+				for _, d := range res.Diagnostics {
+					if strings.Contains(d.Message, "unknown column \"invalid_col\"") {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected diagnostic for unknown column in ORDER BY clause, got %+v", res.Diagnostics)
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -391,8 +486,16 @@ WHERE users.email = ? AND ? = users.id;`,
 				SQL:    tc.sql,
 			}
 			q, diags := parser.Parse(blk)
-			if len(diags) != 0 {
-				t.Fatalf("unexpected parser diagnostics: %+v", diags)
+			
+			// We now allow missing aliases as warnings in parser too
+			hasError := false
+			for _, d := range diags {
+				if d.Severity == parser.SeverityError {
+					hasError = true
+				}
+			}
+			if hasError {
+				t.Fatalf("unexpected parser errors: %+v", diags)
 			}
 			res := analyzer.New(tc.catalog).Analyze(q)
 			tc.assert(t, res)
@@ -409,18 +512,17 @@ func TestAnalyzerAggregateRequiresAlias(t *testing.T) {
 		SQL:    "SELECT COUNT(*) FROM users;",
 	}
 	q, diags := parser.Parse(blk)
-	if len(diags) == 0 {
-		t.Fatalf("expected parser diagnostic for missing alias")
-	}
+	
+	// Parser now emits warning
 	found := false
 	for _, d := range diags {
-		if strings.Contains(d.Message, "requires alias") {
+		if strings.Contains(d.Message, "requires alias") && d.Severity == parser.SeverityWarning {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected requires alias diagnostic, got %+v", diags)
+		t.Fatalf("expected requires alias warning in parser, got %+v", diags)
 	}
 
 	res := analyzer.New(catalog).Analyze(q)
@@ -431,15 +533,19 @@ func TestAnalyzerAggregateRequiresAlias(t *testing.T) {
 	if col.GoType != "int64" || col.Nullable {
 		t.Errorf("expected COUNT(*) column to be int64 and not nullable, got %+v", col)
 	}
+	if col.Name != "count" {
+		t.Errorf("expected default name 'count', got %q", col.Name)
+	}
+
 	found = false
 	for _, d := range res.Diagnostics {
-		if strings.Contains(d.Message, "requires alias") {
+		if strings.Contains(d.Message, "requires an alias; defaulting to \"count\"") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected analyzer to surface alias diagnostic, got %+v", res.Diagnostics)
+		t.Fatalf("expected analyzer to surface alias warning, got %+v", res.Diagnostics)
 	}
 }
 

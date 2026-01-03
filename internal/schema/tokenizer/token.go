@@ -222,6 +222,7 @@ var keywords = map[string]struct{}{
 	"RENAME":        {},
 	"REPLACE":       {},
 	"RESTRICT":      {},
+	"RETURNING":     {},
 	"ROLLBACK":      {},
 	"ROW":           {},
 	"ROWID":         {},

@@ -184,14 +184,46 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		tokens = nil
 	}
 
-	workingScope := baseScope.clone()
+	workingScope := newQueryScope()
 	if tokens != nil {
+		// Only add tables/CTEs that are actually referenced in FROM/JOIN/INSERT/UPDATE/DELETE
+		referenced := discoverReferencedRelations(tokens)
+		// Always include CTEs in the working scope if they are referenced
+		for _, cte := range q.CTEs {
+			referenced = append(referenced, cte.Name)
+		}
+		
+		for _, ref := range referenced {
+			if entry, ok := baseScope.get(ref); ok {
+				workingScope.addEntry(ref, entry)
+			}
+		}
 		addAliasesFromTokens(workingScope, tokens)
+	} else {
+		workingScope = baseScope.clone()
 	}
 
 	for _, col := range q.Columns {
+		if col.Expr == "*" || strings.HasSuffix(col.Expr, ".*") {
+			expanded, diags := expandStar(col, workingScope, q.Block, hasCatalog)
+			result.Columns = append(result.Columns, expanded...)
+			for _, d := range diags {
+				addDiag(d)
+			}
+			continue
+		}
+
 		rc, diags := resolveResultColumn(col, workingScope, q.Block, hasCatalog)
 		result.Columns = append(result.Columns, rc)
+		for _, d := range diags {
+			addDiag(d)
+		}
+	}
+
+	// Handle RETURNING clause for DML statements
+	if (q.Verb == parser.VerbInsert || q.Verb == parser.VerbUpdate || q.Verb == parser.VerbDelete) && tokens != nil {
+		returningCols, diags := discoverReturningColumns(tokens, q.Block, workingScope, hasCatalog)
+		result.Columns = append(result.Columns, returningCols...)
 		for _, d := range diags {
 			addDiag(d)
 		}
@@ -212,6 +244,14 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 			rp.Nullable = info.Nullable
 		}
 		result.Params = append(result.Params, rp)
+	}
+
+	// Validate all identifiers in the query (WHERE, ORDER BY, etc.)
+	if tokens != nil && hasCatalog {
+		diags := a.validateIdentifiers(tokens, workingScope, q.Block)
+		for _, d := range diags {
+			addDiag(d)
+		}
 	}
 
 	return result
@@ -573,6 +613,7 @@ const (
 	aggregateKindMin
 	aggregateKindMax
 	aggregateKindAvg
+	aggregateKindCoalesce
 )
 
 func parseAggregateExpr(expr string) (aggregateExpr, bool) {
@@ -600,6 +641,8 @@ func parseAggregateExpr(expr string) (aggregateExpr, bool) {
 		kind = aggregateKindMax
 	case "AVG":
 		kind = aggregateKindAvg
+	case "COALESCE":
+		kind = aggregateKindCoalesce
 	default:
 		return aggregateExpr{}, false
 	}
@@ -626,6 +669,14 @@ func parseAggregateExpr(expr string) (aggregateExpr, bool) {
 	if inner == "*" {
 		agg.argStar = true
 		return agg, true
+	}
+
+	// For COALESCE, we just take the first argument for the default name if it's a simple column
+	if kind == aggregateKindCoalesce {
+		parts := strings.Split(inner, ",")
+		if len(parts) > 0 {
+			inner = strings.TrimSpace(parts[0])
+		}
 	}
 
 	alias, column, ok := splitQualifiedIdentifier(inner)
@@ -677,8 +728,41 @@ func aggregateKindString(kind aggregateKind) string {
 		return "MAX"
 	case aggregateKindAvg:
 		return "AVG"
+	case aggregateKindCoalesce:
+		return "COALESCE"
 	default:
 		return "aggregate"
+	}
+}
+
+func defaultAggregateName(agg aggregateExpr) string {
+	var base string
+	if agg.argStar {
+		base = "count"
+	} else if agg.argColumn != "" {
+		base = agg.argColumn
+	} else {
+		base = "column"
+	}
+
+	switch agg.kind {
+	case aggregateKindCount:
+		if agg.argStar {
+			return "count"
+		}
+		return "count_" + base
+	case aggregateKindSum:
+		return "sum_" + base
+	case aggregateKindMin:
+		return "min_" + base
+	case aggregateKindMax:
+		return "max_" + base
+	case aggregateKindAvg:
+		return "avg_" + base
+	case aggregateKindCoalesce:
+		return base
+	default:
+		return base
 	}
 }
 
@@ -696,7 +780,7 @@ func aggregateResultFromOperand(kind aggregateKind, operand scopeColumn) (string
 			return "float64", true, true
 		}
 		return "", true, false
-	case aggregateKindMin, aggregateKindMax:
+	case aggregateKindMin, aggregateKindMax, aggregateKindCoalesce:
 		if operand.goType == "" || operand.goType == "interface{}" {
 			return "", operand.nullable, false
 		}
@@ -725,6 +809,124 @@ func isFloatGoType(goType string) bool {
 	}
 }
 
+func expandStar(col parser.Column, scope *queryScope, blk block.Block, hasCatalog bool) ([]ResultColumn, []Diagnostic) {
+	if !hasCatalog || scope == nil {
+		return []ResultColumn{{
+			Name:     "*",
+			GoType:   "interface{}",
+			Nullable: true,
+		}}, nil
+	}
+
+	alias := col.Table
+	if col.Expr != "*" {
+		// handle table.*
+		if dot := strings.LastIndex(col.Expr, "."); dot >= 0 {
+			alias = tokenizer.NormalizeIdentifier(col.Expr[:dot])
+		}
+	}
+
+	if alias != "" {
+		entry, ok := scope.get(alias)
+		if !ok {
+			return nil, []Diagnostic{{
+				Path:     blk.Path,
+				Line:     col.Line,
+				Column:   col.Column,
+				Message:  fmt.Sprintf("star expansion references unknown table %q", alias),
+				Severity: SeverityError,
+			}}
+		}
+		return entryToResultColumns(entry), nil
+	}
+
+	// Expand all tables in scope
+	var cols []ResultColumn
+	seen := make(map[*scopeEntry]struct{})
+	for _, entry := range scope.entries {
+		if _, ok := seen[entry]; ok {
+			continue
+		}
+		seen[entry] = struct{}{}
+		cols = append(cols, entryToResultColumns(entry)...)
+	}
+	return cols, nil
+}
+
+func entryToResultColumns(entry *scopeEntry) []ResultColumn {
+	cols := make([]ResultColumn, 0, len(entry.columns))
+	// We want to preserve schema order if possible, but scopeEntry currently uses a map.
+	// For now, we'll just return them. To preserve order, we'd need more metadata in scopeEntry.
+	for _, sc := range entry.columns {
+		cols = append(cols, ResultColumn{
+			Name:     sc.name,
+			Table:    entry.name,
+			GoType:   sc.goType,
+			Nullable: sc.nullable,
+		})
+	}
+	return cols
+}
+
+func discoverReturningColumns(tokens []tokenizer.Token, blk block.Block, scope *queryScope, hasCatalog bool) ([]ResultColumn, []Diagnostic) {
+	var returningIdx int = -1
+	for i := len(tokens) - 1; i >= 0; i-- {
+		if tokens[i].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[i].Text) == "RETURNING" {
+			returningIdx = i
+			break
+		}
+	}
+
+	if returningIdx == -1 {
+		return nil, nil
+	}
+
+	// This is a simplified version of parseSelectColumns but for tokens after RETURNING
+	// In a real implementation, we should probably let the parser handle RETURNING clauses.
+	var cols []ResultColumn
+	var diags []Diagnostic
+
+	// For now, we only support RETURNING * or RETURNING col1, col2
+	i := returningIdx + 1
+	for i < len(tokens) {
+		if tokens[i].Kind == tokenizer.KindEOF {
+			break
+		}
+		if tokens[i].Kind == tokenizer.KindSymbol && tokens[i].Text == "," {
+			i++
+			continue
+		}
+		if tokens[i].Kind == tokenizer.KindSymbol && tokens[i].Text == "*" {
+			expanded, eDiags := expandStar(parser.Column{Expr: "*", Line: tokens[i].Line, Column: tokens[i].Column}, scope, blk, hasCatalog)
+			cols = append(cols, expanded...)
+			diags = append(diags, eDiags...)
+			i++
+			continue
+		}
+		// Handle simple identifier or table.identifier
+		if tokens[i].Kind == tokenizer.KindIdentifier {
+			// Basic lookahead for alias: col AS alias
+			name := tokenizer.NormalizeIdentifier(tokens[i].Text)
+			alias := ""
+			next := i + 1
+			if next < len(tokens) && tokens[next].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[next].Text) == "AS" {
+				next++
+			}
+			if next < len(tokens) && tokens[next].Kind == tokenizer.KindIdentifier {
+				alias = tokenizer.NormalizeIdentifier(tokens[next].Text)
+				i = next
+			}
+
+			rc, rDiags := resolveResultColumn(parser.Column{Expr: name, Alias: alias, Line: tokens[i].Line, Column: tokens[i].Column}, scope, blk, hasCatalog)
+			cols = append(cols, rc)
+			diags = append(diags, rDiags...)
+		}
+		i++
+	}
+
+	return cols, diags
+}
+
 func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, hasCatalog bool) (ResultColumn, []Diagnostic) {
 	rc := ResultColumn{
 		Name:     columnDisplayName(col),
@@ -744,12 +946,13 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 	agg, isAggregate := parseAggregateExpr(col.Expr)
 	if isAggregate {
 		if col.Alias == "" {
+			rc.Name = defaultAggregateName(agg)
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
 				Line:     col.Line,
 				Column:   col.Column,
-				Message:  fmt.Sprintf("aggregate %s requires an alias", aggregateKindString(agg.kind)),
-				Severity: SeverityError,
+				Message:  fmt.Sprintf("aggregate %s requires an alias; defaulting to %q", aggregateKindString(agg.kind), rc.Name),
+				Severity: SeverityWarning,
 			})
 		}
 		if agg.argStar {
@@ -1012,6 +1215,141 @@ func normalizeIdent(name string) string {
 		return ""
 	}
 	return strings.ToLower(tokenizer.NormalizeIdentifier(name))
+}
+
+func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *queryScope, blk block.Block) []Diagnostic {
+	var diags []Diagnostic
+	
+	// Collect aliases from the current query to avoid false positives for column aliases in ORDER BY etc.
+	queryAliases := make(map[string]struct{})
+	q, _ := parser.Parse(blk)
+	for _, col := range q.Columns {
+		if col.Alias != "" {
+			queryAliases[normalizeIdent(col.Alias)] = struct{}{}
+		}
+	}
+
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind != tokenizer.KindIdentifier {
+			continue
+		}
+
+		// Skip if it's a keyword (case-insensitive)
+		if tokenizer.IsKeyword(tok.Text) {
+			continue
+		}
+
+		name := tokenizer.NormalizeIdentifier(tok.Text)
+		upperName := strings.ToUpper(name)
+		
+		// Check for qualified identifier: table.column
+		table := ""
+		column := name
+		isQualified := false
+		if i+2 < len(tokens) && tokens[i+1].Kind == tokenizer.KindSymbol && tokens[i+1].Text == "." {
+			if tokens[i+2].Kind == tokenizer.KindIdentifier || (tokens[i+2].Kind == tokenizer.KindSymbol && tokens[i+2].Text == "*") {
+				table = name
+				column = tokenizer.NormalizeIdentifier(tokens[i+2].Text)
+				isQualified = true
+				i += 2
+			}
+		}
+
+		if isQualified {
+			// Skip sqlc macros: sqlc.arg, sqlc.narg, sqlc.slice
+			if strings.ToUpper(table) == "SQLC" {
+				continue
+			}
+		} else {
+			// Skip common SQL functions and special identifiers for bare names
+			if isCommonFunction(upperName) || upperName == "SQLC" {
+				continue
+			}
+
+			// Skip if it's a known relation name (table or CTE)
+			if _, ok := scope.get(name); ok {
+				continue
+			}
+			
+			// Skip if it's an alias defined in this query
+			if _, ok := queryAliases[normalizeIdent(name)]; ok {
+				continue
+			}
+		}
+
+		// If it's a star, it's already handled or valid in some contexts
+		if column == "*" {
+			continue
+		}
+
+		// Validate the identifier against the scope
+		_, _, res := scope.lookup(table, column)
+		switch res {
+		case scopeLookupAliasNotFound:
+			if table != "" {
+				diags = append(diags, Diagnostic{
+					Path:     blk.Path,
+					Line:     tok.Line,
+					Column:   tok.Column,
+					Message:  fmt.Sprintf("unknown table/alias %q", table),
+					Severity: SeverityError,
+				})
+			}
+		case scopeLookupColumnNotFound:
+			if table != "" {
+				diags = append(diags, Diagnostic{
+					Path:     blk.Path,
+					Line:     tok.Line,
+					Column:   tok.Column,
+					Message:  fmt.Sprintf("unknown column %q", column),
+					Severity: SeverityError,
+				})
+			}
+		case scopeLookupAmbiguous:
+			diags = append(diags, Diagnostic{
+				Path:     blk.Path,
+				Line:     tok.Line,
+				Column:   tok.Column,
+				Message:  fmt.Sprintf("ambiguous column %q; qualify with a table alias", column),
+				Severity: SeverityError,
+			})
+		}
+	}
+	return diags
+}
+
+func isCommonFunction(name string) bool {
+	switch name {
+	case "COUNT", "SUM", "MIN", "MAX", "AVG", "COALESCE", "IFNULL", "NULLIF", "ABS", "LOWER", "UPPER", "TRIM", "LENGTH", "RANDOM", "ROUND", "REPLACE", "SUBSTR", "DATE", "TIME", "DATETIME", "STRFTIME", "UNIXEPOCH", "CAST", "EXISTS":
+		return true
+	default:
+		return false
+	}
+}
+
+func discoverReferencedRelations(tokens []tokenizer.Token) []string {
+	var referenced []string
+	for i := 0; i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind != tokenizer.KindKeyword {
+			continue
+		}
+		text := strings.ToUpper(tok.Text)
+		if text != "FROM" && text != "JOIN" && text != "INTO" && text != "UPDATE" && text != "DELETE" {
+			continue
+		}
+		i++
+		// For DELETE, we skip FROM if present
+		if text == "DELETE" && i < len(tokens) && strings.ToUpper(tokens[i].Text) == "FROM" {
+			i++
+		}
+		relation, ok := parseRelationName(tokens, &i)
+		if ok {
+			referenced = append(referenced, relation)
+		}
+	}
+	return referenced
 }
 
 func addAliasesFromTokens(scope *queryScope, tokens []tokenizer.Token) {
