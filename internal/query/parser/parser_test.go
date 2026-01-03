@@ -80,8 +80,8 @@ func TestParseSelectMissingAlias(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
-	if diags[0].Severity != SeverityError {
-		t.Fatalf("expected error severity, got %v", diags[0].Severity)
+	if diags[0].Severity != SeverityWarning {
+		t.Fatalf("expected warning severity, got %v", diags[0].Severity)
 	}
 	if want := "requires alias"; !strings.Contains(diags[0].Message, want) {
 		t.Fatalf("expected diagnostic message to contain %q, got %q", want, diags[0].Message)

@@ -192,7 +192,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		for _, cte := range q.CTEs {
 			referenced = append(referenced, cte.Name)
 		}
-		
+
 		for _, ref := range referenced {
 			if entry, ok := baseScope.get(ref); ok {
 				workingScope.addEntry(ref, entry)
@@ -246,15 +246,45 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		result.Params = append(result.Params, rp)
 	}
 
-	// Validate all identifiers in the query (WHERE, ORDER BY, etc.)
+	// Validate all identifiers in the main statement (WHERE, ORDER BY, etc.)
 	if tokens != nil && hasCatalog {
-		diags := a.validateIdentifiers(tokens, workingScope, q.Block)
-		for _, d := range diags {
-			addDiag(d)
+		mainIdx := findMainStatementStart(tokens)
+		if mainIdx >= 0 {
+			diags := a.validateIdentifiers(tokens[mainIdx:], workingScope, q.Block)
+			for _, d := range diags {
+				addDiag(d)
+			}
 		}
 	}
 
 	return result
+}
+
+func findMainStatementStart(tokens []tokenizer.Token) int {
+	depth := 0
+	for i, tok := range tokens {
+		if tok.Kind == tokenizer.KindEOF {
+			break
+		}
+		if tok.Kind == tokenizer.KindSymbol {
+			if tok.Text == "(" {
+				depth++
+			} else if tok.Text == ")" {
+				if depth > 0 {
+					depth--
+				}
+			}
+			continue
+		}
+		if depth == 0 && (tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier) {
+			upper := strings.ToUpper(tok.Text)
+			switch upper {
+			case "SELECT", "INSERT", "UPDATE", "DELETE":
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func convertSeverity(s parser.Severity) Severity {
@@ -1219,7 +1249,7 @@ func normalizeIdent(name string) string {
 
 func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *queryScope, blk block.Block) []Diagnostic {
 	var diags []Diagnostic
-	
+
 	// Collect aliases from the current query to avoid false positives for column aliases in ORDER BY etc.
 	queryAliases := make(map[string]struct{})
 	q, _ := parser.Parse(blk)
@@ -1242,7 +1272,7 @@ func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *querySco
 
 		name := tokenizer.NormalizeIdentifier(tok.Text)
 		upperName := strings.ToUpper(name)
-		
+
 		// Check for qualified identifier: table.column
 		table := ""
 		column := name
@@ -1271,7 +1301,7 @@ func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *querySco
 			if _, ok := scope.get(name); ok {
 				continue
 			}
-			
+
 			// Skip if it's an alias defined in this query
 			if _, ok := queryAliases[normalizeIdent(name)]; ok {
 				continue
@@ -1635,24 +1665,24 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope) map[int]pa
 		if _, exists := infos[paramIdx]; exists {
 			continue
 		}
-		
+
 		isSlice := q.Params[paramIdx].IsVariadic
-		
+
 		var table, column string
 		var ok bool
-		
+
 		if isSlice {
 			table, column, ok = matchInReference(tokens, tokenIdx)
-		} 
-		
+		}
+
 		if !ok {
 			table, column, ok = matchEqualityReference(tokens, tokenIdx)
 		}
-		
+
 		if !ok {
 			continue
 		}
-		
+
 		var typeName string
 		var nullable bool
 		found := false
@@ -1738,7 +1768,7 @@ func matchInReference(tokens []tokenizer.Token, paramIdx int) (string, string, b
 	if idx >= 0 && tokens[idx].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[idx].Text) == "NOT" {
 		idx--
 	}
-	
+
 	return parseColumnReferenceBackward(tokens, idx)
 }
 
