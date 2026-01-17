@@ -55,6 +55,7 @@ type RunOptions struct {
 	DryRun       bool
 	ListQueries  bool
 	StrictConfig bool
+	NoJSONTags   bool
 }
 
 // DiagnosticsError indicates that errors were reported via diagnostics.
@@ -196,6 +197,10 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	plan := loadResult.Plan
+	// CLI flag overrides config setting
+	if opts.NoJSONTags {
+		plan.EmitJSONTags = false
+	}
 	outDir := plan.Out
 	if opts.OutOverride != "" {
 		override := opts.OutOverride
@@ -297,6 +302,7 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 
 	generator := codegen.New(codegen.Options{
 		Package:         plan.Package,
+		EmitJSONTags:    plan.EmitJSONTags,
 		EmitEmptySlices: plan.PreparedQueries.EmitEmptySlices,
 		CustomTypes:     plan.CustomTypes,
 		Prepared: codegen.PreparedOptions{

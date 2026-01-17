@@ -39,9 +39,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	})
 
 	env := pipeline.Environment{
-		Logger: logger,
+		Logger:     logger,
 		FSResolver: fileset.NewOSResolver,
-		Writer: pipeline.NewOSWriter(),
+		Writer:     pipeline.NewOSWriter(),
 	}
 
 	pipe := pipeline.Pipeline{Env: env}
@@ -51,6 +51,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		DryRun:       opts.DryRun,
 		ListQueries:  opts.ListQueries,
 		StrictConfig: opts.StrictConfig,
+		NoJSONTags:   opts.NoJSONTags,
 	})
 
 	printDiagnostics(stderr, summary.Diagnostics)

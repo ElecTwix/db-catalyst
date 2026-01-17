@@ -17,6 +17,8 @@ type Options struct {
 	ListQueries  bool
 	StrictConfig bool
 	Verbose      bool
+	NoJSONTags   bool
+	EmitJSONTags bool
 	Args         []string
 }
 
@@ -39,6 +41,7 @@ func Parse(args []string) (Options, error) {
 	fs.BoolVar(&opts.StrictConfig, "strict-config", false, "Treat configuration warnings as errors")
 	fs.BoolVar(&opts.Verbose, "verbose", false, "Enable verbose logging")
 	fs.BoolVar(&opts.Verbose, "v", false, "Enable verbose logging")
+	fs.BoolVar(&opts.NoJSONTags, "no-json-tags", false, "Disable JSON tags in generated code")
 
 	if len(args) == 0 {
 		usage := Usage(fs)

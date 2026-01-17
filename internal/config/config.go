@@ -70,10 +70,11 @@ type OverridesConfig struct {
 	Columns       []ColumnOverride       `toml:"overrides"`
 }
 
-// GenerationOptions captures additional generation options (sqlc compatibility).
+// GenerationOptions captures additional generation options.
 type GenerationOptions struct {
 	EmitEmptySlices     bool `toml:"emit_empty_slices"`
 	EmitPreparedQueries bool `toml:"emit_prepared_queries"`
+	EmitJSONTags        bool `toml:"emit_json_tags"`
 }
 
 // PreparedQueriesConfig captures optional prepared statement generation settings.
@@ -100,13 +101,8 @@ type Config struct {
 	Schemas         []string              `toml:"schemas"`
 	Queries         []string              `toml:"queries"`
 	CustomTypes     CustomTypesConfig     `toml:"custom_types"`
+	Generation      GenerationOptions     `toml:"generation"`
 	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
-}
-
-// LoadOptions tunes config loading behavior.
-type LoadOptions struct {
-	Strict   bool
-	Resolver *fileset.Resolver
 }
 
 // JobPlan is the fully-resolved configuration used by downstream stages.
@@ -117,7 +113,14 @@ type JobPlan struct {
 	Schemas         []string
 	Queries         []string
 	CustomTypes     []CustomTypeMapping
+	EmitJSONTags    bool
 	PreparedQueries PreparedQueries
+}
+
+// LoadOptions tunes config loading behavior.
+type LoadOptions struct {
+	Strict   bool
+	Resolver *fileset.Resolver
 }
 
 // Result wraps a loaded job plan alongside any non-fatal warnings.
@@ -217,6 +220,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		Schemas:         schemas,
 		Queries:         queries,
 		CustomTypes:     cfg.CustomTypes.Mappings,
+		EmitJSONTags:    cfg.Generation.EmitJSONTags,
 		PreparedQueries: prepared,
 	}
 
@@ -236,6 +240,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		"schemas":          {},
 		"queries":          {},
 		"custom_types":     {},
+		"generation":       {},
 		"prepared_queries": {},
 	}
 
