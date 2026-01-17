@@ -301,10 +301,11 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	generator := codegen.New(codegen.Options{
-		Package:         plan.Package,
-		EmitJSONTags:    plan.EmitJSONTags,
-		EmitEmptySlices: plan.PreparedQueries.EmitEmptySlices,
-		CustomTypes:     plan.CustomTypes,
+		Package:             plan.Package,
+		EmitJSONTags:        plan.EmitJSONTags,
+		EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
+		EmitPointersForNull: plan.EmitPointersForNull,
+		CustomTypes:         plan.CustomTypes,
 		Prepared: codegen.PreparedOptions{
 			Enabled:     plan.PreparedQueries.Enabled,
 			EmitMetrics: plan.PreparedQueries.Metrics,

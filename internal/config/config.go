@@ -75,6 +75,7 @@ type GenerationOptions struct {
 	EmitEmptySlices     bool `toml:"emit_empty_slices"`
 	EmitPreparedQueries bool `toml:"emit_prepared_queries"`
 	EmitJSONTags        bool `toml:"emit_json_tags"`
+	EmitPointersForNull bool `toml:"emit_pointers_for_null"`
 }
 
 // PreparedQueriesConfig captures optional prepared statement generation settings.
@@ -107,14 +108,15 @@ type Config struct {
 
 // JobPlan is the fully-resolved configuration used by downstream stages.
 type JobPlan struct {
-	Package         string
-	Out             string
-	SQLiteDriver    Driver
-	Schemas         []string
-	Queries         []string
-	CustomTypes     []CustomTypeMapping
-	EmitJSONTags    bool
-	PreparedQueries PreparedQueries
+	Package             string
+	Out                 string
+	SQLiteDriver        Driver
+	Schemas             []string
+	Queries             []string
+	CustomTypes         []CustomTypeMapping
+	EmitJSONTags        bool
+	EmitPointersForNull bool
+	PreparedQueries     PreparedQueries
 }
 
 // LoadOptions tunes config loading behavior.
@@ -214,14 +216,15 @@ func Load(path string, opts LoadOptions) (Result, error) {
 	}
 
 	res.Plan = JobPlan{
-		Package:         cfg.Package,
-		Out:             out,
-		SQLiteDriver:    driver,
-		Schemas:         schemas,
-		Queries:         queries,
-		CustomTypes:     cfg.CustomTypes.Mappings,
-		EmitJSONTags:    cfg.Generation.EmitJSONTags,
-		PreparedQueries: prepared,
+		Package:             cfg.Package,
+		Out:                 out,
+		SQLiteDriver:        driver,
+		Schemas:             schemas,
+		Queries:             queries,
+		CustomTypes:         cfg.CustomTypes.Mappings,
+		EmitJSONTags:        cfg.Generation.EmitJSONTags,
+		EmitPointersForNull: cfg.Generation.EmitPointersForNull,
+		PreparedQueries:     prepared,
 	}
 
 	return res, nil

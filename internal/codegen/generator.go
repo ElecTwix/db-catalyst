@@ -23,11 +23,12 @@ type PreparedOptions struct {
 
 // Options configures the Generator.
 type Options struct {
-	Package         string
-	EmitJSONTags    bool
-	EmitEmptySlices bool
-	Prepared        PreparedOptions
-	CustomTypes     []config.CustomTypeMapping
+	Package             string
+	EmitJSONTags        bool
+	EmitEmptySlices     bool
+	EmitPointersForNull bool
+	Prepared            PreparedOptions
+	CustomTypes         []config.CustomTypeMapping
 }
 
 // Generator produces Go code from parsed schemas and queries.
@@ -54,13 +55,14 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 
 	// Create transformer for custom types
 	transformer := transform.New(g.opts.CustomTypes)
-	typeResolver := astbuilder.NewTypeResolver(transformer)
+	typeResolver := astbuilder.NewTypeResolverWithOptions(transformer, g.opts.EmitPointersForNull)
 
 	builder := astbuilder.New(astbuilder.Options{
-		Package:         g.opts.Package,
-		EmitJSONTags:    g.opts.EmitJSONTags,
-		EmitEmptySlices: g.opts.EmitEmptySlices,
-		TypeResolver:    typeResolver,
+		Package:             g.opts.Package,
+		EmitJSONTags:        g.opts.EmitJSONTags,
+		EmitEmptySlices:     g.opts.EmitEmptySlices,
+		EmitPointersForNull: g.opts.EmitPointersForNull,
+		TypeResolver:        typeResolver,
 		Prepared: astbuilder.PreparedOptions{
 			Enabled:     g.opts.Prepared.Enabled,
 			EmitMetrics: g.opts.Prepared.EmitMetrics,

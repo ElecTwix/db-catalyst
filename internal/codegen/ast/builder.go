@@ -27,11 +27,12 @@ type PreparedOptions struct {
 
 // Options configures the AST builder.
 type Options struct {
-	Package         string
-	EmitJSONTags    bool
-	EmitEmptySlices bool
-	Prepared        PreparedOptions
-	TypeResolver    *TypeResolver
+	Package             string
+	EmitJSONTags        bool
+	EmitEmptySlices     bool
+	EmitPointersForNull bool
+	Prepared            PreparedOptions
+	TypeResolver        *TypeResolver
 }
 
 // File represents an AST file ready for rendering.

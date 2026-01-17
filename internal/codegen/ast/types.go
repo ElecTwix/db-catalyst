@@ -17,12 +17,21 @@ type TypeInfo struct {
 
 // TypeResolver handles mapping between SQL types and Go types.
 type TypeResolver struct {
-	transformer *transform.Transformer
+	transformer         *transform.Transformer
+	emitPointersForNull bool
 }
 
 // NewTypeResolver creates a new TypeResolver with optional custom type support.
 func NewTypeResolver(transformer *transform.Transformer) *TypeResolver {
 	return &TypeResolver{transformer: transformer}
+}
+
+// NewTypeResolverWithOptions creates a TypeResolver with all options configured.
+func NewTypeResolverWithOptions(transformer *transform.Transformer, emitPointersForNull bool) *TypeResolver {
+	return &TypeResolver{
+		transformer:         transformer,
+		emitPointersForNull: emitPointersForNull,
+	}
 }
 
 // findCustomMappingBySQLiteType looks up a custom type mapping by SQLite type
@@ -133,6 +142,13 @@ func (r *TypeResolver) resolveStandardType(goType string, nullable bool) TypeInf
 		base = "interface{}"
 	}
 	if nullable {
+		if r.emitPointersForNull {
+			// Use pointer types instead of sql.Null*
+			if !strings.HasPrefix(base, "*") {
+				return TypeInfo{GoType: "*" + base, UsesSQLNull: false}
+			}
+			return TypeInfo{GoType: base, UsesSQLNull: false}
+		}
 		switch base {
 		case "int64":
 			return TypeInfo{GoType: "sql.NullInt64", UsesSQLNull: true}
