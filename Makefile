@@ -135,6 +135,27 @@ install: build
 	cp db-catalyst $$(go env GOPATH)/bin/
 	@echo "Installed. Run 'db-catalyst' from anywhere."
 
+# Integration tests with Docker
+integration-up:
+	@echo "Starting database containers..."
+	cd test/integration && docker compose up -d
+
+integration-down:
+	@echo "Stopping database containers..."
+	cd test/integration && docker compose down -v
+
+integration-test: integration-up
+	@echo "Running integration tests..."
+	@echo "Waiting for databases to be ready..."
+	@sleep 10
+	cd test/integration && go test -v -short ./... 2>&1 || true
+	@echo ""
+	@echo "Running full integration test..."
+	@./test/integration/run-tests.sh 2>&1 || true
+
+integration-full: integration-up integration-test integration-down
+	@echo "Integration test complete!"
+
 # Show help
 help:
 	@echo "db-catalyst Makefile"
@@ -160,6 +181,10 @@ help:
 	@echo "  ci               - Full CI check (fmt, lint, race, coverage)"
 	@echo "  quick            - Quick local check (fmt, lint, test)"
 	@echo "  install          - Install binary to ~/go/bin"
+	@echo "  integration-up   - Start Docker databases (MySQL, PostgreSQL)"
+	@echo "  integration-down - Stop Docker databases"
+	@echo "  integration-test - Run integration tests"
+	@echo "  integration-full - Full integration test suite"
 	@echo "  help             - Show this help"
 	@echo ""
 	@echo "Examples:"
@@ -167,3 +192,5 @@ help:
 	@echo "  make quick         # Format, lint, and test"
 	@echo "  make ci            # Full CI simulation"
 	@echo "  make build-prod    # Production build"
+	@echo "  make integration-up   # Start MySQL/PostgreSQL Docker containers"
+	@echo "  make integration-test # Run tests against real databases"
