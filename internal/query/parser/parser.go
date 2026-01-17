@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"go/token"
 	"strconv"
@@ -175,7 +176,8 @@ func finalizeQuery(q Query, diags []Diagnostic) (Query, []Diagnostic) {
 
 func diagnosticFromError(blk block.Block, err error) Diagnostic {
 
-	if tokErr, ok := err.(*tokenizer.Error); ok {
+	var tokErr *tokenizer.Error
+	if errors.As(err, &tokErr) {
 		return makeDiag(blk, tokErr.Line, tokErr.Column, SeverityError, "%s", tokErr.Message)
 	}
 	return Diagnostic{

@@ -339,7 +339,7 @@ func resolvePatterns(resolver fileset.Resolver, field string, patterns []string)
 
 			var patternErr fileset.PatternError
 			if errors.As(err, &patternErr) {
-				return nil, fmt.Errorf("%s: invalid glob pattern %q: %v", field, patternErr.Pattern, patternErr.Err)
+				return nil, fmt.Errorf("%s: invalid glob pattern %q: %w", field, patternErr.Pattern, patternErr.Err)
 			}
 
 			return nil, fmt.Errorf("%s: %w", field, err)

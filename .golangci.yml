@@ -1,18 +1,38 @@
 version: 2
 run:
   timeout: 5m
+  issues-exit-code: 1
+linter-options:
+  no-config-yaml: true
 linters:
   enable:
     - govet
     - staticcheck
     - unused
     - revive
-    - gocritic
     - misspell
     - gosec
     - prealloc
     - unconvert
     - bodyclose
     - ineffassign
+    # Additional linters
+    - errcheck        # Check error returns
+    - errorlint       # More thorough error checking
+    - noctx           # Functions should use context.Context
+    - testifylint     # Better testify assertions
+linters-settings:
+  errorlint:
+    error-functions:
+      - fmt.Errorf
+      - errors.New
 issues:
   exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 3
+  new: false
+  exclude-rules:
+    # Allow unused parameters in benchmarks
+    - path: bench.*\.go
+      linters:
+        - unused
