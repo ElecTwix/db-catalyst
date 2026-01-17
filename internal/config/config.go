@@ -78,16 +78,18 @@ type GenerationOptions struct {
 
 // PreparedQueriesConfig captures optional prepared statement generation settings.
 type PreparedQueriesConfig struct {
-	Enabled    bool `toml:"enabled"`
-	Metrics    bool `toml:"metrics"`
-	ThreadSafe bool `toml:"thread_safe"`
+	Enabled         bool `toml:"enabled"`
+	Metrics         bool `toml:"metrics"`
+	ThreadSafe      bool `toml:"thread_safe"`
+	EmitEmptySlices bool `toml:"emit_empty_slices"`
 }
 
 // PreparedQueries is the normalized configuration forwarded to the pipeline.
 type PreparedQueries struct {
-	Enabled    bool
-	Metrics    bool
-	ThreadSafe bool
+	Enabled         bool
+	Metrics         bool
+	ThreadSafe      bool
+	EmitEmptySlices bool
 }
 
 // Config mirrors the expected db-catalyst TOML schema.
@@ -202,9 +204,10 @@ func Load(path string, opts LoadOptions) (Result, error) {
 	}
 
 	prepared := PreparedQueries{
-		Enabled:    cfg.PreparedQueries.Enabled,
-		Metrics:    cfg.PreparedQueries.Metrics,
-		ThreadSafe: cfg.PreparedQueries.ThreadSafe,
+		Enabled:         cfg.PreparedQueries.Enabled,
+		Metrics:         cfg.PreparedQueries.Metrics,
+		ThreadSafe:      cfg.PreparedQueries.ThreadSafe,
+		EmitEmptySlices: cfg.PreparedQueries.EmitEmptySlices,
 	}
 
 	res.Plan = JobPlan{
@@ -260,9 +263,10 @@ func collectUnknownPreparedKeys(data []byte) ([]string, error) {
 		return nil, nil
 	}
 	known := map[string]struct{}{
-		"enabled":     {},
-		"metrics":     {},
-		"thread_safe": {},
+		"enabled":           {},
+		"metrics":           {},
+		"thread_safe":       {},
+		"emit_empty_slices": {},
 	}
 	unknown := make([]string, 0)
 	for key := range record {

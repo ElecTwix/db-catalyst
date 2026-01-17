@@ -296,8 +296,9 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	generator := codegen.New(codegen.Options{
-		Package:     plan.Package,
-		CustomTypes: plan.CustomTypes,
+		Package:         plan.Package,
+		EmitEmptySlices: plan.PreparedQueries.EmitEmptySlices,
+		CustomTypes:     plan.CustomTypes,
 		Prepared: codegen.PreparedOptions{
 			Enabled:     plan.PreparedQueries.Enabled,
 			EmitMetrics: plan.PreparedQueries.Metrics,

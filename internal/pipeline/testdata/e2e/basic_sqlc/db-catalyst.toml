@@ -5,3 +5,4 @@ queries = ["queries/*.sql"]
 
 [prepared_queries]
 enabled = true
+emit_empty_slices = true

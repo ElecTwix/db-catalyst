@@ -86,8 +86,9 @@ type queryScope struct {
 }
 
 type scopeEntry struct {
-	name    string
-	columns map[string]scopeColumn
+	name        string
+	columns     []scopeColumn
+	columnIndex map[string]int
 }
 
 type scopeColumn struct {
@@ -587,11 +588,14 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 	}
 
 	entry := &scopeEntry{
-		name:    cte.Name,
-		columns: make(map[string]scopeColumn, len(resolved)),
+		name:        cte.Name,
+		columns:     make([]scopeColumn, 0, len(resolved)),
+		columnIndex: make(map[string]int, len(resolved)),
 	}
 	for _, col := range resolved {
-		entry.columns[normalizeIdent(col.name)] = col
+		idx := len(entry.columns)
+		entry.columns = append(entry.columns, col)
+		entry.columnIndex[normalizeIdent(col.name)] = idx
 	}
 
 	return entry, diags
@@ -903,8 +907,7 @@ func expandStar(col parser.Column, scope *queryScope, blk block.Block, hasCatalo
 
 func entryToResultColumns(entry *scopeEntry) []ResultColumn {
 	cols := make([]ResultColumn, 0, len(entry.columns))
-	// We want to preserve schema order if possible, but scopeEntry currently uses a map.
-	// For now, we'll just return them. To preserve order, we'd need more metadata in scopeEntry.
+	// Columns are stored in schema order to ensure deterministic output
 	for _, sc := range entry.columns {
 		cols = append(cols, ResultColumn{
 			Name:     sc.name,
@@ -1208,11 +1211,11 @@ func (s *queryScope) lookup(alias, column string) (scopeColumn, *scopeEntry, sco
 		if !ok {
 			return scopeColumn{}, nil, scopeLookupAliasNotFound
 		}
-		col, found := entry.columns[normalizeIdent(column)]
+		idx, found := entry.columnIndex[normalizeIdent(column)]
 		if !found {
 			return scopeColumn{}, entry, scopeLookupColumnNotFound
 		}
-		return col, entry, scopeLookupOK
+		return entry.columns[idx], entry, scopeLookupOK
 	}
 
 	if column == "" {
@@ -1230,8 +1233,9 @@ func (s *queryScope) lookup(alias, column string) (scopeColumn, *scopeEntry, sco
 			continue
 		}
 		seen[entry] = struct{}{}
-		if col, ok := entry.columns[normalizeIdent(column)]; ok {
-			foundCol = col
+		idx, ok := entry.columnIndex[normalizeIdent(column)]
+		if ok {
+			foundCol = entry.columns[idx]
 			foundEntry = entry
 			matches++
 			if matches > 1 {
@@ -1246,16 +1250,19 @@ func (s *queryScope) lookup(alias, column string) (scopeColumn, *scopeEntry, sco
 }
 
 func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
-	cols := make(map[string]scopeColumn, len(tbl.Columns))
+	cols := make([]scopeColumn, 0, len(tbl.Columns))
+	colIndex := make(map[string]int, len(tbl.Columns))
 	for _, col := range tbl.Columns {
-		cols[normalizeIdent(col.Name)] = scopeColumn{
+		idx := len(cols)
+		cols = append(cols, scopeColumn{
 			name:     col.Name,
 			owner:    tbl.Name,
 			goType:   a.SQLiteTypeToGo(col.Type),
 			nullable: !col.NotNull,
-		}
+		})
+		colIndex[normalizeIdent(col.Name)] = idx
 	}
-	return &scopeEntry{name: tbl.Name, columns: cols}
+	return &scopeEntry{name: tbl.Name, columns: cols, columnIndex: colIndex}
 }
 
 func normalizeIdent(name string) string {

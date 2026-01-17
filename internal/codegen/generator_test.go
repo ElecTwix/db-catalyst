@@ -18,7 +18,7 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	g := New(Options{Package: "store", EmitJSONTags: true})
+	g := New(Options{Package: "store", EmitJSONTags: true, EmitEmptySlices: true})
 
 	ctx := context.Background()
 	first, err := g.Generate(ctx, catalog, analyses)
@@ -56,7 +56,7 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	g := New(Options{Package: "store", Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
+	g := New(Options{Package: "store", EmitEmptySlices: true, Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
 
 	ctx := context.Background()
 	files, err := g.Generate(ctx, catalog, analyses)

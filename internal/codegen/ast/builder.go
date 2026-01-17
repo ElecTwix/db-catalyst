@@ -27,10 +27,11 @@ type PreparedOptions struct {
 
 // Options configures the AST builder.
 type Options struct {
-	Package      string
-	EmitJSONTags bool
-	Prepared     PreparedOptions
-	TypeResolver *TypeResolver
+	Package         string
+	EmitJSONTags    bool
+	EmitEmptySlices bool
+	Prepared        PreparedOptions
+	TypeResolver    *TypeResolver
 }
 
 // File represents an AST file ready for rendering.
@@ -272,16 +273,16 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 		}
 		constName := "query" + methodName
 		fileName := fmt.Sprintf("query_%s.go", FileName(res.Query.Block.Name))
-		
+
 		// Pre-process params to identify dynamic slices and prepare SQL replacement
 		params := b.buildParams(res.Params)
-		
+
 		sqlLiteral := res.Query.Block.SQL
 		// Replace dynamic slice macros with markers in the SQL string
 		// We do this by iterating params in reverse offset order to avoid offset shifting
 		// 3. Apply replacements to SQL.
 		// 4. Update paramSpec with the used marker.
-		
+
 		// We need unique markers.
 		for i := len(params) - 1; i >= 0; i-- {
 			if params[i].isDynamicSlice {
@@ -367,9 +368,9 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 		} else {
 			typeInfo = resolveType(p.GoType, p.Nullable)
 		}
-		
+
 		isDynamicSlice := p.IsVariadic && p.VariadicCount == 0
-		
+
 		spec := paramSpec{
 			name:           name,
 			goType:         typeInfo.GoType,
@@ -378,7 +379,7 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 			argExpr:        name,
 			isDynamicSlice: isDynamicSlice,
 		}
-		
+
 		if isDynamicSlice {
 			// For dynamic slices, the argument is just the slice name
 			spec.argExpr = name
@@ -903,7 +904,11 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 			fmt.Fprintf(&buf, "\t\treturn nil, err\n")
 			fmt.Fprintf(&buf, "\t}\n")
 			fmt.Fprintf(&buf, "\tdefer rows.Close()\n")
-			fmt.Fprintf(&buf, "\titems := make([]%s, 0)\n", q.rowType)
+			if b.opts.EmitEmptySlices {
+				fmt.Fprintf(&buf, "\titems := make([]%s, 0)\n", q.rowType)
+			} else {
+				fmt.Fprintf(&buf, "\tvar items []%s\n", q.rowType)
+			}
 			fmt.Fprintf(&buf, "\tfor rows.Next() {\n")
 			fmt.Fprintf(&buf, "\t\titem, err := %s(rows)\n", q.helper.funcName)
 			fmt.Fprintf(&buf, "\t\tif err != nil {\n")
@@ -958,7 +963,7 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	results = append(results, &goast.Field{Type: errorType})
 
 	body := make([]goast.Stmt, 0)
-	
+
 	// Handle dynamic slices
 	hasDynamic := false
 	for _, p := range q.params {
@@ -967,17 +972,17 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 			break
 		}
 	}
-	
+
 	if hasDynamic {
 		body = append(body, mustParseStmt(fmt.Sprintf("query := %s", q.constName)))
-		
+
 		// Generate slice expansion strings
 		// query = strings.Replace(query, "/*SLICE:ids*/", strings.Repeat("?, ", len(ids))[:len(strings.Repeat("?, ", len(ids)))-2], 1)
 		// Or simpler:
 		// var queryOutput strings.Builder
 		// ...
 		// But replacing marker is cleaner for AST generation.
-		
+
 		for _, p := range q.params {
 			if !p.isDynamicSlice {
 				continue
@@ -986,7 +991,7 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 			// We need to strip trailing comma.
 			// strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
 			// Generate: query = strings.Replace(query, marker, strings.TrimRight(strings.Repeat("?,", len(p.name)), ","), 1)
-			
+
 			replaceStmt := fmt.Sprintf(`query = strings.Replace(query, "%s", strings.TrimRight(strings.Repeat("?,", len(%s)), ","), 1)`, p.marker, p.name)
 			body = append(body, mustParseStmt(replaceStmt))
 		}
@@ -1001,7 +1006,7 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 		loopStmt := mustParseStmt(fmt.Sprintf("for i := range %s {\n%s[i] = %s[i]\n}", p.name, p.sliceName, p.name))
 		body = append(body, makeStmt, loopStmt)
 	}
-	
+
 	// Collect arguments for query call
 	// If dynamic, we need to build args slice dynamically
 	callArgsName := ""
@@ -1061,7 +1066,11 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 			body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn item, err\n}"))
 			body = append(body, mustParseStmt("return item, nil"))
 		} else {
-			body = append(body, mustParseStmt("items := make([]"+q.rowType+", 0)"))
+			if b.opts.EmitEmptySlices {
+				body = append(body, mustParseStmt("items := make([]"+q.rowType+", 0)"))
+			} else {
+				body = append(body, mustParseStmt("var items []"+q.rowType))
+			}
 			loop := &goast.ForStmt{
 				Cond: &goast.CallExpr{Fun: &goast.SelectorExpr{X: goast.NewIdent("rows"), Sel: goast.NewIdent("Next")}},
 				Body: &goast.BlockStmt{List: []goast.Stmt{
