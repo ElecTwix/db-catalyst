@@ -583,9 +583,8 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		rowSpec := &goast.TypeSpec{Name: goast.NewIdent(helper.rowTypeName), Type: rowType}
 		decls = append(decls, &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{rowSpec}})
 
-		stmts := []goast.Stmt{
-			mustParseStmt("var item " + helper.rowTypeName),
-		}
+		stmts := make([]goast.Stmt, 0, 3)
+		stmts = append(stmts, mustParseStmt("var item "+helper.rowTypeName))
 		scanArgs := make([]string, 0, len(helper.fields))
 		for _, fld := range helper.fields {
 			scanArgs = append(scanArgs, "&item."+fld.name)

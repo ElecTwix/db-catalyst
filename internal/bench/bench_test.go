@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/electwix/db-catalyst/internal/fileset"
@@ -14,7 +15,8 @@ import (
 
 type discardWriter struct{}
 
-func (w *discardWriter) WriteFile(path string, data []byte) error {
+func (w *discardWriter) WriteFile(_ string, data []byte) error {
+	_ = data
 	return nil
 }
 
@@ -24,7 +26,9 @@ func BenchmarkPipeline(b *testing.B) {
 	if err != nil {
 		b.Fatalf("create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Copy test fixtures
 	fixtureDir := "../pipeline/testdata/e2e/complex_sqlite"
@@ -60,7 +64,9 @@ func BenchmarkPipelineSmall(b *testing.B) {
 	if err != nil {
 		b.Fatalf("create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create minimal schema
 	schemaContent := `
@@ -70,7 +76,7 @@ CREATE TABLE users (
     email TEXT NOT NULL
 );
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0600); err != nil {
 		b.Fatalf("write schema: %v", err)
 	}
 
@@ -85,7 +91,7 @@ SELECT * FROM users ORDER BY username;
 -- name: CreateUser :one
 INSERT INTO users (username, email) VALUES (?, ?) RETURNING id;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesContent), 0600); err != nil {
 		b.Fatalf("write queries: %v", err)
 	}
 
@@ -96,7 +102,7 @@ out = "gen"
 schemas = ["schema.sql"]
 queries = ["queries.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0600); err != nil {
 		b.Fatalf("write config: %v", err)
 	}
 
@@ -127,21 +133,24 @@ func copyDir(src, dst string) error {
 		if err != nil {
 			return err
 		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
 		}
-		if rel == "." {
+		if rel == "." || strings.HasPrefix(rel, "..") {
 			return nil
 		}
 		dstPath := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(dstPath, 0755)
+		if err := os.MkdirAll(filepath.Dir(dstPath), 0750); err != nil {
+			return err
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(dstPath, data, 0644)
+		return os.WriteFile(dstPath, data, 0600)
 	})
 }

@@ -50,12 +50,14 @@ type Summary struct {
 
 // RunOptions configures a pipeline execution.
 type RunOptions struct {
-	ConfigPath   string
-	OutOverride  string
-	DryRun       bool
-	ListQueries  bool
-	StrictConfig bool
-	NoJSONTags   bool
+	ConfigPath      string
+	OutOverride     string
+	DryRun          bool
+	ListQueries     bool
+	StrictConfig    bool
+	NoJSONTags      bool
+	SQLDialect      string
+	EmitIFNotExists bool
 }
 
 // DiagnosticsError indicates that errors were reported via diagnostics.
@@ -310,6 +312,11 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 			Enabled:     plan.PreparedQueries.Enabled,
 			EmitMetrics: plan.PreparedQueries.Metrics,
 			ThreadSafe:  plan.PreparedQueries.ThreadSafe,
+		},
+		SQL: codegen.SQLOptions{
+			Enabled:         plan.SQLDialect != "",
+			Dialect:         plan.SQLDialect,
+			EmitIFNotExists: opts.EmitIFNotExists,
 		},
 	})
 	generatedFiles, err := generator.Generate(ctx, catalog, analyses)

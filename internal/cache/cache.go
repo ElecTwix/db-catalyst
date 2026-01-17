@@ -1,3 +1,5 @@
+// Package cache provides caching utilities for the db-catalyst pipeline.
+// It includes deterministic caching, schema caching, query caching, and result caching.
 package cache
 
 import (

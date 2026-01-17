@@ -11,15 +11,18 @@ import (
 
 // Options holds the configuration derived from command-line arguments.
 type Options struct {
-	ConfigPath   string
-	Out          string
-	DryRun       bool
-	ListQueries  bool
-	StrictConfig bool
-	Verbose      bool
-	NoJSONTags   bool
-	EmitJSONTags bool
-	Args         []string
+	ConfigPath      string
+	Out             string
+	DryRun          bool
+	ListQueries     bool
+	StrictConfig    bool
+	Verbose         bool
+	NoJSONTags      bool
+	EmitJSONTags    bool
+	SQLDialect      string
+	SQLOutput       bool
+	EmitIFNotExists bool
+	Args            []string
 }
 
 // Parse processes command-line arguments and returns the options.
@@ -42,6 +45,9 @@ func Parse(args []string) (Options, error) {
 	fs.BoolVar(&opts.Verbose, "verbose", false, "Enable verbose logging")
 	fs.BoolVar(&opts.Verbose, "v", false, "Enable verbose logging")
 	fs.BoolVar(&opts.NoJSONTags, "no-json-tags", false, "Disable JSON tags in generated code")
+	fs.StringVar(&opts.SQLDialect, "sql-dialect", "", "Generate SQL schema output (sqlite, mysql, postgres)")
+	fs.BoolVar(&opts.SQLOutput, "sql-output", false, "Enable SQL schema generation")
+	fs.BoolVar(&opts.EmitIFNotExists, "if-not-exists", true, "Use IF NOT EXISTS in SQL output")
 
 	if len(args) == 0 {
 		usage := Usage(fs)

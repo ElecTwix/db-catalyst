@@ -8,6 +8,7 @@ import (
 
 	astbuilder "github.com/electwix/db-catalyst/internal/codegen/ast"
 	"github.com/electwix/db-catalyst/internal/codegen/render"
+	"github.com/electwix/db-catalyst/internal/codegen/sql"
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/schema/model"
@@ -21,6 +22,13 @@ type PreparedOptions struct {
 	ThreadSafe  bool
 }
 
+// SQLOptions configures SQL schema output.
+type SQLOptions struct {
+	Enabled         bool
+	Dialect         string
+	EmitIFNotExists bool
+}
+
 // Options configures the Generator.
 type Options struct {
 	Package             string
@@ -29,6 +37,7 @@ type Options struct {
 	EmitPointersForNull bool
 	Prepared            PreparedOptions
 	CustomTypes         []config.CustomTypeMapping
+	SQL                 SQLOptions
 }
 
 // Generator produces Go code from parsed schemas and queries.
@@ -53,7 +62,64 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 		return nil, err
 	}
 
-	// Create transformer for custom types
+	files := make([]File, 0)
+
+	if g.opts.SQL.Enabled {
+		sqlFiles, err := g.generateSQL(catalog)
+		if err != nil {
+			return nil, fmt.Errorf("generate SQL: %w", err)
+		}
+		files = append(files, sqlFiles...)
+	}
+
+	goFiles, err := g.generateGo(ctx, catalog, analyses)
+	if err != nil {
+		return nil, fmt.Errorf("generate Go: %w", err)
+	}
+	files = append(files, goFiles...)
+
+	slices.SortFunc(files, func(a, b File) int {
+		if a.Path == b.Path {
+			return 0
+		}
+		if a.Path < b.Path {
+			return -1
+		}
+		return 1
+	})
+
+	return files, nil
+}
+
+func (g *Generator) generateSQL(catalog *model.Catalog) ([]File, error) {
+	dialect := sql.DialectSQLite
+	switch g.opts.SQL.Dialect {
+	case "mysql":
+		dialect = sql.DialectMySQL
+	case "postgres":
+		dialect = sql.DialectPostgres
+	case "sqlite":
+		dialect = sql.DialectSQLite
+	}
+
+	generator := sql.New(sql.Options{
+		Dialect:         dialect,
+		EmitIFNotExists: g.opts.SQL.EmitIFNotExists,
+	})
+
+	sqlFiles, err := generator.Generate(catalog)
+	if err != nil {
+		return nil, err
+	}
+
+	files := make([]File, 0, len(sqlFiles))
+	for _, f := range sqlFiles {
+		files = append(files, File{Path: f.Path, Content: f.Content})
+	}
+	return files, nil
+}
+
+func (g *Generator) generateGo(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
 	transformer := transform.New(g.opts.CustomTypes)
 	typeResolver := astbuilder.NewTypeResolverWithOptions(transformer, g.opts.EmitPointersForNull)
 
@@ -89,16 +155,6 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 	for _, rf := range rendered {
 		files = append(files, File{Path: rf.Path, Content: rf.Content})
 	}
-
-	slices.SortFunc(files, func(a, b File) int {
-		if a.Path == b.Path {
-			return 0
-		}
-		if a.Path < b.Path {
-			return -1
-		}
-		return 1
-	})
 
 	return files, nil
 }

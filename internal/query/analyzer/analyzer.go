@@ -278,9 +278,10 @@ func findMainStatementStart(tokens []tokenizer.Token) int {
 			break
 		}
 		if tok.Kind == tokenizer.KindSymbol {
-			if tok.Text == "(" {
+			switch tok.Text {
+			case "(":
 				depth++
-			} else if tok.Text == ")" {
+			case ")":
 				if depth > 0 {
 					depth--
 				}
@@ -789,11 +790,12 @@ func aggregateKindString(kind aggregateKind) string {
 
 func defaultAggregateName(agg aggregateExpr) string {
 	var base string
-	if agg.argStar {
+	switch {
+	case agg.argStar:
 		base = "count"
-	} else if agg.argColumn != "" {
+	case agg.argColumn != "":
 		base = agg.argColumn
-	} else {
+	default:
 		base = "column"
 	}
 
@@ -920,7 +922,7 @@ func entryToResultColumns(entry *scopeEntry) []ResultColumn {
 }
 
 func discoverReturningColumns(tokens []tokenizer.Token, blk block.Block, scope *queryScope, hasCatalog bool) ([]ResultColumn, []Diagnostic) {
-	var returningIdx int = -1
+	returningIdx := -1
 	for i := len(tokens) - 1; i >= 0; i-- {
 		if tokens[i].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[i].Text) == "RETURNING" {
 			returningIdx = i

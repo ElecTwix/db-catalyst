@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -63,7 +64,7 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 		if err := os.RemoveAll(goldenDir); err != nil {
 			t.Fatalf("failed to clear golden dir: %v", err)
 		}
-		if err := os.MkdirAll(goldenDir, 0755); err != nil {
+		if err := os.MkdirAll(goldenDir, 0750); err != nil {
 			t.Fatalf("failed to create golden dir: %v", err)
 		}
 		for _, file := range summary.Files {
@@ -73,10 +74,10 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 				t.Fatalf("failed to get relative path: %v", err)
 			}
 			dst := filepath.Join(goldenDir, rel)
-			if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
 				t.Fatalf("failed to create dst dir: %v", err)
 			}
-			if err := os.WriteFile(dst, file.Content, 0644); err != nil {
+			if err := os.WriteFile(dst, file.Content, 0600); err != nil {
 				t.Fatalf("failed to write golden file: %v", err)
 			}
 		}
@@ -89,6 +90,9 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 		rel, err := filepath.Rel(filepath.Join(tmpDir, "gen"), file.Path)
 		if err != nil {
 			t.Fatalf("failed to get relative path: %v", err)
+		}
+		if strings.HasPrefix(rel, "..") {
+			t.Fatalf("golden path outside golden dir: %s", rel)
 		}
 		goldenPath := filepath.Join(goldenDir, rel)
 		goldenContent, err := os.ReadFile(goldenPath)
@@ -105,8 +109,8 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 type diskWriter struct{}
 
 func (w *diskWriter) WriteFile(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

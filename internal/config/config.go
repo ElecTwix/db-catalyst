@@ -72,10 +72,25 @@ type OverridesConfig struct {
 
 // GenerationOptions captures additional generation options.
 type GenerationOptions struct {
-	EmitEmptySlices     bool `toml:"emit_empty_slices"`
-	EmitPreparedQueries bool `toml:"emit_prepared_queries"`
-	EmitJSONTags        bool `toml:"emit_json_tags"`
-	EmitPointersForNull bool `toml:"emit_pointers_for_null"`
+	EmitEmptySlices     bool   `toml:"emit_empty_slices"`
+	EmitPreparedQueries bool   `toml:"emit_prepared_queries"`
+	EmitJSONTags        bool   `toml:"emit_json_tags"`
+	EmitPointersForNull bool   `toml:"emit_pointers_for_null"`
+	SQLDialect          string `toml:"sql_dialect"`
+}
+
+// JobPlan is the fully-resolved configuration used by downstream stages.
+type JobPlan struct {
+	Package             string
+	Out                 string
+	SQLiteDriver        Driver
+	Schemas             []string
+	Queries             []string
+	CustomTypes         []CustomTypeMapping
+	EmitJSONTags        bool
+	EmitPointersForNull bool
+	PreparedQueries     PreparedQueries
+	SQLDialect          string
 }
 
 // PreparedQueriesConfig captures optional prepared statement generation settings.
@@ -104,19 +119,6 @@ type Config struct {
 	CustomTypes     CustomTypesConfig     `toml:"custom_types"`
 	Generation      GenerationOptions     `toml:"generation"`
 	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
-}
-
-// JobPlan is the fully-resolved configuration used by downstream stages.
-type JobPlan struct {
-	Package             string
-	Out                 string
-	SQLiteDriver        Driver
-	Schemas             []string
-	Queries             []string
-	CustomTypes         []CustomTypeMapping
-	EmitJSONTags        bool
-	EmitPointersForNull bool
-	PreparedQueries     PreparedQueries
 }
 
 // LoadOptions tunes config loading behavior.
@@ -225,6 +227,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		EmitJSONTags:        cfg.Generation.EmitJSONTags,
 		EmitPointersForNull: cfg.Generation.EmitPointersForNull,
 		PreparedQueries:     prepared,
+		SQLDialect:          cfg.Generation.SQLDialect,
 	}
 
 	return res, nil
