@@ -456,7 +456,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 		for k < len(tokens) && tokens[k].Kind == tokenizer.KindDocComment {
 			k++
 		}
-		
+
 		if macro, name, end, ok := isSQLCMacro(tokens, k); ok && macro == "slice" {
 			// Check if closed by )
 			if end < len(tokens) && tokens[end].Kind == tokenizer.KindSymbol && tokens[end].Text == ")" {
@@ -641,20 +641,20 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 
 			camel := camelCaseParam(name)
 			key := strings.ToLower(name)
-			
+
 			if idx, exists := named[key]; exists {
 				if params[idx].Name != camel {
 					diags = append(diags, makeDiag(blk, tokens[i].Line, tokens[i].Column, SeverityError, "parameter %s resolves to conflicting name %q", name, camel))
 				}
 			} else {
 				params = append(params, Param{
-					Name:          camel,
-					Style:         ParamStyleNamed,
-					Order:         len(params) + 1,
-					Line:          actualLine,
-					Column:        actualColumn,
-					StartOffset:   startOffset,
-					EndOffset:     endOffset,
+					Name:        camel,
+					Style:       ParamStyleNamed,
+					Order:       len(params) + 1,
+					Line:        actualLine,
+					Column:      actualColumn,
+					StartOffset: startOffset,
+					EndOffset:   endOffset,
 				})
 				named[key] = len(params) - 1
 			}
@@ -694,9 +694,13 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 						} else {
 							order = nextAvailableOrder(numbered)
 						}
-						name := fmt.Sprintf("arg%d", order)
+						// Try to infer parameter name from context
+						paramName := inferParamName(tokens, i, numbered)
+						if paramName == "" {
+							paramName = fmt.Sprintf("arg%d", order)
+						}
 						params = append(params, Param{
-							Name:          name,
+							Name:          paramName,
 							Style:         ParamStylePositional,
 							Order:         order,
 							Line:          actualLine,
@@ -739,14 +743,19 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 							diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text))
 						} else {
 							order = parsed
+							// Try to infer parameter name from context
+							paramName := inferParamName(tokens, i, numbered)
+							if paramName == "" {
+								paramName = fmt.Sprintf("arg%d", order)
+							}
 							if idx, exists := numbered[order]; exists {
-								if params[idx].Name != fmt.Sprintf("arg%d", order) {
+								if params[idx].Name != paramName {
 									diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", order))
 								}
 							} else {
 								endOffset = pos.offset(nextTok) + len(nextTok.Text)
 								params = append(params, Param{
-									Name:        fmt.Sprintf("arg%d", order),
+									Name:        paramName,
 									Style:       ParamStylePositional,
 									Order:       order,
 									Line:        actualLine,
@@ -761,8 +770,13 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 						continue
 					}
 				}
+				// Try to infer parameter name from context
+				paramName := inferParamName(tokens, i, numbered)
+				if paramName == "" {
+					paramName = fmt.Sprintf("arg%d", order)
+				}
 				params = append(params, Param{
-					Name:        fmt.Sprintf("arg%d", order),
+					Name:        paramName,
 					Style:       ParamStylePositional,
 					Order:       order,
 					Line:        actualLine,
@@ -1103,4 +1117,110 @@ func actualPosition(blk block.Block, relLine, relColumn int) (int, int) {
 		line = blk.Line
 	}
 	return line, relColumn
+}
+
+// inferParamName attempts to infer a meaningful parameter name from the surrounding context.
+// It looks backward from the parameter position for comparison operators and column names.
+// Returns empty string if no meaningful name can be inferred or if inference would be ambiguous.
+func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]int) string {
+	if paramIdx <= 0 || paramIdx >= len(tokens) {
+		return ""
+	}
+
+	// Look for the parameter token first
+	paramTok := tokens[paramIdx]
+	if paramTok.Kind != tokenizer.KindSymbol || paramTok.Text != "?" {
+		return ""
+	}
+
+	// Count how many times this order appears in the query
+	// If the same order is used multiple times (like ?1 and ?), don't infer
+	// to avoid conflicts when same parameter is used in different contexts
+	order := 0
+	paramOrder := 0
+	orderCount := 0
+
+	for i, tok := range tokens {
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == "?" {
+			// Check if next token is a number
+			if i+1 < len(tokens) && tokens[i+1].Kind == tokenizer.KindNumber {
+				parsed, _ := strconv.Atoi(tokens[i+1].Text)
+				if parsed > 0 {
+					if order == 0 {
+						order = parsed
+						paramOrder = i
+					}
+					if parsed == order {
+						orderCount++
+					}
+				}
+			} else if order == 0 {
+				// This is the first ? without explicit order
+				paramOrder = i
+			}
+		}
+	}
+
+	// If this order appears multiple times (like ?1 and ?), don't infer
+	// to avoid conflicts when same parameter is used in different contexts
+	if orderCount > 1 {
+		return ""
+	}
+
+	// If this param is not the first occurrence of its order, don't infer
+	if paramIdx != paramOrder {
+		return ""
+	}
+
+	// Also check if this order is already used by another positional param
+	// (e.g., if ? was assigned order 1, but ?1 also uses order 1)
+	if usedOrders[order] > 0 && order > 0 {
+		return ""
+	}
+
+	// First, check if ? is AFTER the operator (pattern: <column> <operator> ?)
+	// This is the valid case: users.id = ?
+	j := paramIdx - 1
+	for j >= 0 {
+		tok := tokens[j]
+
+		if tok.Kind == tokenizer.KindEOF {
+			break
+		}
+
+		// Check for comparison operator
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "=", "<", ">", "<=", ">=", "!=", "<>", "LIKE", "IN":
+				// Found operator, now look for column name to the left
+				for k := j - 1; k >= 0; k-- {
+					prevTok := tokens[k]
+					if prevTok.Kind == tokenizer.KindIdentifier {
+						return camelCaseParam(prevTok.Text)
+					}
+					// Skip other symbols (like parentheses, commas)
+					if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text != "(" && prevTok.Text != "," {
+						break
+					}
+				}
+				return ""
+			case ")", "(", ",", "+", "-", "*", "/", "%":
+				return ""
+			}
+		}
+
+		// If we hit a keyword that's not part of a column expression, stop
+		if tok.Kind == tokenizer.KindKeyword {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "WHERE" || upper == "AND" || upper == "OR" || upper == "SET" ||
+				upper == "VALUES" || upper == "ON" || upper == "HAVING" || upper == "ORDER" ||
+				upper == "GROUP" || upper == "BY" || upper == "LIMIT" || upper == "OFFSET" {
+				return ""
+			}
+		}
+
+		j--
+	}
+
+	return ""
 }

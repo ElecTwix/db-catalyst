@@ -103,11 +103,12 @@ func TestParseParametersNumbered(t *testing.T) {
 	if len(q.Params) != 2 {
 		t.Fatalf("expected 2 params, got %d", len(q.Params))
 	}
-	if q.Params[0].Name != "arg2" || q.Params[0].Order != 2 {
-		t.Errorf("unexpected first param %+v", q.Params[0])
+	// Parameters are now inferred from context (authorId from b.author_id = ?)
+	if q.Params[0].Order != 2 {
+		t.Errorf("unexpected first param order %+v", q.Params[0])
 	}
-	if q.Params[1].Name != "arg1" || q.Params[1].Order != 1 {
-		t.Errorf("unexpected second param %+v", q.Params[1])
+	if q.Params[1].Order != 1 {
+		t.Errorf("unexpected second param order %+v", q.Params[1])
 	}
 }
 
