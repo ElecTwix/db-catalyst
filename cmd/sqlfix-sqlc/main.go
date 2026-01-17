@@ -10,10 +10,11 @@ import (
 	"path/filepath"
 	"sort"
 
+	toml "github.com/pelletier/go-toml/v2"
+
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/sqlfix/overrides"
 	"github.com/electwix/db-catalyst/internal/sqlfix/sqlcconfig"
-	toml "github.com/pelletier/go-toml/v2"
 )
 
 func main() {

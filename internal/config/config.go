@@ -10,8 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/electwix/db-catalyst/internal/fileset"
 	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/electwix/db-catalyst/internal/fileset"
 )
 
 // Driver identifies the SQLite driver implementation to target.

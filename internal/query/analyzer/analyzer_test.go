@@ -486,7 +486,7 @@ WHERE users.email = ? AND ? = users.id;`,
 				SQL:    tc.sql,
 			}
 			q, diags := parser.Parse(blk)
-			
+
 			// We now allow missing aliases as warnings in parser too
 			hasError := false
 			for _, d := range diags {
@@ -512,7 +512,7 @@ func TestAnalyzerAggregateRequiresAlias(t *testing.T) {
 		SQL:    "SELECT COUNT(*) FROM users;",
 	}
 	q, diags := parser.Parse(blk)
-	
+
 	// Parser now emits warning
 	found := false
 	for _, d := range diags {

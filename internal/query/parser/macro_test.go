@@ -52,7 +52,7 @@ func TestParseSQLCMacros(t *testing.T) {
 				SQL:     tt.sql,
 			}
 			got, diags := Parse(blk)
-			
+
 			hasError := false
 			for _, d := range diags {
 				if d.Severity == SeverityError {

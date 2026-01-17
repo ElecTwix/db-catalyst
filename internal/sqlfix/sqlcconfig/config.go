@@ -12,10 +12,11 @@ import (
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	schemamodel "github.com/electwix/db-catalyst/internal/schema/model"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
 	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
-	"gopkg.in/yaml.v3"
 )
 
 // Config represents the subset of sqlc configuration required for override migration.
