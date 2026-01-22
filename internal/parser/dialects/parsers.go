@@ -1,0 +1,215 @@
+package dialects
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
+	"github.com/electwix/db-catalyst/internal/parser/grammars"
+	"github.com/electwix/db-catalyst/internal/schema/model"
+)
+
+// DialectParser defines the interface for parsing SQL dialects
+type DialectParser interface {
+	ParseDDL(ctx context.Context, sql string) (*model.Catalog, error)
+	Validate(sql string) ([]string, error)
+	Dialect() grammars.Dialect
+}
+
+// BaseParser provides common functionality for dialect parsers
+type BaseParser struct {
+	dialect grammars.Dialect
+}
+
+func NewBaseParser(dialect grammars.Dialect) *BaseParser {
+	return &BaseParser{dialect: dialect}
+}
+
+func (b *BaseParser) Dialect() grammars.Dialect {
+	return b.dialect
+}
+
+func (b *BaseParser) Validate(sql string) ([]string, error) {
+	return grammars.ValidateSyntax(b.dialect, sql)
+}
+
+// SQLLexer defines the SQL lexer configuration
+var SQLLexer = lexer.MustStateful(lexer.Rules{
+	"Root": {
+		{"Whitespace", `[ \t\r\n]+`, nil},
+		{"Comment", `--[^\n]*`, nil},
+		{"BlockComment", `/\*[\s\S]*?\*/`, nil},
+		{"String", `'[^']*'`, nil},
+		{"Ident", `[a-zA-Z_][a-zA-Z0-9_]*`, nil},
+		{"Number", `[0-9]+(?:\.[0-9]+)?`, nil},
+		{"Symbol", `[\(\)\[\]\{\},;:.]`, nil},
+		{"Operator", `[\+\-\*/=<>!]+`, nil},
+	},
+})
+
+// CreateTable represents a parsed CREATE TABLE statement
+type CreateTable struct {
+	Keyword string    `@"CREATE"`
+	Table   string    `@"TABLE"`
+	Name    string    `@Ident`
+	Columns []*Column `"(" @@ ("," @@)* ")"`
+}
+
+// Column represents a table column
+type Column struct {
+	Name       string `@Ident`
+	Type       string `@Ident`
+	Constraint string `(@("PRIMARY" "KEY") | "NOT" "NULL" | "UNIQUE")?`
+}
+
+// Constraint represents a column constraint
+type Constraint struct {
+	Type string `(@Ident ("KEY" | @Ident?) | "NOT" "NULL" | "UNIQUE")`
+}
+
+// SQLiteParser implements parsing for SQLite dialect
+type SQLiteParser struct {
+	*BaseParser
+	parser *participle.Parser[CreateTable]
+}
+
+func NewSQLiteParser() *SQLiteParser {
+	parser, err := participle.Build[CreateTable](
+		participle.Lexer(SQLLexer),
+		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build SQLite parser: %v", err))
+	}
+
+	return &SQLiteParser{
+		BaseParser: NewBaseParser(grammars.DialectSQLite),
+		parser:     parser,
+	}
+}
+
+func (s *SQLiteParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+	stmt, err := s.parser.ParseString("", sql)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse SQLite DDL: %w", err)
+	}
+
+	catalog := model.NewCatalog()
+	table := &model.Table{
+		Name:    stmt.Name,
+		Columns: make([]*model.Column, 0, len(stmt.Columns)),
+	}
+
+	for _, col := range stmt.Columns {
+		table.Columns = append(table.Columns, &model.Column{
+			Name: col.Name,
+			Type: col.Type,
+		})
+	}
+
+	catalog.Tables[stmt.Name] = table
+	return catalog, nil
+}
+
+// PostgreSQLParser implements parsing for PostgreSQL dialect
+type PostgreSQLParser struct {
+	*BaseParser
+	parser *participle.Parser[CreateTable]
+}
+
+func NewPostgreSQLParser() *PostgreSQLParser {
+	parser, err := participle.Build[CreateTable](
+		participle.Lexer(SQLLexer),
+		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build PostgreSQL parser: %v", err))
+	}
+
+	return &PostgreSQLParser{
+		BaseParser: NewBaseParser(grammars.DialectPostgreSQL),
+		parser:     parser,
+	}
+}
+
+func (p *PostgreSQLParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+	stmt, err := p.parser.ParseString("", sql)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse PostgreSQL DDL: %w", err)
+	}
+
+	catalog := model.NewCatalog()
+	table := &model.Table{
+		Name:    stmt.Name,
+		Columns: make([]*model.Column, 0, len(stmt.Columns)),
+	}
+
+	for _, col := range stmt.Columns {
+		table.Columns = append(table.Columns, &model.Column{
+			Name: col.Name,
+			Type: col.Type,
+		})
+	}
+
+	catalog.Tables[stmt.Name] = table
+	return catalog, nil
+}
+
+// MySQLParser implements parsing for MySQL dialect
+type MySQLParser struct {
+	*BaseParser
+	parser *participle.Parser[CreateTable]
+}
+
+func NewMySQLParser() *MySQLParser {
+	parser, err := participle.Build[CreateTable](
+		participle.Lexer(SQLLexer),
+		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("failed to build MySQL parser: %v", err))
+	}
+
+	return &MySQLParser{
+		BaseParser: NewBaseParser(grammars.DialectMySQL),
+		parser:     parser,
+	}
+}
+
+func (m *MySQLParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+	stmt, err := m.parser.ParseString("", sql)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse MySQL DDL: %w", err)
+	}
+
+	catalog := model.NewCatalog()
+	table := &model.Table{
+		Name:    stmt.Name,
+		Columns: make([]*model.Column, 0, len(stmt.Columns)),
+	}
+
+	for _, col := range stmt.Columns {
+		table.Columns = append(table.Columns, &model.Column{
+			Name: col.Name,
+			Type: col.Type,
+		})
+	}
+
+	catalog.Tables[stmt.Name] = table
+	return catalog, nil
+}
+
+// NewParser creates a new dialect parser for the specified dialect
+func NewParser(dialect grammars.Dialect) (DialectParser, error) {
+	switch dialect {
+	case grammars.DialectSQLite:
+		return NewSQLiteParser(), nil
+	case grammars.DialectPostgreSQL:
+		return NewPostgreSQLParser(), nil
+	case grammars.DialectMySQL:
+		return NewMySQLParser(), nil
+	default:
+		return nil, fmt.Errorf("unsupported dialect: %s", dialect)
+	}
+}

@@ -1,0 +1,60 @@
+CREATE [TEMP|TEMPORARY] TABLE [IF NOT EXISTS] table_name (
+  column_def (',' column_def)*
+  [',' table_constraint]*
+);
+
+column_def ::= column_name data_type [column_constraint*];
+
+data_type ::=
+  | SMALLINT
+  | INTEGER
+  | BIGINT
+  | DECIMAL [(precision [, scale])]
+  | NUMERIC [(precision [, scale])]
+  | REAL
+  | DOUBLE PRECISION
+  | CHAR [(n)]
+  | CHARACTER [(n)]
+  | VARCHAR [(n)]
+  | CHARACTER VARYING [(n)]
+  | TEXT
+  | BOOLEAN
+  | DATE
+  | TIME [(precision)] [WITH TIME ZONE]
+  | TIMESTAMP [(precision)] [WITH TIME ZONE]
+  | JSON
+  | JSONB;
+
+column_constraint ::=
+  | NOT NULL
+  | NULL
+  | CHECK '(' expression ')'
+  | DEFAULT default_value
+  | UNIQUE
+  | PRIMARY KEY
+  | REFERENCES table_name [(column_name)] [MATCH match_type] [ON DELETE action] [ON UPDATE action];
+
+table_constraint ::=
+  | PRIMARY KEY '(' column_name (',' column_name)* ')'
+  | UNIQUE '(' column_name (',' column_name)* ')'
+  | FOREIGN KEY '(' column_name (',' column_name)* ')' REFERENCES table_name '(' column_name (',' column_name)* ')' [MATCH match_type] [ON DELETE action] [ON UPDATE action]
+  | CHECK '(' expression ')'
+  | EXCLUDE USING index_method '(' exclude_element WITH operator ')';
+
+match_type ::=
+  | FULL
+  | PARTIAL
+  | SIMPLE;
+
+action ::=
+  | NO ACTION
+  | RESTRICT
+  | CASCADE
+  | SET NULL
+  | SET DEFAULT;
+
+default_value ::=
+  | literal_value
+  | expression
+  | CURRENT_TIMESTAMP
+  | CURRENT_DATE;

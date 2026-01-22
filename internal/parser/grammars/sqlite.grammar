@@ -1,0 +1,39 @@
+CREATE TABLE [IF NOT EXISTS] [schema_name.]table_name (
+  column_def (',' column_def)*
+  [',' table_constraint]*
+) [WITHOUT ROWID];
+
+column_def ::= column_name data_type column_constraint*;
+
+data_type ::= 
+  | INTEGER 
+  | TEXT 
+  | REAL 
+  | BLOB 
+  | NUMERIC;
+
+column_constraint ::=
+  | PRIMARY KEY [ASC|DESC] [AUTOINCREMENT]
+  | NOT NULL
+  | UNIQUE
+  | CHECK '(' expression ')'
+  | DEFAULT default_value
+  | COLLATE collation_name
+  | REFERENCES table_name [(column_name)] [ON DELETE action] [ON UPDATE action];
+
+table_constraint ::=
+  | PRIMARY KEY '(' column_name (',' column_name)* ')'
+  | UNIQUE '(' column_name (',' column_name)* ')'
+  | FOREIGN KEY '(' column_name (',' column_name)* ')' REFERENCES table_name '(' column_name (',' column_name)* ')' [ON DELETE action] [ON UPDATE action]
+  | CHECK '(' expression ')';
+
+action ::= 
+  | SET NULL
+  | SET DEFAULT
+  | CASCADE
+  | RESTRICT
+  | NO ACTION;
+
+default_value ::=
+  | literal_value
+  | expression;
