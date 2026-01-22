@@ -1,10 +1,11 @@
 # AGENTS
-- Repo motto: clarity over cleverness; SQLite-first generator stays small.
+- Repo motto: clarity over cleverness; language-agnostic generator stays small.
 - Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
 - Grammar-driven parser: Dialect syntax defined in `.grammar` files (EBNF-style), parsers generated via Participle library.
 - Dialect extension: Add new database support by creating `internal/parser/grammars/<dialect>.grammar` + dialect parser in `internal/parser/dialects/`.
 - Primary dialect: SQLite (fully supported); PostgreSQL and MySQL proof-of-concept parsers exist for future multi-database support.
 - Grammar validation: `ValidateSyntax()` checks SQL against dialect rules; catches cross-dialect incompatibilities before code generation.
+- Non-SQL support: GraphQL proof-of-concept in `internal/parser/languages/graphql/` demonstrates language-agnostic architecture.
 - Build CLI with `go build ./cmd/db-catalyst`; use -trimpath for releases.
 - Quick smoke: `make test` wraps `go test ./...` (only target currently).
 - Full tests: `go test ./...`; add `-race` when touching concurrency.
