@@ -1,0 +1,80 @@
+# Blog API Schema
+
+"A blog post with author and comments"
+type Post {
+	id: ID!
+	title: String!
+	content: String!
+	published: Boolean!
+	createdAt: DateTime!
+	updatedAt: DateTime!
+	author: User!
+	tags: [Tag!]!
+	comments: [Comment!]!
+}
+
+"User account"
+type User {
+	id: ID!
+	username: String!
+	email: String!
+	avatarUrl: String
+	bio: String
+	role: Role!
+	posts: [Post!]!
+	comments: [Comment!]!
+	createdAt: DateTime!
+}
+
+"Comment on a post"
+type Comment {
+	id: ID!
+	content: String!
+	createdAt: DateTime!
+	author: User!
+	post: Post!
+}
+
+"Tag for categorizing posts"
+type Tag {
+	id: ID!
+	name: String!
+	slug: String!
+	posts: [Post!]!
+}
+
+"User roles"
+enum Role {
+	ADMIN
+	MODERATOR
+	AUTHOR
+	SUBSCRIBER
+}
+
+"Node interface for relay"
+interface Node {
+	id: ID!
+}
+
+"Scalar definitions"
+scalar DateTime
+scalar Upload
+
+# Input types for mutations
+input CreateUserInput {
+	username: String!
+	email: String!
+	avatarUrl: String
+	bio: String
+}
+
+input CreatePostInput {
+	title: String!
+	content: String!
+	tagIds: [ID!]!
+}
+
+input CreateCommentInput {
+	postId: ID!
+	content: String!
+}

@@ -1,0 +1,73 @@
+# GraphQL Schema Grammar for db-catalyst
+
+# Type Definitions
+ObjectTypeDefinition ::= Description? "type" Name ImplementsInterfaces? Directives? "{" FieldDefinition+ "}"
+InterfaceTypeDefinition ::= Description? "interface" Name Directives? "{" FieldDefinition+ "}"
+InputObjectTypeDefinition ::= Description? "input" Name Directives? "{" InputValueDefinition+ "}"
+EnumTypeDefinition ::= Description? "enum" Name Directives? "{" EnumValueDefinition+ "}"
+UnionTypeDefinition ::= Description? "union" Name Directives? "=" UnionMembers
+ScalarTypeDefinition ::= Description? "scalar" Name Directives?
+
+# Type Extensions
+TypeExtensionDefinition ::= "extend" "type" Name ImplementsInterfaces? Directives? "{" FieldDefinition+ "}"
+InterfaceExtensionDefinition ::= "extend" "interface" Name Directives? "{" FieldDefinition+ "}"
+InputObjectExtensionDefinition ::= "extend" "input" Name Directives? "{" InputValueDefinition+ "}"
+EnumExtensionDefinition ::= "extend" "enum" Name Directives? "{" EnumValueDefinition+ "}"
+
+# Fields and Arguments
+FieldDefinition ::= Description? Name ArgumentsDefinition? ":" Type Directives?
+InputValueDefinition ::= Description? Name ":" Type DefaultValue? Directives?
+
+# Type System
+Type ::= NamedType
+      | ListType
+      | NonNullType
+
+NamedType ::= Name
+ListType ::= "[" Type "]"
+NonNullType ::= Type "!"
+
+Name ::= [A-Za-z_][A-Za-z0-9_]*
+
+# Arguments
+ArgumentsDefinition ::= "(" InputValueDefinition* ")"
+Arguments ::= "(" Argument+ ")"
+Argument ::= Name ":" Value
+
+# Directives
+Directives ::= Directive*
+Directive ::= "@" Name Arguments?
+
+# Modifiers
+ImplementsInterfaces ::= ImplementsInterface+
+ImplementsInterface ::= Implements
+Implements ::= "implements" ("&"? Name)+
+
+# Enum Values
+EnumValueDefinition ::= Description? EnumValue Directives?
+EnumValue ::= Name
+UnionMembers ::= UnionMember ("|" UnionMember)*
+UnionMember ::= Name
+
+# Descriptions
+Description ::= StringValue | BlockStringValue
+
+# Values
+Value ::= [0-9]+
+       | StringValue
+       | BooleanValue
+       | NullValue
+       | EnumValue
+       | ListValue
+       | ObjectValue
+
+StringValue ::= '"' [^"]* '"'
+BlockStringValue ::= '"""' [\s\S]*? '"""'
+BooleanValue ::= "true" | "false"
+NullValue ::= "null"
+ListValue ::= "[" Value* "]"
+ObjectValue ::= "{" ObjectField* "}"
+ObjectField ::= Name ":" Value
+
+# Default Values
+DefaultValue ::= "=" Value
