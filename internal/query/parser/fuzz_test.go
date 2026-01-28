@@ -12,7 +12,7 @@ func FuzzParse(f *testing.F) {
 	f.Add("-- name: ListUsers :many\nSELECT * FROM users;")
 	f.Add("-- name: CreateUser :exec\nINSERT INTO users (name) VALUES (:name);")
 
-	f.Fuzz(func(t *testing.T, input string) {
+	f.Fuzz(func(_ *testing.T, input string) {
 		blk := block.Block{
 			Path:   "fuzz.sql",
 			Line:   1,

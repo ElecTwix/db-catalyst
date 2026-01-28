@@ -115,6 +115,7 @@ func TestParser_ParserCreation(t *testing.T) {
 	if parser == nil {
 		t.Error("NewParser() returned nil")
 	}
+	//nolint:staticcheck // Test validates nil check before dereference
 	if parser.parser == nil {
 		t.Error("Parser.parser is nil")
 	}

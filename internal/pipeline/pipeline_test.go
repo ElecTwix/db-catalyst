@@ -370,7 +370,7 @@ type mockGenerator struct {
 	err   error
 }
 
-func (m *mockGenerator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]codegen.File, error) {
+func (m *mockGenerator) Generate(_ context.Context, _ *model.Catalog, _ []analyzer.Result) ([]codegen.File, error) {
 	return m.files, m.err
 }
 

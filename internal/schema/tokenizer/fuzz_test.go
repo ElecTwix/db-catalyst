@@ -13,7 +13,7 @@ func FuzzScan(f *testing.F) {
 	f.Add("-- comment\nSELECT 1;")
 	f.Add("/* block */ SELECT 2;")
 
-	f.Fuzz(func(t *testing.T, input string) {
+	f.Fuzz(func(_ *testing.T, input string) {
 		// Tokenizer should never panic
 		_, _ = Scan("fuzz", []byte(input), true)
 	})

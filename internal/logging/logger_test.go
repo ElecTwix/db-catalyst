@@ -105,6 +105,7 @@ func TestSlogAdapter(t *testing.T) {
 	})
 }
 
+//nolint:revive // Test exercises interface without assertions
 func TestNopLogger(t *testing.T) {
 	logger := NewNopLogger()
 
@@ -120,6 +121,7 @@ func TestNopLogger(t *testing.T) {
 	// If we get here without panic, test passes
 }
 
+//nolint:revive // Test verifies interface compliance at compile time
 func TestLoggerInterface(t *testing.T) {
 	// Verify both implementations satisfy the interface
 	var _ Logger = (*SlogAdapter)(nil)

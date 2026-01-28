@@ -20,14 +20,14 @@ func TestHooks_Chain(t *testing.T) {
 		var calls []string
 
 		h1 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				calls = append(calls, "h1")
 				return nil
 			},
 		}
 
 		h2 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				calls = append(calls, "h2")
 				return nil
 			},
@@ -47,14 +47,14 @@ func TestHooks_Chain(t *testing.T) {
 
 	t.Run("first error stops chain", func(t *testing.T) {
 		h1 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				return errors.New("h1 error")
 			},
 		}
 
 		var h2Called bool
 		h2 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				h2Called = true
 				return nil
 			},
@@ -75,7 +75,7 @@ func TestHooks_Chain(t *testing.T) {
 	t.Run("nil first hook", func(t *testing.T) {
 		var called bool
 		h2 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				called = true
 				return nil
 			},
@@ -96,7 +96,7 @@ func TestHooks_Chain(t *testing.T) {
 	t.Run("nil second hook", func(t *testing.T) {
 		var called bool
 		h1 := Hooks{
-			BeforeParse: func(ctx context.Context, paths []string) error {
+			BeforeParse: func(_ context.Context, _ []string) error {
 				called = true
 				return nil
 			},
@@ -140,35 +140,35 @@ SELECT * FROM users WHERE id = :id;`
 	var hookCalls []string
 
 	hooks := Hooks{
-		BeforeParse: func(ctx context.Context, paths []string) error {
+		BeforeParse: func(_ context.Context, _ []string) error {
 			hookCalls = append(hookCalls, "BeforeParse")
 			return nil
 		},
-		AfterParse: func(ctx context.Context, catalog *model.Catalog) error {
+		AfterParse: func(_ context.Context, _ *model.Catalog) error {
 			hookCalls = append(hookCalls, "AfterParse")
 			return nil
 		},
-		BeforeAnalyze: func(ctx context.Context, paths []string) error {
+		BeforeAnalyze: func(_ context.Context, _ []string) error {
 			hookCalls = append(hookCalls, "BeforeAnalyze")
 			return nil
 		},
-		AfterAnalyze: func(ctx context.Context, analyses []analyzer.Result) error {
+		AfterAnalyze: func(_ context.Context, _ []analyzer.Result) error {
 			hookCalls = append(hookCalls, "AfterAnalyze")
 			return nil
 		},
-		BeforeGenerate: func(ctx context.Context, analyses []analyzer.Result) error {
+		BeforeGenerate: func(_ context.Context, _ []analyzer.Result) error {
 			hookCalls = append(hookCalls, "BeforeGenerate")
 			return nil
 		},
-		AfterGenerate: func(ctx context.Context, files []codegen.File) error {
+		AfterGenerate: func(_ context.Context, _ []codegen.File) error {
 			hookCalls = append(hookCalls, "AfterGenerate")
 			return nil
 		},
-		BeforeWrite: func(ctx context.Context, files []codegen.File) error {
+		BeforeWrite: func(_ context.Context, _ []codegen.File) error {
 			hookCalls = append(hookCalls, "BeforeWrite")
 			return nil
 		},
-		AfterWrite: func(ctx context.Context, summary Summary) error {
+		AfterWrite: func(_ context.Context, _ Summary) error {
 			hookCalls = append(hookCalls, "AfterWrite")
 			return nil
 		},
@@ -238,7 +238,7 @@ SELECT * FROM users WHERE id = :id;`
 	}
 
 	hooks := Hooks{
-		BeforeParse: func(ctx context.Context, paths []string) error {
+		BeforeParse: func(_ context.Context, _ []string) error {
 			return errors.New("hook error")
 		},
 	}

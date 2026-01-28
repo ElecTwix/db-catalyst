@@ -40,6 +40,7 @@ func TestNew(t *testing.T) {
 		t.Error("New() returned nil")
 	}
 
+	//nolint:staticcheck // Test validates nil check before dereference
 	if a.Catalog != catalog {
 		t.Error("New() did not set catalog correctly")
 	}
@@ -57,10 +58,12 @@ func TestNewWithCustomTypes(t *testing.T) {
 		t.Error("NewWithCustomTypes() returned nil")
 	}
 
+	//nolint:staticcheck // Test validates nil check before dereference
 	if a.Catalog != catalog {
 		t.Error("NewWithCustomTypes() did not set catalog correctly")
 	}
 
+	//nolint:staticcheck // Test validates nil check before dereference
 	if a.CustomTypes == nil {
 		t.Error("NewWithCustomTypes() did not set custom types")
 	}

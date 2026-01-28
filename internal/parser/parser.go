@@ -42,9 +42,9 @@ func WithDebug(enabled bool) Option {
 }
 
 // WithMaxErrors sets the maximum number of errors to collect before stopping.
-func WithMaxErrors(max int) Option {
+func WithMaxErrors(maxErrors int) Option {
 	return func(p *Parser) {
-		p.maxErrors = max
+		p.maxErrors = maxErrors
 	}
 }
 

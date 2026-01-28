@@ -20,7 +20,9 @@ func NewMemoryCache() *MemoryCache {
 }
 
 // Get retrieves a value from the cache.
-func (m *MemoryCache) Get(ctx context.Context, key string) (interface{}, bool) {
+//
+//nolint:revive // Context parameter reserved for future use
+func (m *MemoryCache) Get(_ context.Context, key string) (interface{}, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -37,7 +39,9 @@ func (m *MemoryCache) Get(ctx context.Context, key string) (interface{}, bool) {
 }
 
 // Set stores a value in the cache with the given TTL.
-func (m *MemoryCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) {
+//
+//nolint:revive // Context parameter reserved for future use
+func (m *MemoryCache) Set(_ context.Context, key string, value interface{}, ttl time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -48,7 +52,9 @@ func (m *MemoryCache) Set(ctx context.Context, key string, value interface{}, tt
 }
 
 // Delete removes a value from the cache.
-func (m *MemoryCache) Delete(ctx context.Context, key string) {
+//
+//nolint:revive // Context parameter reserved for future use
+func (m *MemoryCache) Delete(_ context.Context, key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -56,7 +62,9 @@ func (m *MemoryCache) Delete(ctx context.Context, key string) {
 }
 
 // Clear removes all values from the cache.
-func (m *MemoryCache) Clear(ctx context.Context) {
+//
+//nolint:revive // Context parameter reserved for future use
+func (m *MemoryCache) Clear(_ context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

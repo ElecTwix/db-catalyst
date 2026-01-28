@@ -1,3 +1,4 @@
+// Package dialects implements SQL dialect parsers.
 package dialects
 
 import (
@@ -103,7 +104,8 @@ func NewSQLiteParser() *SQLiteParser {
 	}
 }
 
-func (s *SQLiteParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+//nolint:revive // Context parameter reserved for future use
+func (s *SQLiteParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := s.parser.ParseString("", sql)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse SQLite DDL: %w", err)
@@ -147,7 +149,8 @@ func NewPostgreSQLParser() *PostgreSQLParser {
 	}
 }
 
-func (p *PostgreSQLParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+//nolint:revive // Context parameter reserved for future use
+func (p *PostgreSQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := p.parser.ParseString("", sql)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse PostgreSQL DDL: %w", err)
@@ -191,7 +194,8 @@ func NewMySQLParser() *MySQLParser {
 	}
 }
 
-func (m *MySQLParser) ParseDDL(ctx context.Context, sql string) (*model.Catalog, error) {
+//nolint:revive // Context parameter reserved for future use
+func (m *MySQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := m.parser.ParseString("", sql)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse MySQL DDL: %w", err)

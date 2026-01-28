@@ -15,7 +15,7 @@ func FuzzParse(f *testing.F) {
 	f.Add("CREATE VIEW v AS SELECT * FROM users;")
 	f.Add("ALTER TABLE users ADD COLUMN email TEXT;")
 
-	f.Fuzz(func(t *testing.T, input string) {
+	f.Fuzz(func(_ *testing.T, input string) {
 		tokens, _ := tokenizer.Scan("fuzz", []byte(input), true)
 		_, _, _ = Parse("fuzz", tokens)
 		// Parser should never panic

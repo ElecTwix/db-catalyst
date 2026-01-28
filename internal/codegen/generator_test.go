@@ -21,13 +21,14 @@ type mockGenerator struct {
 	err   error
 }
 
-func (m *mockGenerator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+func (m *mockGenerator) Generate(_ context.Context, _ *model.Catalog, _ []analyzer.Result) ([]File, error) {
 	return m.files, m.err
 }
 
+//nolint:revive // Test uses t for interface compliance check
 func TestGenerator_ImplementsInterface(t *testing.T) {
 	// This test verifies at compile time that the concrete type implements Generator interface.
-	var _ Generator = New(Options{})
+	_ = New(Options{})
 }
 
 func TestGenerator_WithMock(t *testing.T) {
@@ -78,7 +79,7 @@ func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	var g Generator = New(Options{Package: "store", EmitJSONTags: true, EmitEmptySlices: true})
+	g := New(Options{Package: "store", EmitJSONTags: true, EmitEmptySlices: true})
 
 	ctx := context.Background()
 	first, err := g.Generate(ctx, catalog, analyses)
@@ -116,7 +117,7 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	var g Generator = New(Options{Package: "store", EmitEmptySlices: true, Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
+	g := New(Options{Package: "store", EmitEmptySlices: true, Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
 
 	ctx := context.Background()
 	files, err := g.Generate(ctx, catalog, analyses)

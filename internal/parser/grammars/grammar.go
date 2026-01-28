@@ -1,3 +1,4 @@
+// Package grammars defines SQL dialect grammars.
 package grammars
 
 import (

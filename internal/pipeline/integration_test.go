@@ -138,7 +138,7 @@ SELECT * FROM posts WHERE published = TRUE ORDER BY view_count DESC;
 
 	// Verify models contain expected types
 	modelsPath := filepath.Join(tmpDir, "generated", "models.gen.go")
-	content, err := os.ReadFile(modelsPath)
+	content, err := os.ReadFile(filepath.Clean(modelsPath))
 	if err != nil {
 		t.Fatalf("failed to read models: %v", err)
 	}

@@ -1,3 +1,4 @@
+// Package graphql implements a GraphQL schema parser.
 package graphql
 
 import (
@@ -53,7 +54,7 @@ func NewParser() *Parser {
 	return &Parser{parser: parser}
 }
 
-func (p *Parser) ParseSchema(ctx context.Context, schema string) (*model.Catalog, error) {
+func (p *Parser) ParseSchema(_ context.Context, schema string) (*model.Catalog, error) {
 	graphqlSchema, err := p.parser.ParseString("", schema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse GraphQL schema: %w", err)
