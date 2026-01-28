@@ -219,7 +219,7 @@ install: build
 # =============================================================================
 # Integration test targets
 # =============================================================================
-.PHONY: integration-up integration-down integration-test integration-full
+.PHONY: integration-up integration-down integration-test integration-full integration-pipeline
 
 integration-up:
 	@echo "Starting database containers..."
@@ -240,6 +240,12 @@ integration-test: integration-up
 
 integration-full: integration-up integration-test integration-down
 	@echo "Integration test complete!"
+
+# Pipeline integration tests (no Docker required)
+.PHONY: integration-pipeline
+integration-pipeline:
+	@echo "Running pipeline integration tests..."
+	go test -v ./internal/pipeline/... -run "TestSimpleSchema|TestComplexSchema|TestCTEs|TestEdgeCases" -count=1
 
 # =============================================================================
 # Help target
@@ -296,10 +302,11 @@ help:
 	@echo "  install          - Install binary to ~/go/bin"
 	@echo ""
 	@echo "Integration test targets:"
-	@echo "  integration-up   - Start Docker databases (MySQL, PostgreSQL)"
-	@echo "  integration-down - Stop Docker databases"
-	@echo "  integration-test - Run integration tests"
-	@echo "  integration-full - Full integration test suite"
+	@echo "  integration-up       - Start Docker databases (MySQL, PostgreSQL)"
+	@echo "  integration-down     - Stop Docker databases"
+	@echo "  integration-test     - Run Docker-based integration tests"
+	@echo "  integration-full     - Full integration test suite with Docker"
+	@echo "  integration-pipeline - Run pipeline integration tests (no Docker)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make test          # Fast test run"
