@@ -42,7 +42,8 @@ type Writer interface {
 
 // Pipeline orchestrates configuration loading, analysis, and code generation.
 type Pipeline struct {
-	Env Environment
+	Env   Environment
+	Hooks Hooks // extension hooks
 }
 
 // Summary captures generated files and diagnostics collected during a run.
@@ -221,6 +222,14 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, err
 	}
 
+	// Call BeforeParse hook
+	if p.Hooks.BeforeParse != nil {
+		if err := p.Hooks.BeforeParse(ctx, plan.Schemas); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before parse hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
 	// Get or create schema parser
 	schemaParser := p.Env.SchemaParser
 	if schemaParser == nil {
@@ -285,6 +294,22 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
 	}
 
+	// Call AfterParse hook
+	if p.Hooks.AfterParse != nil {
+		if err := p.Hooks.AfterParse(ctx, catalog); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after parse hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
+	// Call BeforeAnalyze hook
+	if p.Hooks.BeforeAnalyze != nil {
+		if err := p.Hooks.BeforeAnalyze(ctx, plan.Queries); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before analyze hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
 	queries := make([]queryparser.Query, 0, len(plan.Queries))
 	for _, queryPath := range plan.Queries {
 		if err := ctx.Err(); err != nil {
@@ -330,6 +355,14 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		}
 	}
 
+	// Call AfterAnalyze hook
+	if p.Hooks.AfterAnalyze != nil {
+		if err := p.Hooks.AfterAnalyze(ctx, analyses); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after analyze hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
 	if opts.ListQueries {
 		if firstErrorIndex != -1 {
 			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
@@ -339,6 +372,14 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 
 	if firstErrorIndex != -1 {
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
+	}
+
+	// Call BeforeGenerate hook
+	if p.Hooks.BeforeGenerate != nil {
+		if err := p.Hooks.BeforeGenerate(ctx, analyses); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before generate hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
 	}
 
 	// Get or create generator
@@ -368,6 +409,14 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	generatedFiles, err := generator.Generate(ctx, catalog, analyses)
 	if err != nil {
 		return summary, fmt.Errorf("code generation: %w", err)
+	}
+
+	// Call AfterGenerate hook
+	if p.Hooks.AfterGenerate != nil {
+		if err := p.Hooks.AfterGenerate(ctx, generatedFiles); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after generate hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
 	}
 
 	finalFiles := make([]codegen.File, 0, len(generatedFiles))
@@ -407,6 +456,22 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	summary.Files = finalFiles
+
+	// Call BeforeWrite hook
+	if p.Hooks.BeforeWrite != nil {
+		if err := p.Hooks.BeforeWrite(ctx, finalFiles); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before write hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
+	// Call AfterWrite hook (always called, even on error)
+	defer func() {
+		if p.Hooks.AfterWrite != nil {
+			// Don't overwrite the actual error, just log hook error
+			_ = p.Hooks.AfterWrite(ctx, summary)
+		}
+	}()
 
 	if opts.DryRun {
 		return summary, nil
