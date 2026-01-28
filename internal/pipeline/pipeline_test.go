@@ -294,3 +294,68 @@ queries = ["queries.sql"]`
 	// Verify mock was used (check diagnostics or other indicators)
 	_ = summary
 }
+
+func TestPipeline_Run_WithMemoryWriter(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `package = "test"
+out = "out"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
+`
+	schemaContent := `CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);`
+	queryContent := `-- name: GetUser :one
+SELECT * FROM users WHERE id = :id;`
+
+	// Write files to temp directory
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+		t.Fatalf("write schema: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+		t.Fatalf("write queries: %v", err)
+	}
+
+	writer := &MemoryWriter{}
+
+	pipeline := &Pipeline{
+		Env: Environment{
+			Logger:       slog.Default(),
+			Writer:       writer,
+			SchemaParser: nil, // will use default
+		},
+	}
+
+	ctx := context.Background()
+	opts := RunOptions{
+		ConfigPath: filepath.Join(tmpDir, "db-catalyst.toml"),
+	}
+
+	summary, err := pipeline.Run(ctx, opts)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Verify files were written to memory
+	if writer.FileCount() == 0 {
+		t.Error("expected files to be written")
+	}
+
+	// Check that models file was generated
+	hasModels := false
+	for path := range writer.Files {
+		if strings.Contains(path, "models") {
+			hasModels = true
+			break
+		}
+	}
+	if !hasModels {
+		t.Error("expected models file to be generated")
+	}
+
+	_ = summary
+}
