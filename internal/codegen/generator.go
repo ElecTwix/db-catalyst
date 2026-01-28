@@ -15,6 +15,11 @@ import (
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
+// Generator produces Go code from parsed schemas and queries.
+type Generator interface {
+	Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error)
+}
+
 // PreparedOptions configures prepared statement generation.
 type PreparedOptions struct {
 	Enabled     bool
@@ -40,8 +45,8 @@ type Options struct {
 	SQL                 SQLOptions
 }
 
-// Generator produces Go code from parsed schemas and queries.
-type Generator struct {
+// codegen implements Generator to produce Go code from parsed schemas and queries.
+type codegen struct {
 	opts Options
 }
 
@@ -52,12 +57,12 @@ type File struct {
 }
 
 // New creates a new Generator.
-func New(opts Options) *Generator {
-	return &Generator{opts: opts}
+func New(opts Options) Generator {
+	return &codegen{opts: opts}
 }
 
 // Generate builds the AST and renders Go source files.
-func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+func (g *codegen) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -91,7 +96,7 @@ func (g *Generator) Generate(ctx context.Context, catalog *model.Catalog, analys
 	return files, nil
 }
 
-func (g *Generator) generateSQL(catalog *model.Catalog) ([]File, error) {
+func (g *codegen) generateSQL(catalog *model.Catalog) ([]File, error) {
 	dialect := sql.DialectSQLite
 	switch g.opts.SQL.Dialect {
 	case "mysql":
@@ -119,7 +124,7 @@ func (g *Generator) generateSQL(catalog *model.Catalog) ([]File, error) {
 	return files, nil
 }
 
-func (g *Generator) generateGo(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+func (g *codegen) generateGo(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
 	transformer := transform.New(g.opts.CustomTypes)
 	typeResolver := astbuilder.NewTypeResolverWithOptions(transformer, g.opts.EmitPointersForNull)
 

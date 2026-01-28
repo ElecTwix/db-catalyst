@@ -29,6 +29,7 @@ type Environment struct {
 	Logger       *slog.Logger
 	Writer       Writer
 	SchemaParser schemaparser.SchemaParser // injectable schema parser
+	Generator    codegen.Generator         // injectable generator
 }
 
 // Writer writes generated files to persistent storage.
@@ -309,23 +310,30 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
 	}
 
-	generator := codegen.New(codegen.Options{
-		Package:             plan.Package,
-		EmitJSONTags:        plan.EmitJSONTags,
-		EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
-		EmitPointersForNull: plan.EmitPointersForNull,
-		CustomTypes:         plan.CustomTypes,
-		Prepared: codegen.PreparedOptions{
-			Enabled:     plan.PreparedQueries.Enabled,
-			EmitMetrics: plan.PreparedQueries.Metrics,
-			ThreadSafe:  plan.PreparedQueries.ThreadSafe,
-		},
-		SQL: codegen.SQLOptions{
-			Enabled:         plan.SQLDialect != "",
-			Dialect:         plan.SQLDialect,
-			EmitIFNotExists: opts.EmitIFNotExists,
-		},
-	})
+	// Get or create generator
+	var generator codegen.Generator
+	if p.Env.Generator != nil {
+		generator = p.Env.Generator
+	} else {
+		generator = codegen.New(codegen.Options{
+			Package:             plan.Package,
+			EmitJSONTags:        plan.EmitJSONTags,
+			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
+			EmitPointersForNull: plan.EmitPointersForNull,
+			CustomTypes:         plan.CustomTypes,
+			Prepared: codegen.PreparedOptions{
+				Enabled:     plan.PreparedQueries.Enabled,
+				EmitMetrics: plan.PreparedQueries.Metrics,
+				ThreadSafe:  plan.PreparedQueries.ThreadSafe,
+			},
+			SQL: codegen.SQLOptions{
+				Enabled:         plan.SQLDialect != "",
+				Dialect:         plan.SQLDialect,
+				EmitIFNotExists: opts.EmitIFNotExists,
+			},
+		})
+	}
+
 	generatedFiles, err := generator.Generate(ctx, catalog, analyses)
 	if err != nil {
 		return summary, fmt.Errorf("code generation: %w", err)

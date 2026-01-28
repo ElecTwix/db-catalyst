@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/electwix/db-catalyst/internal/codegen"
+	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
@@ -358,4 +361,129 @@ SELECT * FROM users WHERE id = :id;`
 	}
 
 	_ = summary
+}
+
+// mockGenerator is a test double for codegen.Generator
+type mockGenerator struct {
+	files []codegen.File
+	err   error
+}
+
+func (m *mockGenerator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]codegen.File, error) {
+	return m.files, m.err
+}
+
+func TestPipeline_Run_WithMockGenerator(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `package = "test"
+out = "out"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
+`
+	schemaContent := `CREATE TABLE users (id INTEGER PRIMARY KEY);`
+	queryContent := `-- name: GetUser :one
+SELECT * FROM users WHERE id = :id;`
+
+	// Write files to temp directory
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+		t.Fatalf("write schema: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+		t.Fatalf("write queries: %v", err)
+	}
+
+	writer := &MemoryWriter{}
+
+	// Create mock generator with predefined output
+	mockGen := &mockGenerator{
+		files: []codegen.File{
+			{Path: "models.gen.go", Content: []byte("package test\n")},
+			{Path: "query_get_user.go", Content: []byte("package test\n")},
+		},
+	}
+
+	pipeline := &Pipeline{
+		Env: Environment{
+			Logger:       slog.Default(),
+			Writer:       writer,
+			SchemaParser: nil,     // use default
+			Generator:    mockGen, // inject mock
+		},
+	}
+
+	ctx := context.Background()
+	opts := RunOptions{
+		ConfigPath: filepath.Join(tmpDir, "db-catalyst.toml"),
+	}
+
+	summary, err := pipeline.Run(ctx, opts)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Verify mock was used - files should match mock output
+	if writer.FileCount() != 2 {
+		t.Errorf("expected 2 files, got %d", writer.FileCount())
+	}
+
+	outPrefix := filepath.Join(tmpDir, "out") + string(os.PathSeparator)
+	if !writer.HasFile(outPrefix+"models.gen.go") && !writer.HasFile("out/models.gen.go") {
+		t.Error("expected models.gen.go to be written")
+	}
+
+	_ = summary
+}
+
+func TestPipeline_Run_WithMockGeneratorError(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `package = "test"
+out = "out"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
+`
+	schemaContent := `CREATE TABLE users (id INTEGER PRIMARY KEY);`
+	queryContent := `-- name: GetUser :one
+SELECT * FROM users WHERE id = :id;`
+
+	// Write files to temp directory
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+		t.Fatalf("write schema: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+		t.Fatalf("write queries: %v", err)
+	}
+
+	// Create mock generator that returns an error
+	mockGen := &mockGenerator{
+		err: errors.New("generation failed"),
+	}
+
+	pipeline := &Pipeline{
+		Env: Environment{
+			Logger:       slog.Default(),
+			Writer:       &MemoryWriter{},
+			SchemaParser: nil,
+			Generator:    mockGen,
+		},
+	}
+
+	ctx := context.Background()
+	opts := RunOptions{
+		ConfigPath: filepath.Join(tmpDir, "db-catalyst.toml"),
+	}
+
+	_, err := pipeline.Run(ctx, opts)
+	if err == nil {
+		t.Fatal("expected error from mock generator")
+	}
+
+	if !strings.Contains(err.Error(), "generation failed") {
+		t.Errorf("error message = %q, want to contain 'generation failed'", err.Error())
+	}
 }

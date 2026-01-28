@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,11 +15,70 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+// mockGenerator is a test double for Generator.
+type mockGenerator struct {
+	files []File
+	err   error
+}
+
+func (m *mockGenerator) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+	return m.files, m.err
+}
+
+func TestGenerator_ImplementsInterface(t *testing.T) {
+	// This test verifies at compile time that the concrete type implements Generator interface.
+	var _ Generator = New(Options{})
+}
+
+func TestGenerator_WithMock(t *testing.T) {
+	// Create a mock generator for testing
+	mock := &mockGenerator{
+		files: []File{
+			{Path: "test.go", Content: []byte("package test")},
+		},
+	}
+
+	ctx := context.Background()
+	catalog := &model.Catalog{
+		Tables: map[string]*model.Table{
+			"users": {Name: "users"},
+		},
+	}
+
+	files, err := mock.Generate(ctx, catalog, nil)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	if len(files) != 1 {
+		t.Errorf("len(files) = %d, want 1", len(files))
+	}
+}
+
+func TestGenerator_MockError(t *testing.T) {
+	// Create a mock generator that returns an error
+	mock := &mockGenerator{
+		err: errors.New("generation failed"),
+	}
+
+	ctx := context.Background()
+	catalog := &model.Catalog{}
+
+	_, err := mock.Generate(ctx, catalog, nil)
+	if err == nil {
+		t.Fatal("expected error from mock generator")
+	}
+
+	if err.Error() != "generation failed" {
+		t.Errorf("error message = %q, want 'generation failed'", err.Error())
+	}
+}
+
 func TestGeneratorProducesDeterministicOutput(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	g := New(Options{Package: "store", EmitJSONTags: true, EmitEmptySlices: true})
+	var g Generator = New(Options{Package: "store", EmitJSONTags: true, EmitEmptySlices: true})
 
 	ctx := context.Background()
 	first, err := g.Generate(ctx, catalog, analyses)
@@ -56,7 +116,7 @@ func TestGeneratorPreparedQueries(t *testing.T) {
 	catalog, analyses := sampleCatalogAndAnalyses()
 	updateGolden := os.Getenv("UPDATE_GOLDEN") == "1"
 
-	g := New(Options{Package: "store", EmitEmptySlices: true, Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
+	var g Generator = New(Options{Package: "store", EmitEmptySlices: true, Prepared: PreparedOptions{Enabled: true, EmitMetrics: true, ThreadSafe: true}})
 
 	ctx := context.Background()
 	files, err := g.Generate(ctx, catalog, analyses)
