@@ -1,1 +1,12 @@
 reference/
+
+# Coverage
+coverage.out
+coverage.html
+*.cover
+
+# Benchmarks
+bench-*.txt
+
+# Tools
+bin/
