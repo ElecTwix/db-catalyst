@@ -1,5 +1,7 @@
 # AGENTS
 - Repo motto: clarity over cleverness; language-agnostic generator stays small.
+- Idiomatic Go: Follow patterns in docs/idiomatic-go-guidelines.md (options pattern, context-first, error handling with `%w`/`errors.Join`, resource management with `defer`)
+- Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
 - Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
 - Grammar-driven parser: Dialect syntax defined in `.grammar` files (EBNF-style), parsers generated via Participle library.
 - Dialect extension: Add new database support by creating `internal/parser/grammars/<dialect>.grammar` + dialect parser in `internal/parser/dialects/`.
