@@ -261,18 +261,18 @@ func TestPipeline_Run_WithCustomSchemaParser(t *testing.T) {
 out = "out"
 schemas = ["schema.sql"]
 queries = ["queries.sql"]`
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	// Create empty schema file (mock parser ignores content)
 	schemaPath := filepath.Join(tmpDir, "schema.sql")
-	if err := os.WriteFile(schemaPath, []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(schemaPath, []byte(""), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
 	// Create queries file with valid query against mock table
 	queriesPath := filepath.Join(tmpDir, "queries.sql")
 	queryContent := "-- name: GetTest :one\nSELECT id FROM test;"
-	if err := os.WriteFile(queriesPath, []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(queriesPath, []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("write queries: %v", err)
 	}
 
@@ -314,13 +314,13 @@ queries = ["queries.sql"]
 SELECT * FROM users WHERE id = :id;`
 
 	// Write files to temp directory
-	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("write queries: %v", err)
 	}
 
@@ -386,13 +386,13 @@ queries = ["queries.sql"]
 SELECT * FROM users WHERE id = :id;`
 
 	// Write files to temp directory
-	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("write queries: %v", err)
 	}
 
@@ -450,13 +450,13 @@ queries = ["queries.sql"]
 SELECT * FROM users WHERE id = :id;`
 
 	// Write files to temp directory
-	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("write schema: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("write queries: %v", err)
 	}
 

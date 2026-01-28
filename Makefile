@@ -1,7 +1,7 @@
 # Makefile for db-catalyst
 # A SQLite-only code generator
 
-.PHONY: all test test-race test-cover build lint fmt vet bench clean help install-deps benchmark benchmark-save benchmark-compare
+.PHONY: all test test-race test-cover test-all build lint fmt vet bench clean help install-deps benchmark benchmark-save benchmark-compare
 
 # Go commands
 GO = go
@@ -43,6 +43,10 @@ test-cover:
 	@echo "Coverage report: $(COVERAGE_HTML)"
 	$(GOCOV) func -o /dev/null $(COVERAGE_OUT) || true
 	@echo "Run 'make view-cover' to view HTML report"
+
+# Run all tests including race detection
+test-all: test test-race
+	@echo "All tests passed!"
 
 # View coverage HTML report
 view-cover: test-cover

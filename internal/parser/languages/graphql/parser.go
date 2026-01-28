@@ -10,20 +10,24 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type GraphQLSchema struct {
 	Types []*TypeDefinition `@@*`
 }
 
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type TypeDefinition struct {
 	Name   string             `@("type" @Ident)`
 	Fields []*FieldDefinition `"{" @@+ "}"`
 }
 
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type FieldDefinition struct {
 	Name string `@Ident`
 	Type string `@(":" @Ident)`
 }
 
+//nolint:govet // Participle DSL uses unkeyed fields
 var GraphQLLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{"Whitespace", `[ \t\r\n]+`},
 	{"Comment", `#[^\n]*`},

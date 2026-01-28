@@ -147,7 +147,7 @@ func copyDir(src, dst string) error {
 		if err := os.MkdirAll(filepath.Dir(dstPath), 0750); err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(filepath.Clean(path))
 		if err != nil {
 			return err
 		}

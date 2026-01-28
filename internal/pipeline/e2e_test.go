@@ -95,7 +95,7 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 			t.Fatalf("golden path outside golden dir: %s", rel)
 		}
 		goldenPath := filepath.Join(goldenDir, rel)
-		goldenContent, err := os.ReadFile(goldenPath)
+		goldenContent, err := os.ReadFile(filepath.Clean(goldenPath))
 		if err != nil {
 			t.Fatalf("failed to read golden file %s: %v", goldenPath, err)
 		}

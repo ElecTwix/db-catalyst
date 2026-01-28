@@ -37,18 +37,28 @@ func (b *BaseParser) Validate(sql string) ([]string, error) {
 // SQLLexer defines the SQL lexer configuration
 var SQLLexer = lexer.MustStateful(lexer.Rules{
 	"Root": {
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Whitespace", `[ \t\r\n]+`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Comment", `--[^\n]*`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"BlockComment", `/\*[\s\S]*?\*/`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"String", `'[^']*'`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Ident", `[a-zA-Z_][a-zA-Z0-9_]*`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Number", `[0-9]+(?:\.[0-9]+)?`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Symbol", `[\(\)\[\]\{\},;:.]`, nil},
+		//nolint:govet // Participle DSL uses unkeyed fields
 		{"Operator", `[\+\-\*/=<>!]+`, nil},
 	},
 })
 
 // CreateTable represents a parsed CREATE TABLE statement
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type CreateTable struct {
 	Keyword string    `@"CREATE"`
 	Table   string    `@"TABLE"`
@@ -57,6 +67,8 @@ type CreateTable struct {
 }
 
 // Column represents a table column
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type Column struct {
 	Name       string `@Ident`
 	Type       string `@Ident`
@@ -64,6 +76,8 @@ type Column struct {
 }
 
 // Constraint represents a column constraint
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type Constraint struct {
 	Type string `(@Ident ("KEY" | @Ident?) | "NOT" "NULL" | "UNIQUE")`
 }

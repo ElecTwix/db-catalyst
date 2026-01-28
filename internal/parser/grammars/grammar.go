@@ -15,11 +15,15 @@ const (
 )
 
 // GrammarDefinition represents a parsed SQL grammar
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type GrammarDefinition struct {
 	Statements []*StatementDefinition `@@*`
 }
 
 // StatementDefinition represents a SQL statement type
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type StatementDefinition struct {
 	Name    string            `@Ident`
 	Pattern string            `@String`
@@ -27,12 +31,16 @@ type StatementDefinition struct {
 }
 
 // RuleDefinition represents a grammar rule
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type RuleDefinition struct {
 	Name     string        `@Ident "="`
 	Variants []*VariantDef `"|"? @@*`
 }
 
 // VariantDef represents a rule variant
+//
+//nolint:govet // Participle struct tags are DSL, not reflect tags
 type VariantDef struct {
 	Tokens []string `@Ident+`
 }
