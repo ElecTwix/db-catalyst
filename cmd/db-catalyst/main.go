@@ -33,13 +33,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	logger := logging.New(logging.Options{
+	slogLogger := logging.New(logging.Options{
 		Verbose: opts.Verbose,
 		Writer:  stderr,
 	})
 
 	env := pipeline.Environment{
-		Logger:     logger,
+		Logger:     logging.NewSlogAdapter(slogLogger),
 		FSResolver: fileset.NewOSResolver,
 		Writer:     pipeline.NewOSWriter(),
 	}

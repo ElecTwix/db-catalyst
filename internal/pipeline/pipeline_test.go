@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/electwix/db-catalyst/internal/codegen"
+	"github.com/electwix/db-catalyst/internal/logging"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	"github.com/electwix/db-catalyst/internal/schema/model"
@@ -277,7 +278,7 @@ queries = ["queries.sql"]`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger:       slog.Default(),
+			Logger:       logging.NewSlogAdapter(slog.Default()),
 			Writer:       &memoryWriter{},
 			SchemaParser: mockParser, // inject mock
 		},
@@ -327,7 +328,7 @@ SELECT * FROM users WHERE id = :id;`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger:       slog.Default(),
+			Logger:       logging.NewSlogAdapter(slog.Default()),
 			Writer:       writer,
 			SchemaParser: nil, // will use default
 		},
@@ -407,7 +408,7 @@ SELECT * FROM users WHERE id = :id;`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger:       slog.Default(),
+			Logger:       logging.NewSlogAdapter(slog.Default()),
 			Writer:       writer,
 			SchemaParser: nil,     // use default
 			Generator:    mockGen, // inject mock
@@ -466,7 +467,7 @@ SELECT * FROM users WHERE id = :id;`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger:       slog.Default(),
+			Logger:       logging.NewSlogAdapter(slog.Default()),
 			Writer:       &MemoryWriter{},
 			SchemaParser: nil,
 			Generator:    mockGen,

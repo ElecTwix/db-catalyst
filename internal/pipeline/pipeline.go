@@ -11,12 +11,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"log/slog"
-
 	"github.com/electwix/db-catalyst/internal/cache"
 	"github.com/electwix/db-catalyst/internal/codegen"
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/fileset"
+	"github.com/electwix/db-catalyst/internal/logging"
 	queryanalyzer "github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	queryparser "github.com/electwix/db-catalyst/internal/query/parser"
@@ -28,7 +27,7 @@ import (
 // Environment captures external dependencies used by the pipeline.
 type Environment struct {
 	FSResolver   func(string) (fileset.Resolver, error)
-	Logger       *slog.Logger
+	Logger       logging.Logger
 	Writer       Writer
 	SchemaParser schemaparser.SchemaParser // injectable schema parser
 	Generator    codegen.Generator         // injectable generator

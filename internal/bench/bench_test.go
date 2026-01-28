@@ -38,7 +38,7 @@ func BenchmarkPipeline(b *testing.B) {
 
 	logger := logging.New(logging.Options{Writer: io.Discard})
 	env := pipeline.Environment{
-		Logger:     logger,
+		Logger:     logging.NewSlogAdapter(logger),
 		FSResolver: fileset.NewOSResolver,
 		Writer:     &discardWriter{},
 	}
@@ -108,7 +108,7 @@ queries = ["queries.sql"]
 
 	logger := logging.New(logging.Options{Writer: io.Discard})
 	env := pipeline.Environment{
-		Logger:     logger,
+		Logger:     logging.NewSlogAdapter(logger),
 		FSResolver: fileset.NewOSResolver,
 		Writer:     &discardWriter{},
 	}

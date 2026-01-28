@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/electwix/db-catalyst/internal/codegen"
+	"github.com/electwix/db-catalyst/internal/logging"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
@@ -175,7 +176,7 @@ SELECT * FROM users WHERE id = :id;`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger: slog.Default(),
+			Logger: logging.NewSlogAdapter(slog.Default()),
 			Writer: &MemoryWriter{},
 		},
 		Hooks: hooks,
@@ -244,7 +245,7 @@ SELECT * FROM users WHERE id = :id;`
 
 	pipeline := &Pipeline{
 		Env: Environment{
-			Logger: slog.Default(),
+			Logger: logging.NewSlogAdapter(slog.Default()),
 			Writer: &MemoryWriter{},
 		},
 		Hooks: hooks,
