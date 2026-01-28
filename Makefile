@@ -140,7 +140,7 @@ quality: lint-all test-race coverage-report
 # =============================================================================
 # Benchmark targets
 # =============================================================================
-.PHONY: bench benchmark-save benchmark-compare
+.PHONY: bench benchmark-save benchmark-compare bench-compare bench-save
 
 bench:
 	@echo "Running benchmarks..."
@@ -158,6 +158,16 @@ benchmark-compare: benchmark-save
 	else \
 		echo "Install benchcmp: go install golang.org/x/tools/cmd/benchcmp@latest"; \
 	fi
+
+bench-compare:
+	@echo "Running benchmarks with 5 iterations for comparison..."
+	$(GO) test -bench=. -benchmem -count=5 ./... > bench-new.txt
+	@echo "Results saved to bench-new.txt"
+	@echo "Compare with previous: benchstat bench-old.txt bench-new.txt"
+
+bench-save:
+	$(GO) test -bench=. -benchmem -count=5 ./... > bench-$(shell date +%Y%m%d).txt
+	@echo "Benchmark saved to bench-$(shell date +%Y%m%d).txt"
 
 # =============================================================================
 # Format and maintenance targets
@@ -272,6 +282,8 @@ help:
 	@echo "  bench            - Run quick benchmarks"
 	@echo "  benchmark-save   - Save benchmark baseline"
 	@echo "  benchmark-compare - Compare with baseline"
+	@echo "  bench-save       - Save benchmark with date stamp"
+	@echo "  bench-compare    - Run 5 iterations for benchstat comparison"
 	@echo ""
 	@echo "Maintenance targets:"
 	@echo "  fmt              - Format code with gofmt/goimports"
