@@ -9,9 +9,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"log/slog"
 
+	"github.com/electwix/db-catalyst/internal/cache"
 	"github.com/electwix/db-catalyst/internal/codegen"
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/fileset"
@@ -30,6 +32,7 @@ type Environment struct {
 	Writer       Writer
 	SchemaParser schemaparser.SchemaParser // injectable schema parser
 	Generator    codegen.Generator         // injectable generator
+	Cache        cache.Cache               // injectable cache
 }
 
 // Writer writes generated files to persistent storage.
@@ -240,7 +243,35 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
 		}
 
-		parsedCatalog, schemaDiags, parseErr := schemaParser.Parse(ctx, schemaPath, contents)
+		// Check cache first
+		var parsedCatalog *model.Catalog
+		var schemaDiags []schemaparser.Diagnostic
+		var parseErr error
+
+		if p.Env.Cache != nil {
+			cacheKey := cache.ComputeKeyWithPrefix("schema", contents)
+			if cached, ok := p.Env.Cache.Get(ctx, cacheKey); ok {
+				if entry, ok := cached.(*schemaCacheEntry); ok {
+					parsedCatalog = entry.Catalog
+					schemaDiags = entry.Diagnostics
+				}
+			}
+		}
+
+		// Parse if not in cache
+		if parsedCatalog == nil {
+			parsedCatalog, schemaDiags, parseErr = schemaParser.Parse(ctx, schemaPath, contents)
+
+			// Store in cache
+			if p.Env.Cache != nil && parseErr == nil {
+				cacheKey := cache.ComputeKeyWithPrefix("schema", contents)
+				p.Env.Cache.Set(ctx, cacheKey, &schemaCacheEntry{
+					Catalog:     parsedCatalog,
+					Diagnostics: schemaDiags,
+				}, 5*time.Minute)
+			}
+		}
+
 		for _, sd := range schemaDiags {
 			addDiag(convertSchemaDiagnostic(sd))
 		}
@@ -462,4 +493,10 @@ func fileMatches(path string, content []byte) (bool, error) {
 		return false, err
 	}
 	return bytes.Equal(existing, content), nil
+}
+
+// schemaCacheEntry stores cached schema parsing results.
+type schemaCacheEntry struct {
+	Catalog     *model.Catalog
+	Diagnostics []schemaparser.Diagnostic
 }
