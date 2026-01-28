@@ -1,5 +1,11 @@
 # db-catalyst
 
+[![CI](https://github.com/ElecTwix/db-catalyst/actions/workflows/ci.yml/badge.svg)](https://github.com/ElecTwix/db-catalyst/actions)
+[![Security](https://github.com/ElecTwix/db-catalyst/actions/workflows/security.yml/badge.svg)](https://github.com/ElecTwix/db-catalyst/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ElecTwix/db-catalyst)](https://goreportcard.com/report/github.com/ElecTwix/db-catalyst)
+[![Go Version](https://img.shields.io/badge/go%20version-%3E=1.25-61CFDD.svg)](https://golang.org/doc/go1.25)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 `db-catalyst` turns SQLite schemas and query files into deterministic, idiomatic Go 1.25+ persistence packages. The CLI keeps configuration lightweight while producing code that looks hand-written: context-first signatures, descriptive names, and zero hidden globals.
 
 ## Requirements
@@ -42,3 +48,11 @@ Coming from sqlc? Check out our comprehensive [migration guide](docs/migrating-f
 - [`db-catalyst-spec.md`](db-catalyst-spec.md): high-level architecture, pipeline stages, and roadmap.
 - [`docs/plans/db-catalyst-implementation-plan.md`](docs/plans/db-catalyst-implementation-plan.md): milestone-by-milestone plan and validation matrix.
 - [`docs/feature-flags.md`](docs/feature-flags.md): runtime and codegen switches available in configuration.
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
