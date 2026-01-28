@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -246,4 +247,70 @@ func lookupView(t *testing.T, cat *model.Catalog, name string) *model.View {
 	}
 	t.Fatalf("view %s not found", name)
 	return nil
+}
+
+func TestNewSchemaParser(t *testing.T) {
+	t.Run("sqlite parser", func(t *testing.T) {
+		p, err := NewSchemaParser("sqlite")
+		if err != nil {
+			t.Fatalf("NewSchemaParser(sqlite) error = %v", err)
+		}
+		if p == nil {
+			t.Fatal("NewSchemaParser(sqlite) returned nil")
+		}
+	})
+
+	t.Run("unsupported dialect", func(t *testing.T) {
+		_, err := NewSchemaParser("postgresql")
+		if err == nil {
+			t.Fatal("expected error for unsupported dialect")
+		}
+	})
+}
+
+func TestSqliteParser_Parse(t *testing.T) {
+	ctx := context.Background()
+	p := &sqliteParser{}
+
+	t.Run("simple table", func(t *testing.T) {
+		input := []byte("CREATE TABLE users (id INTEGER, name TEXT);")
+		catalog, diags, err := p.Parse(ctx, "test.sql", input)
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if len(diags) > 0 {
+			t.Errorf("unexpected diagnostics: %+v", diags)
+		}
+		if catalog == nil {
+			t.Fatal("Parse() returned nil catalog")
+		}
+		if _, ok := catalog.Tables["users"]; !ok {
+			t.Error("expected 'users' table in catalog")
+		}
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		input := []byte("CREATE TABLE test (id INTEGER);")
+		_, _, err := p.Parse(ctx, "test.sql", input)
+		if err == nil {
+			t.Error("expected context cancellation error")
+		}
+	})
+
+	t.Run("invalid syntax", func(t *testing.T) {
+		input := []byte("INVALID SQL")
+		catalog, diags, err := p.Parse(ctx, "test.sql", input)
+		// Should return diagnostics, not necessarily error
+		if err != nil {
+			t.Logf("Parse() returned error (may be expected): %v", err)
+		}
+		if catalog == nil {
+			t.Error("expected catalog even for invalid syntax")
+		}
+		// May have diagnostics about invalid syntax
+		_ = diags
+	})
 }

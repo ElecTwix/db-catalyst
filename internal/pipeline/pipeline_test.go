@@ -3,12 +3,15 @@ package pipeline
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/electwix/db-catalyst/internal/query/block"
+	"github.com/electwix/db-catalyst/internal/schema/model"
+	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
 )
 
 type memoryWriter struct {
@@ -225,4 +228,69 @@ func copyFile(t *testing.T, dst, src string) {
 	if _, err := io.Copy(out, in); err != nil {
 		t.Fatalf("copy %q -> %q: %v", src, dst, err)
 	}
+}
+
+type mockSchemaParser struct {
+	catalog *model.Catalog
+	err     error
+}
+
+func (m *mockSchemaParser) Parse(_ context.Context, _ string, _ []byte) (*model.Catalog, []schemaparser.Diagnostic, error) {
+	return m.catalog, nil, m.err
+}
+
+func TestPipeline_Run_WithCustomSchemaParser(t *testing.T) {
+	// Create a mock schema parser
+	mockParser := &mockSchemaParser{
+		catalog: model.NewCatalog(),
+	}
+	mockParser.catalog.Tables["test"] = &model.Table{
+		Name: "test",
+		Columns: []*model.Column{
+			{Name: "id", Type: "INTEGER"},
+		},
+	}
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
+	configContent := `package = "test"
+out = "out"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]`
+	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	// Create empty schema file (mock parser ignores content)
+	schemaPath := filepath.Join(tmpDir, "schema.sql")
+	if err := os.WriteFile(schemaPath, []byte(""), 0o644); err != nil {
+		t.Fatalf("write schema: %v", err)
+	}
+	// Create queries file with valid query against mock table
+	queriesPath := filepath.Join(tmpDir, "queries.sql")
+	queryContent := "-- name: GetTest :one\nSELECT id FROM test;"
+	if err := os.WriteFile(queriesPath, []byte(queryContent), 0o644); err != nil {
+		t.Fatalf("write queries: %v", err)
+	}
+
+	pipeline := &Pipeline{
+		Env: Environment{
+			Logger:       slog.Default(),
+			Writer:       &memoryWriter{},
+			SchemaParser: mockParser, // inject mock
+		},
+	}
+
+	ctx := context.Background()
+	opts := RunOptions{
+		ConfigPath: configPath,
+		DryRun:     true,
+	}
+
+	summary, err := pipeline.Run(ctx, opts)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// Verify mock was used (check diagnostics or other indicators)
+	_ = summary
 }

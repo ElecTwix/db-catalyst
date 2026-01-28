@@ -2,6 +2,7 @@
 package parser
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,6 +10,43 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
+
+// SchemaParser parses SQL DDL statements and produces a schema catalog.
+type SchemaParser interface {
+	Parse(ctx context.Context, path string, content []byte) (*model.Catalog, []Diagnostic, error)
+}
+
+// sqliteParser implements SchemaParser for SQLite dialect.
+type sqliteParser struct{}
+
+// Parse parses SQLite DDL content and returns a catalog.
+func (p *sqliteParser) Parse(ctx context.Context, path string, content []byte) (*model.Catalog, []Diagnostic, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("parse cancelled: %w", err)
+	}
+
+	tokens, err := tokenizer.Scan(path, content, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("tokenization failed: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("parse cancelled: %w", err)
+	}
+
+	return Parse(path, tokens)
+}
+
+// NewSchemaParser creates a new SchemaParser for the specified dialect.
+// Currently only "sqlite" is supported.
+func NewSchemaParser(dialect string) (SchemaParser, error) {
+	switch dialect {
+	case "sqlite":
+		return &sqliteParser{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported dialect: %s", dialect)
+	}
+}
 
 // Severity indicates diagnostic severity.
 type Severity int

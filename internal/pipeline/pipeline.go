@@ -20,15 +20,15 @@ import (
 	queryparser "github.com/electwix/db-catalyst/internal/query/parser"
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
-	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
 // Environment captures external dependencies used by the pipeline.
 type Environment struct {
-	FSResolver func(string) (fileset.Resolver, error)
-	Logger     *slog.Logger
-	Writer     Writer
+	FSResolver   func(string) (fileset.Resolver, error)
+	Logger       *slog.Logger
+	Writer       Writer
+	SchemaParser schemaparser.SchemaParser // injectable schema parser
 }
 
 // Writer writes generated files to persistent storage.
@@ -217,6 +217,17 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, err
 	}
 
+	// Get or create schema parser
+	schemaParser := p.Env.SchemaParser
+	if schemaParser == nil {
+		var err error
+		schemaParser, err = schemaparser.NewSchemaParser("sqlite")
+		if err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("create schema parser: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
 	catalog := model.NewCatalog()
 	for _, schemaPath := range plan.Schemas {
 		if err := ctx.Err(); err != nil {
@@ -227,12 +238,8 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema: %v", readErr)))
 			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
 		}
-		tokens, scanErr := schematokenizer.Scan(schemaPath, contents, true)
-		if scanErr != nil {
-			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, scanErr.Error()))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: scanErr}
-		}
-		parsedCatalog, schemaDiags, parseErr := schemaparser.Parse(schemaPath, tokens)
+
+		parsedCatalog, schemaDiags, parseErr := schemaParser.Parse(ctx, schemaPath, contents)
 		for _, sd := range schemaDiags {
 			addDiag(convertSchemaDiagnostic(sd))
 		}
