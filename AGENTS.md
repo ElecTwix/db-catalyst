@@ -2,19 +2,19 @@
 - Repo motto: clarity over cleverness; language-agnostic generator stays small.
 - Idiomatic Go: Follow patterns in docs/idiomatic-go-guidelines.md (options pattern, context-first, error handling with `%w`/`errors.Join`, resource management with `defer`)
 - Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
-- Toolchain: Go 1.25.3; install goimports from golang.org/x/tools.
 - Grammar-driven parser: Dialect syntax defined in `.grammar` files (EBNF-style), parsers generated via Participle library.
 - Dialect extension: Add new database support by creating `internal/parser/grammars/<dialect>.grammar` + dialect parser in `internal/parser/dialects/`.
 - Primary dialect: SQLite (fully supported); PostgreSQL and MySQL proof-of-concept parsers exist for future multi-database support.
 - Grammar validation: `ValidateSyntax()` checks SQL against dialect rules; catches cross-dialect incompatibilities before code generation.
 - Non-SQL support: GraphQL proof-of-concept in `internal/parser/languages/graphql/` demonstrates language-agnostic architecture.
 - Build CLI with `go build ./cmd/db-catalyst`; use -trimpath for releases.
-- Quick smoke: `make test` wraps `go test ./...` (only target currently).
+- Quick smoke: `task quick` runs build + test.
 - Full tests: `go test ./...`; add `-race` when touching concurrency.
 - Single test: `go test ./internal/config -run TestLoadConfig` (package-specific).
-- Benchmarks: `go test ./internal/schema/tokenizer -bench . -benchmem`.
-- Lint: `golangci-lint run ./...` (govet, staticcheck per .golangci.yml).
+- Benchmarks: `task bench` or `go test ./internal/schema/tokenizer -bench . -benchmem`.
+- Lint: `task lint` or `golangci-lint run ./...` (govet, staticcheck per .golangci.yml).
 - Supplement with `go vet ./...` before larger changes.
+- Task runner: Use Task (taskfile.dev) for build automation. Install: `go install github.com/go-task/task/v3/cmd/task@latest`
 - Always format with gofmt/goimports; no manual spacing or tab tweaks.
 - Imports grouped stdlib / internal / external; deterministic order enforced by goimports.
 - Prefer plain structs and slices; use Go 1.25 iter helpers only when clearer.
