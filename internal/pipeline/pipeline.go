@@ -24,6 +24,8 @@ import (
 	"github.com/electwix/db-catalyst/internal/transform"
 )
 
+const maxFileSize = 100 * 1024 * 1024 // 100MB
+
 // Environment captures external dependencies used by the pipeline.
 type Environment struct {
 	FSResolver   func(string) (fileset.Resolver, error)
@@ -245,6 +247,10 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		if err := ctx.Err(); err != nil {
 			return summary, err
 		}
+		if sizeErr := checkFileSize(schemaPath); sizeErr != nil {
+			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
+		}
 		contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
 		if readErr != nil {
 			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema: %v", readErr)))
@@ -313,6 +319,10 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	for _, queryPath := range plan.Queries {
 		if err := ctx.Err(); err != nil {
 			return summary, err
+		}
+		if sizeErr := checkFileSize(queryPath); sizeErr != nil {
+			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
 		}
 		contents, readErr := os.ReadFile(filepath.Clean(queryPath))
 		if readErr != nil {
@@ -428,6 +438,10 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	if len(plan.CustomTypes) > 0 {
 		transformer := transform.New(plan.CustomTypes)
 		for _, schemaPath := range plan.Schemas {
+			if sizeErr := checkFileSize(schemaPath); sizeErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
+				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
+			}
 			contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
 			if readErr != nil {
 				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema for transformation: %v", readErr)))
@@ -524,6 +538,18 @@ func newDiagnostic(path string, line, column int, severity queryanalyzer.Severit
 		Message:  message,
 		Severity: severity,
 	}
+}
+
+func checkFileSize(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Size() > maxFileSize {
+		return fmt.Errorf("file %s exceeds maximum size of %d bytes (%.2f MB)",
+			path, maxFileSize, float64(maxFileSize)/(1024*1024))
+	}
+	return nil
 }
 
 func mergeCatalog(dest, src *model.Catalog, addDiag func(queryanalyzer.Diagnostic)) {
