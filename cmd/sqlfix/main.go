@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -45,10 +46,15 @@ func main() {
 
 	paths = append(paths, flag.Args()...)
 
+	exitCode := run(ctx, configPath, dryRun, verbose, paths, os.Stdout, os.Stderr)
+	os.Exit(exitCode)
+}
+
+func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []string, stdout, stderr io.Writer) int {
 	configResult, err := config.Load(configPath, config.LoadOptions{Strict: false})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "load config: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "load config: %v\n", err)
+		return 1
 	}
 	plan := configResult.Plan
 
@@ -57,16 +63,16 @@ func main() {
 	}
 
 	if len(paths) == 0 {
-		fmt.Fprintln(os.Stderr, "sqlfix: no query files to process")
-		os.Exit(1)
+		fmt.Fprintln(stderr, "sqlfix: no query files to process")
+		return 1
 	}
 
 	dedup := make(map[string]struct{}, len(paths))
 	for _, p := range paths {
 		abs, err := filepath.Abs(p)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "resolve path %s: %v\n", p, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "resolve path %s: %v\n", p, err)
+			return 1
 		}
 		dedup[abs] = struct{}{}
 	}
@@ -79,24 +85,24 @@ func main() {
 
 	schemaResult, err := sqlfix.LoadSchemaCatalog(plan.Schemas, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "load schema catalog: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "load schema catalog: %v\n", err)
+		return 1
 	}
 
 	runner := sqlfix.NewRunner()
 	runner.SetCatalog(schemaResult.Catalog, schemaResult.Warnings)
 	runner.DryRun = dryRun
-	runner.Logger = logging.New(logging.Options{Verbose: verbose, Writer: os.Stderr})
+	runner.Logger = logging.New(logging.Options{Verbose: verbose, Writer: stderr})
 
 	reports, err := runner.Rewrite(ctx, paths)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "rewrite: %v\n", err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(stderr, "rewrite: %v\n", err)
+		return 1
 	}
 
 	catalogWarnings := runner.CatalogWarnings()
 	for _, warn := range catalogWarnings {
-		_, _ = fmt.Fprintf(os.Stderr, "%s\n", warn)
+		_, _ = fmt.Fprintf(stderr, "%s\n", warn)
 	}
 
 	totalAliases := 0
@@ -117,30 +123,31 @@ func main() {
 		if starCount > 0 {
 			segments = append(segments, fmt.Sprintf("expanded %d star projection(s)", starCount))
 		}
-		_, _ = fmt.Fprintf(os.Stdout, "%s: %s\n", rep.Path, strings.Join(segments, "; "))
+		_, _ = fmt.Fprintf(stdout, "%s: %s\n", rep.Path, strings.Join(segments, "; "))
 	}
 
 	for _, rep := range reports {
 		for _, warn := range rep.Warnings {
-			_, _ = fmt.Fprintf(os.Stderr, "%s\n", warn)
+			_, _ = fmt.Fprintf(stderr, "%s\n", warn)
 		}
 		for _, skipped := range rep.Skipped {
-			_, _ = fmt.Fprintf(os.Stderr, "%s: skipped %q (%s)\n", rep.Path, skipped.Expr, skipped.Reason)
+			_, _ = fmt.Fprintf(stderr, "%s: skipped %q (%s)\n", rep.Path, skipped.Expr, skipped.Reason)
 		}
 	}
 
 	if totalAliases == 0 && totalStars == 0 {
 		if dryRun {
-			_, _ = fmt.Fprintln(os.Stdout, "sqlfix (dry-run): no changes")
+			_, _ = fmt.Fprintln(stdout, "sqlfix (dry-run): no changes")
 		} else {
-			_, _ = fmt.Fprintln(os.Stdout, "sqlfix: no changes")
+			_, _ = fmt.Fprintln(stdout, "sqlfix: no changes")
 		}
-		return
+		return 0
 	}
 
 	if !dryRun {
-		_, _ = fmt.Fprintf(os.Stdout, "sqlfix: added %d alias(es), expanded %d star projection(s)\n", totalAliases, totalStars)
+		_, _ = fmt.Fprintf(stdout, "sqlfix: added %d alias(es), expanded %d star projection(s)\n", totalAliases, totalStars)
 	} else {
-		_, _ = fmt.Fprintf(os.Stdout, "sqlfix (dry-run): would add %d alias(es), expand %d star projection(s)\n", totalAliases, totalStars)
+		_, _ = fmt.Fprintf(stdout, "sqlfix (dry-run): would add %d alias(es), expand %d star projection(s)\n", totalAliases, totalStars)
 	}
+	return 0
 }
