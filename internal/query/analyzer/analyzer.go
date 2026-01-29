@@ -182,7 +182,19 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 
 	tokens, err := tokenizer.Scan(q.Block.Path, []byte(q.Block.SQL), false)
 	if err != nil {
-		tokens = nil
+		addDiag(Diagnostic{
+			Path:     q.Block.Path,
+			Line:     q.Block.Line,
+			Column:   q.Block.Column,
+			Message:  fmt.Sprintf("tokenization failed: %v", err),
+			Severity: SeverityError,
+		})
+		return Result{
+			Query:       q,
+			Columns:     nil,
+			Params:      nil,
+			Diagnostics: result.Diagnostics,
+		}
 	}
 
 	workingScope := newQueryScope()
