@@ -231,30 +231,229 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		}
 	}
 
+	catalog, err := p.parseSchemas(ctx, plan, addDiag)
+	if err != nil {
+		return summary, err
+	}
+
+	if firstErrorIndex != -1 {
+		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
+	}
+
+	// Call AfterParse hook
+	if p.Hooks.AfterParse != nil {
+		if err := p.Hooks.AfterParse(ctx, catalog); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after parse hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
+	// Call BeforeAnalyze hook
+	if p.Hooks.BeforeAnalyze != nil {
+		if err := p.Hooks.BeforeAnalyze(ctx, plan.Queries); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before analyze hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
+	analyses, err = p.analyzeQueries(ctx, plan, catalog, addDiag)
+	if err != nil {
+		return summary, err
+	}
+
+	// Call AfterAnalyze hook
+	if p.Hooks.AfterAnalyze != nil {
+		if err := p.Hooks.AfterAnalyze(ctx, analyses); err != nil {
+			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after analyze hook: %v", err)))
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+		}
+	}
+
+	if opts.ListQueries {
+		if firstErrorIndex != -1 {
+			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
+		}
+		return summary, nil
+	}
+
+	if firstErrorIndex != -1 {
+		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
+	}
+
+	files, err := p.generateCode(ctx, plan, catalog, analyses, opts, absConfigPath, addDiag)
+	if err != nil {
+		return summary, err
+	}
+
+	return p.writeFiles(ctx, opts, files, summary)
+}
+
+// generateCode generates code files from the analyzed queries and catalog.
+// It applies custom types transformation if configured.
+func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalog *model.Catalog, analyses []queryanalyzer.Result, opts RunOptions, configPath string, addDiag func(queryanalyzer.Diagnostic)) ([]codegen.File, error) {
+	// Call BeforeGenerate hook
+	if p.Hooks.BeforeGenerate != nil {
+		if err := p.Hooks.BeforeGenerate(ctx, analyses); err != nil {
+			addDiag(newDiagnostic(configPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before generate hook: %v", err)))
+			return nil, fmt.Errorf("before generate hook: %w", err)
+		}
+	}
+
+	// Get or create generator
+	var generator codegen.Generator
+	if p.Env.Generator != nil {
+		generator = p.Env.Generator
+	} else {
+		generator = codegen.New(codegen.Options{
+			Package:             plan.Package,
+			EmitJSONTags:        plan.EmitJSONTags,
+			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
+			EmitPointersForNull: plan.EmitPointersForNull,
+			CustomTypes:         plan.CustomTypes,
+			Prepared: codegen.PreparedOptions{
+				Enabled:     plan.PreparedQueries.Enabled,
+				EmitMetrics: plan.PreparedQueries.Metrics,
+				ThreadSafe:  plan.PreparedQueries.ThreadSafe,
+			},
+			SQL: codegen.SQLOptions{
+				Enabled:         plan.SQLDialect != "",
+				Dialect:         plan.SQLDialect,
+				EmitIFNotExists: opts.EmitIFNotExists,
+			},
+		})
+	}
+
+	generatedFiles, err := generator.Generate(ctx, catalog, analyses)
+	if err != nil {
+		return nil, fmt.Errorf("code generation: %w", err)
+	}
+
+	// Call AfterGenerate hook
+	if p.Hooks.AfterGenerate != nil {
+		if err := p.Hooks.AfterGenerate(ctx, generatedFiles); err != nil {
+			addDiag(newDiagnostic(configPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after generate hook: %v", err)))
+			return nil, fmt.Errorf("after generate hook: %w", err)
+		}
+	}
+
+	finalFiles := make([]codegen.File, 0, len(generatedFiles))
+	for _, file := range generatedFiles {
+		finalPath := filepath.Join(plan.Out, file.Path)
+		finalFiles = append(finalFiles, codegen.File{Path: finalPath, Content: file.Content})
+	}
+
+	// Generate schema.gen.sql if custom types are defined
+	if len(plan.CustomTypes) > 0 {
+		transformer := transform.New(plan.CustomTypes)
+		for _, schemaPath := range plan.Schemas {
+			if sizeErr := checkFileSize(schemaPath); sizeErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
+				return nil, fmt.Errorf("check file size %s: %w", schemaPath, sizeErr)
+			}
+			contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
+			if readErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema for transformation: %v", readErr)))
+				return nil, fmt.Errorf("read schema %s: %w", schemaPath, readErr)
+			}
+
+			// Validate custom types in schema
+			missing := transformer.ValidateCustomTypes(contents)
+			if len(missing) > 0 {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("custom types used but not defined: %v", missing)))
+				return nil, fmt.Errorf("undefined custom types: %v", missing)
+			}
+
+			// Transform schema
+			transformed, transformErr := transformer.TransformSchema(contents)
+			if transformErr != nil {
+				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("transform schema: %v", transformErr)))
+				return nil, fmt.Errorf("transform schema %s: %w", schemaPath, transformErr)
+			}
+
+			// Add schema.gen.sql to output files
+			outSchemaPath := filepath.Join(plan.Out, "schema.gen.sql")
+			finalFiles = append(finalFiles, codegen.File{Path: outSchemaPath, Content: transformed})
+		}
+	}
+
+	return finalFiles, nil
+}
+
+// writeFiles writes the generated files to disk.
+// It returns the final summary with files populated.
+func (p *Pipeline) writeFiles(ctx context.Context, opts RunOptions, files []codegen.File, summary Summary) (Summary, error) {
+	summary.Files = files
+
+	// Call BeforeWrite hook
+	if p.Hooks.BeforeWrite != nil {
+		if err := p.Hooks.BeforeWrite(ctx, files); err != nil {
+			return summary, fmt.Errorf("before write hook: %w", err)
+		}
+	}
+
+	// Call AfterWrite hook (always called, even on error)
+	defer func() {
+		if p.Hooks.AfterWrite != nil {
+			// Don't overwrite the actual error, just log hook error
+			_ = p.Hooks.AfterWrite(ctx, summary)
+		}
+	}()
+
+	if opts.DryRun {
+		return summary, nil
+	}
+
+	writer := p.Env.Writer
+	if writer == nil {
+		writer = NewOSWriter()
+	}
+
+	for _, file := range files {
+		if err := ctx.Err(); err != nil {
+			return summary, err
+		}
+		same, cmpErr := fileMatches(file.Path, file.Content)
+		if cmpErr != nil {
+			return summary, &WriteError{Path: file.Path, Err: cmpErr}
+		}
+		if same {
+			continue
+		}
+		if err := writer.WriteFile(file.Path, file.Content); err != nil {
+			return summary, &WriteError{Path: file.Path, Err: err}
+		}
+	}
+
+	return summary, nil
+}
+
+// parseSchemas parses all schema files from the plan, using cache when available.
+// It returns the merged catalog containing all tables and views.
+func (p *Pipeline) parseSchemas(ctx context.Context, plan config.JobPlan, addDiag func(queryanalyzer.Diagnostic)) (*model.Catalog, error) {
 	// Get or create schema parser
 	schemaParser := p.Env.SchemaParser
 	if schemaParser == nil {
 		var err error
 		schemaParser, err = schemaparser.NewSchemaParser("sqlite")
 		if err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("create schema parser: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
+			addDiag(newDiagnostic("", 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("create schema parser: %v", err)))
+			return nil, err
 		}
 	}
 
 	catalog := model.NewCatalog()
 	for _, schemaPath := range plan.Schemas {
 		if err := ctx.Err(); err != nil {
-			return summary, err
+			return nil, err
 		}
 		if sizeErr := checkFileSize(schemaPath); sizeErr != nil {
 			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
+			return nil, sizeErr
 		}
 		contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
 		if readErr != nil {
 			addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema: %v", readErr)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
+			return nil, readErr
 		}
 
 		// Check cache first
@@ -290,228 +489,12 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 			addDiag(convertSchemaDiagnostic(sd))
 		}
 		if parseErr != nil {
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: parseErr}
+			return nil, parseErr
 		}
 		mergeCatalog(catalog, parsedCatalog, addDiag)
 	}
 
-	if firstErrorIndex != -1 {
-		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
-	}
-
-	// Call AfterParse hook
-	if p.Hooks.AfterParse != nil {
-		if err := p.Hooks.AfterParse(ctx, catalog); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after parse hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	// Call BeforeAnalyze hook
-	if p.Hooks.BeforeAnalyze != nil {
-		if err := p.Hooks.BeforeAnalyze(ctx, plan.Queries); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before analyze hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	queries := make([]queryparser.Query, 0, len(plan.Queries))
-	for _, queryPath := range plan.Queries {
-		if err := ctx.Err(); err != nil {
-			return summary, err
-		}
-		if sizeErr := checkFileSize(queryPath); sizeErr != nil {
-			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
-		}
-		contents, readErr := os.ReadFile(filepath.Clean(queryPath))
-		if readErr != nil {
-			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read queries: %v", readErr)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
-		}
-		blocks, sliceErr := block.Slice(queryPath, contents)
-		if sliceErr != nil {
-			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, sliceErr.Error()))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sliceErr}
-		}
-		for _, blk := range blocks {
-			query, queryDiags := queryparser.Parse(blk)
-			for _, qd := range queryDiags {
-				addDiag(convertQueryDiagnostic(qd))
-			}
-			queries = append(queries, query)
-		}
-	}
-
-	if firstErrorIndex != -1 {
-		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
-	}
-
-	// Convert custom types config to map for analyzer
-	customTypesMap := make(map[string]config.CustomTypeMapping)
-	if len(plan.CustomTypes) > 0 {
-		for _, mapping := range plan.CustomTypes {
-			customTypesMap[mapping.SQLiteType] = mapping
-		}
-	}
-
-	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
-	for _, q := range queries {
-		result := analyzer.Analyze(q)
-		analyses = append(analyses, result)
-		for _, diag := range result.Diagnostics {
-			addDiag(diag)
-		}
-	}
-
-	// Call AfterAnalyze hook
-	if p.Hooks.AfterAnalyze != nil {
-		if err := p.Hooks.AfterAnalyze(ctx, analyses); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after analyze hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	if opts.ListQueries {
-		if firstErrorIndex != -1 {
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
-		}
-		return summary, nil
-	}
-
-	if firstErrorIndex != -1 {
-		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: nil}
-	}
-
-	// Call BeforeGenerate hook
-	if p.Hooks.BeforeGenerate != nil {
-		if err := p.Hooks.BeforeGenerate(ctx, analyses); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before generate hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	// Get or create generator
-	var generator codegen.Generator
-	if p.Env.Generator != nil {
-		generator = p.Env.Generator
-	} else {
-		generator = codegen.New(codegen.Options{
-			Package:             plan.Package,
-			EmitJSONTags:        plan.EmitJSONTags,
-			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
-			EmitPointersForNull: plan.EmitPointersForNull,
-			CustomTypes:         plan.CustomTypes,
-			Prepared: codegen.PreparedOptions{
-				Enabled:     plan.PreparedQueries.Enabled,
-				EmitMetrics: plan.PreparedQueries.Metrics,
-				ThreadSafe:  plan.PreparedQueries.ThreadSafe,
-			},
-			SQL: codegen.SQLOptions{
-				Enabled:         plan.SQLDialect != "",
-				Dialect:         plan.SQLDialect,
-				EmitIFNotExists: opts.EmitIFNotExists,
-			},
-		})
-	}
-
-	generatedFiles, err := generator.Generate(ctx, catalog, analyses)
-	if err != nil {
-		return summary, fmt.Errorf("code generation: %w", err)
-	}
-
-	// Call AfterGenerate hook
-	if p.Hooks.AfterGenerate != nil {
-		if err := p.Hooks.AfterGenerate(ctx, generatedFiles); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("after generate hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	finalFiles := make([]codegen.File, 0, len(generatedFiles))
-	for _, file := range generatedFiles {
-		finalPath := filepath.Join(outDir, file.Path)
-		finalFiles = append(finalFiles, codegen.File{Path: finalPath, Content: file.Content})
-	}
-
-	// Generate schema.gen.sql if custom types are defined
-	if len(plan.CustomTypes) > 0 {
-		transformer := transform.New(plan.CustomTypes)
-		for _, schemaPath := range plan.Schemas {
-			if sizeErr := checkFileSize(schemaPath); sizeErr != nil {
-				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
-				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: sizeErr}
-			}
-			contents, readErr := os.ReadFile(filepath.Clean(schemaPath))
-			if readErr != nil {
-				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read schema for transformation: %v", readErr)))
-				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: readErr}
-			}
-
-			// Validate custom types in schema
-			missing := transformer.ValidateCustomTypes(contents)
-			if len(missing) > 0 {
-				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("custom types used but not defined: %v", missing)))
-				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: fmt.Errorf("undefined custom types")}
-			}
-
-			// Transform schema
-			transformed, transformErr := transformer.TransformSchema(contents)
-			if transformErr != nil {
-				addDiag(newDiagnostic(schemaPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("transform schema: %v", transformErr)))
-				return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: transformErr}
-			}
-
-			// Add schema.gen.sql to output files
-			schemaPath := filepath.Join(outDir, "schema.gen.sql")
-			finalFiles = append(finalFiles, codegen.File{Path: schemaPath, Content: transformed})
-		}
-	}
-
-	summary.Files = finalFiles
-
-	// Call BeforeWrite hook
-	if p.Hooks.BeforeWrite != nil {
-		if err := p.Hooks.BeforeWrite(ctx, finalFiles); err != nil {
-			addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("before write hook: %v", err)))
-			return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
-		}
-	}
-
-	// Call AfterWrite hook (always called, even on error)
-	defer func() {
-		if p.Hooks.AfterWrite != nil {
-			// Don't overwrite the actual error, just log hook error
-			_ = p.Hooks.AfterWrite(ctx, summary)
-		}
-	}()
-
-	if opts.DryRun {
-		return summary, nil
-	}
-
-	writer := p.Env.Writer
-	if writer == nil {
-		writer = NewOSWriter()
-	}
-
-	for _, file := range finalFiles {
-		if err := ctx.Err(); err != nil {
-			return summary, err
-		}
-		same, cmpErr := fileMatches(file.Path, file.Content)
-		if cmpErr != nil {
-			return summary, &WriteError{Path: file.Path, Err: cmpErr}
-		}
-		if same {
-			continue
-		}
-		if err := writer.WriteFile(file.Path, file.Content); err != nil {
-			return summary, &WriteError{Path: file.Path, Err: err}
-		}
-	}
-
-	return summary, nil
+	return catalog, nil
 }
 
 func convertSchemaDiagnostic(d schemaparser.Diagnostic) queryanalyzer.Diagnostic {
@@ -589,4 +572,57 @@ func fileMatches(path string, content []byte) (bool, error) {
 type schemaCacheEntry struct {
 	Catalog     *model.Catalog
 	Diagnostics []schemaparser.Diagnostic
+}
+
+// analyzeQueries parses and analyzes all queries from the plan.
+// It reads query files, slices them into blocks, parses each block,
+// and analyzes them against the provided catalog.
+func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, catalog *model.Catalog, addDiag func(queryanalyzer.Diagnostic)) ([]queryanalyzer.Result, error) {
+	queries := make([]queryparser.Query, 0, len(plan.Queries))
+	for _, queryPath := range plan.Queries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if sizeErr := checkFileSize(queryPath); sizeErr != nil {
+			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, sizeErr.Error()))
+			return nil, sizeErr
+		}
+		contents, readErr := os.ReadFile(filepath.Clean(queryPath))
+		if readErr != nil {
+			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, fmt.Sprintf("read queries: %v", readErr)))
+			return nil, readErr
+		}
+		blocks, sliceErr := block.Slice(queryPath, contents)
+		if sliceErr != nil {
+			addDiag(newDiagnostic(queryPath, 1, 1, queryanalyzer.SeverityError, sliceErr.Error()))
+			return nil, sliceErr
+		}
+		for _, blk := range blocks {
+			query, queryDiags := queryparser.Parse(blk)
+			for _, qd := range queryDiags {
+				addDiag(convertQueryDiagnostic(qd))
+			}
+			queries = append(queries, query)
+		}
+	}
+
+	// Convert custom types config to map for analyzer
+	customTypesMap := make(map[string]config.CustomTypeMapping)
+	if len(plan.CustomTypes) > 0 {
+		for _, mapping := range plan.CustomTypes {
+			customTypesMap[mapping.SQLiteType] = mapping
+		}
+	}
+
+	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
+	analyses := make([]queryanalyzer.Result, 0, len(queries))
+	for _, q := range queries {
+		result := analyzer.Analyze(q)
+		analyses = append(analyses, result)
+		for _, diag := range result.Diagnostics {
+			addDiag(diag)
+		}
+	}
+
+	return analyses, nil
 }
