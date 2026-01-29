@@ -93,19 +93,19 @@ type SQLiteParser struct {
 }
 
 // NewSQLiteParser creates a new SQLite parser.
-func NewSQLiteParser() *SQLiteParser {
+func NewSQLiteParser() (*SQLiteParser, error) {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
 		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("failed to build SQLite parser: %v", err))
+		return nil, fmt.Errorf("failed to build SQLite parser: %w", err)
 	}
 
 	return &SQLiteParser{
 		BaseParser: NewBaseParser(grammars.DialectSQLite),
 		parser:     parser,
-	}
+	}, nil
 }
 
 // ParseDDL parses SQLite DDL and returns a catalog.
@@ -141,19 +141,19 @@ type PostgreSQLParser struct {
 }
 
 // NewPostgreSQLParser creates a new PostgreSQL parser.
-func NewPostgreSQLParser() *PostgreSQLParser {
+func NewPostgreSQLParser() (*PostgreSQLParser, error) {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
 		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("failed to build PostgreSQL parser: %v", err))
+		return nil, fmt.Errorf("failed to build PostgreSQL parser: %w", err)
 	}
 
 	return &PostgreSQLParser{
 		BaseParser: NewBaseParser(grammars.DialectPostgreSQL),
 		parser:     parser,
-	}
+	}, nil
 }
 
 // ParseDDL parses PostgreSQL DDL and returns a catalog.
@@ -189,19 +189,19 @@ type MySQLParser struct {
 }
 
 // NewMySQLParser creates a new MySQL parser.
-func NewMySQLParser() *MySQLParser {
+func NewMySQLParser() (*MySQLParser, error) {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
 		participle.CaseInsensitive("CREATE", "TABLE", "PRIMARY", "KEY", "NOT", "NULL", "UNIQUE"),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("failed to build MySQL parser: %v", err))
+		return nil, fmt.Errorf("failed to build MySQL parser: %w", err)
 	}
 
 	return &MySQLParser{
 		BaseParser: NewBaseParser(grammars.DialectMySQL),
 		parser:     parser,
-	}
+	}, nil
 }
 
 // ParseDDL parses MySQL DDL and returns a catalog.
@@ -234,11 +234,11 @@ func (m *MySQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, e
 func NewParser(dialect grammars.Dialect) (DialectParser, error) {
 	switch dialect {
 	case grammars.DialectSQLite:
-		return NewSQLiteParser(), nil
+		return NewSQLiteParser()
 	case grammars.DialectPostgreSQL:
-		return NewPostgreSQLParser(), nil
+		return NewPostgreSQLParser()
 	case grammars.DialectMySQL:
-		return NewMySQLParser(), nil
+		return NewMySQLParser()
 	default:
 		return nil, fmt.Errorf("unsupported dialect: %s", dialect)
 	}

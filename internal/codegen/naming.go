@@ -12,4 +12,4 @@ func UnexportedIdentifier(raw string) string { return ast.UnexportedIdentifier(r
 func FileName(raw string) string { return ast.FileName(raw) }
 
 // UniqueName ensures returned identifier does not collide with previous values.
-func UniqueName(base string, used map[string]int) string { return ast.UniqueName(base, used) }
+func UniqueName(base string, used map[string]int) (string, error) { return ast.UniqueName(base, used) }

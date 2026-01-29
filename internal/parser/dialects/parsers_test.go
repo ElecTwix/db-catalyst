@@ -51,7 +51,10 @@ func TestNewParser(t *testing.T) {
 
 func TestSQLiteParser_ParseDDL(t *testing.T) {
 	ctx := context.Background()
-	parser := NewSQLiteParser()
+	parser, err := NewSQLiteParser()
+	if err != nil {
+		t.Fatalf("Failed to create SQLite parser: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -82,7 +85,10 @@ func TestSQLiteParser_ParseDDL(t *testing.T) {
 
 func TestPostgreSQLParser_ParseDDL(t *testing.T) {
 	ctx := context.Background()
-	parser := NewPostgreSQLParser()
+	parser, err := NewPostgreSQLParser()
+	if err != nil {
+		t.Fatalf("Failed to create PostgreSQL parser: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -108,7 +114,10 @@ func TestPostgreSQLParser_ParseDDL(t *testing.T) {
 
 func TestMySQLParser_ParseDDL(t *testing.T) {
 	ctx := context.Background()
-	parser := NewMySQLParser()
+	parser, err := NewMySQLParser()
+	if err != nil {
+		t.Fatalf("Failed to create MySQL parser: %v", err)
+	}
 
 	tests := []struct {
 		name    string

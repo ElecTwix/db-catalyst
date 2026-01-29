@@ -53,15 +53,15 @@ type Parser struct {
 }
 
 // NewParser creates a new GraphQL parser.
-func NewParser() *Parser {
+func NewParser() (*Parser, error) {
 	parser, err := participle.Build[Schema](
 		participle.Lexer(GraphQLLexer),
 		participle.CaseInsensitive("type", "interface", "input", "enum", "scalar", "implements", "extends", "true", "false", "null"),
 	)
 	if err != nil {
-		panic(fmt.Sprintf("failed to build GraphQL parser: %v", err))
+		return nil, fmt.Errorf("failed to build GraphQL parser: %w", err)
 	}
-	return &Parser{parser: parser}
+	return &Parser{parser: parser}, nil
 }
 
 // ParseSchema parses a GraphQL schema and returns a catalog.

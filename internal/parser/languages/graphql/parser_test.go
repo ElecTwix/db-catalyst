@@ -9,7 +9,10 @@ func TestParser_ParseSchema(t *testing.T) {
 	t.Skip("GraphQL parser is a proof-of-concept; lexer configuration needs refinement for production use")
 
 	ctx := context.Background()
-	parser := NewParser()
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("NewParser() error = %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -41,7 +44,10 @@ func TestParser_ParseSchema(t *testing.T) {
 func TestParser_Validate(t *testing.T) {
 	t.Skip("GraphQL parser is a proof-of-concept; lexer configuration needs refinement for production use")
 
-	parser := NewParser()
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("NewParser() error = %v", err)
+	}
 
 	tests := []struct {
 		name          string
@@ -76,7 +82,10 @@ func TestParser_Validate(t *testing.T) {
 }
 
 func TestParser_mapGraphQLTypeToSQLite(t *testing.T) {
-	parser := NewParser()
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("NewParser() error = %v", err)
+	}
 
 	tests := []struct {
 		input    string
@@ -111,7 +120,10 @@ func TestParser_mapGraphQLTypeToSQLite(t *testing.T) {
 }
 
 func TestParser_ParserCreation(t *testing.T) {
-	parser := NewParser()
+	parser, err := NewParser()
+	if err != nil {
+		t.Fatalf("NewParser() error = %v", err)
+	}
 	//nolint:staticcheck // Test validates nil check before dereference
 	if parser == nil {
 		t.Error("NewParser() returned nil")

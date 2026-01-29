@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"errors"
 	"go/token"
 	"strconv"
 	"strings"
@@ -151,23 +152,23 @@ func splitSegments(raw string) []string {
 }
 
 // UniqueName ensures returned identifier does not collide with previous values.
-func UniqueName(base string, used map[string]int) string {
+func UniqueName(base string, used map[string]int) (string, error) {
 	if base == "" {
 		base = "value"
 	}
 	if used == nil {
-		panic("nil name map")
+		return "", errors.New("nil name map")
 	}
 	if _, exists := used[base]; !exists {
 		used[base] = 1
-		return base
+		return base, nil
 	}
 	for i := used[base] + 1; ; i++ {
 		candidate := base + strconv.Itoa(i)
 		if _, exists := used[candidate]; !exists {
 			used[base] = i
 			used[candidate] = 1
-			return candidate
+			return candidate, nil
 		}
 	}
 }

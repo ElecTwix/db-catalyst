@@ -3,6 +3,7 @@ package ast
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	goast "go/ast"
 	"go/parser"
@@ -63,8 +64,14 @@ func (b *Builder) Build(ctx context.Context, catalog *model.Catalog, analyses []
 		packageName = "db"
 	}
 
-	tableModels := b.collectTableModels(catalog, analyses)
-	queries := b.buildQueries(analyses)
+	tableModels, err := b.collectTableModels(catalog, analyses)
+	if err != nil {
+		return nil, err
+	}
+	queries, err := b.buildQueries(analyses)
+	if err != nil {
+		return nil, err
+	}
 
 	helperPtrs := make([]*helperSpec, 0, len(queries))
 	for i := range queries {
@@ -181,9 +188,9 @@ type helperField struct {
 	goType string
 }
 
-func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer.Result) []*tableModel {
+func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer.Result) ([]*tableModel, error) {
 	if catalog == nil {
-		return nil
+		return nil, nil
 	}
 	referenced := make(map[string]*model.Table)
 	for _, res := range analyses {
@@ -204,7 +211,7 @@ func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer
 		}
 	}
 	if len(referenced) == 0 {
-		return nil
+		return nil, nil
 	}
 	names := make([]string, 0, len(referenced))
 	for name := range referenced {
@@ -214,13 +221,16 @@ func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer
 	models := make([]*tableModel, 0, len(names))
 	for _, name := range names {
 		tbl := referenced[name]
-		model := b.buildTableModel(tbl)
+		model, err := b.buildTableModel(tbl)
+		if err != nil {
+			return nil, err
+		}
 		models = append(models, model)
 	}
-	return models
+	return models, nil
 }
 
-func (b *Builder) buildTableModel(tbl *model.Table) *tableModel {
+func (b *Builder) buildTableModel(tbl *model.Table) (*tableModel, error) {
 	used := make(map[string]int)
 	fields := make([]modelField, 0, len(tbl.Columns))
 	needsSQL := false
@@ -230,7 +240,11 @@ func (b *Builder) buildTableModel(tbl *model.Table) *tableModel {
 			goName = ExportedIdentifier("column")
 		}
 		if _, exists := used[goName]; exists {
-			goName = UniqueName(goName, used)
+			var err error
+			goName, err = UniqueName(goName, used)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			used[goName] = 1
 		}
@@ -262,10 +276,10 @@ func (b *Builder) buildTableModel(tbl *model.Table) *tableModel {
 		typeName:  typeName,
 		fields:    fields,
 		needsSQL:  needsSQL,
-	}
+	}, nil
 }
 
-func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
+func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) {
 	queries := make([]queryInfo, 0, len(analyses))
 	for _, res := range analyses {
 		methodName := ExportedIdentifier(res.Query.Block.Name)
@@ -276,7 +290,10 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 		fileName := fmt.Sprintf("query_%s.go", FileName(res.Query.Block.Name))
 
 		// Pre-process params to identify dynamic slices and prepare SQL replacement
-		params := b.buildParams(res.Params)
+		params, err := b.buildParams(res.Params)
+		if err != nil {
+			return nil, err
+		}
 
 		sqlLiteral := res.Query.Block.SQL
 		// Replace dynamic slice macros with markers in the SQL string
@@ -320,13 +337,19 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 
 		switch res.Query.Block.Command {
 		case block.CommandOne:
-			helper := b.buildHelper(methodName, res.Columns)
+			helper, err := b.buildHelper(methodName, res.Columns)
+			if err != nil {
+				return nil, err
+			}
 			info.helper = helper
 			info.rowType = helper.rowTypeName
 			info.returnType = helper.rowTypeName
 			info.returnZero = helper.rowTypeName + "{}"
 		case block.CommandMany:
-			helper := b.buildHelper(methodName, res.Columns)
+			helper, err := b.buildHelper(methodName, res.Columns)
+			if err != nil {
+				return nil, err
+			}
 			info.helper = helper
 			info.rowType = helper.rowTypeName
 			info.returnType = "[]" + helper.rowTypeName
@@ -346,10 +369,10 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) []queryInfo {
 		return strings.Compare(a.methodName, b.methodName)
 	})
 
-	return queries
+	return queries, nil
 }
 
-func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
+func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error) {
 	result := make([]paramSpec, 0, len(params))
 	used := map[string]int{"ctx": 1}
 	for idx, p := range params {
@@ -358,7 +381,11 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 			name = fmt.Sprintf("arg%d", idx+1)
 		}
 		if _, exists := used[name]; exists {
-			name = UniqueName(name, used)
+			var err error
+			name, err = UniqueName(name, used)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			used[name] = 1
 		}
@@ -387,7 +414,11 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 		} else if p.IsVariadic {
 			sliceName := name + "Args"
 			if _, exists := used[sliceName]; exists {
-				sliceName = UniqueName(sliceName, used)
+				var err error
+				sliceName, err = UniqueName(sliceName, used)
+				if err != nil {
+					return nil, err
+				}
 			} else {
 				used[sliceName] = 1
 			}
@@ -397,10 +428,10 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) []paramSpec {
 
 		result = append(result, spec)
 	}
-	return result
+	return result, nil
 }
 
-func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn) *helperSpec {
+func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn) (*helperSpec, error) {
 	rowTypeName := methodName + "Row"
 	funcName := "scan" + methodName + "Row"
 	fields := make([]helperField, 0, len(columns))
@@ -415,7 +446,11 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 			fieldName = fmt.Sprintf("Column%d", idx+1)
 		}
 		if _, exists := used[fieldName]; exists {
-			fieldName = UniqueName(fieldName, used)
+			var err error
+			fieldName, err = UniqueName(fieldName, used)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			used[fieldName] = 1
 		}
@@ -427,7 +462,7 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 		}
 		fields = append(fields, helperField{name: fieldName, goType: typeInfo.GoType})
 	}
-	return &helperSpec{rowTypeName: rowTypeName, funcName: funcName, fields: fields}
+	return &helperSpec{rowTypeName: rowTypeName, funcName: funcName, fields: fields}, nil
 }
 
 func (b *Builder) buildModelsFile(pkg string, models []*tableModel) (*goast.File, error) {
@@ -584,14 +619,26 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		decls = append(decls, &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{rowSpec}})
 
 		stmts := make([]goast.Stmt, 0, 3)
-		stmts = append(stmts, mustParseStmt("var item "+helper.rowTypeName))
+		stmt, err := parseStmt("var item " + helper.rowTypeName)
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
 		scanArgs := make([]string, 0, len(helper.fields))
 		for _, fld := range helper.fields {
 			scanArgs = append(scanArgs, "&item."+fld.name)
 		}
 		scanStmt := fmt.Sprintf("if err := rows.Scan(%s); err != nil {\nreturn item, err\n}", strings.Join(scanArgs, ", "))
-		stmts = append(stmts, mustParseStmt(scanStmt))
-		stmts = append(stmts, mustParseStmt("return item, nil"))
+		stmt, err = parseStmt(scanStmt)
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
+		stmt, err = parseStmt("return item, nil")
+		if err != nil {
+			return nil, err
+		}
+		stmts = append(stmts, stmt)
 
 		funcDecl := &goast.FuncDecl{
 			Name: goast.NewIdent(helper.funcName),
@@ -1114,19 +1161,27 @@ func stringLiteral(value string) goast.Expr {
 	return &goast.BasicLit{Kind: token.STRING, Value: strconv.Quote(value)}
 }
 
-func mustParseStmt(code string) goast.Stmt {
+func parseStmt(code string) (goast.Stmt, error) {
 	src := "package p\nfunc _() {\n" + code + "\n}\n"
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", src, 0)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("parse statement: %w", err)
 	}
 	if len(file.Decls) == 0 {
-		panic("no declarations parsed")
+		return nil, errors.New("no declarations parsed")
 	}
 	fn, ok := file.Decls[0].(*goast.FuncDecl)
 	if !ok || fn.Body == nil || len(fn.Body.List) == 0 {
-		panic("parsed function missing body")
+		return nil, errors.New("parsed function missing body")
 	}
-	return fn.Body.List[0]
+	return fn.Body.List[0], nil
+}
+
+func mustParseStmt(code string) goast.Stmt {
+	stmt, err := parseStmt(code)
+	if err != nil {
+		panic(err)
+	}
+	return stmt
 }
