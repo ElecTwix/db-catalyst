@@ -11,23 +11,31 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+// Schema represents a parsed GraphQL schema.
+//
 //nolint:govet // Participle struct tags are DSL, not reflect tags
-type GraphQLSchema struct {
+type Schema struct {
 	Types []*TypeDefinition `@@*`
 }
 
+// TypeDefinition represents a GraphQL type definition.
+//
 //nolint:govet // Participle struct tags are DSL, not reflect tags
 type TypeDefinition struct {
 	Name   string             `@("type" @Ident)`
 	Fields []*FieldDefinition `"{" @@+ "}"`
 }
 
+// FieldDefinition represents a GraphQL field definition.
+//
 //nolint:govet // Participle struct tags are DSL, not reflect tags
 type FieldDefinition struct {
 	Name string `@Ident`
 	Type string `@(":" @Ident)`
 }
 
+// GraphQLLexer defines the GraphQL lexer configuration.
+//
 //nolint:govet // Participle DSL uses unkeyed fields
 var GraphQLLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{"Whitespace", `[ \t\r\n]+`},
@@ -39,12 +47,14 @@ var GraphQLLexer = lexer.MustSimple([]lexer.SimpleRule{
 	{"Operator", `[=!@&]`},
 })
 
+// Parser implements a GraphQL schema parser.
 type Parser struct {
-	parser *participle.Parser[GraphQLSchema]
+	parser *participle.Parser[Schema]
 }
 
+// NewParser creates a new GraphQL parser.
 func NewParser() *Parser {
-	parser, err := participle.Build[GraphQLSchema](
+	parser, err := participle.Build[Schema](
 		participle.Lexer(GraphQLLexer),
 		participle.CaseInsensitive("type", "interface", "input", "enum", "scalar", "implements", "extends", "true", "false", "null"),
 	)
@@ -54,6 +64,7 @@ func NewParser() *Parser {
 	return &Parser{parser: parser}
 }
 
+// ParseSchema parses a GraphQL schema and returns a catalog.
 func (p *Parser) ParseSchema(_ context.Context, schema string) (*model.Catalog, error) {
 	graphqlSchema, err := p.parser.ParseString("", schema)
 	if err != nil {
@@ -90,6 +101,7 @@ func (p *Parser) ParseSchema(_ context.Context, schema string) (*model.Catalog, 
 	return catalog, nil
 }
 
+// Validate validates a GraphQL schema and returns any issues.
 func (p *Parser) Validate(schema string) ([]string, error) {
 	var issues []string
 

@@ -10,9 +10,12 @@ import (
 type Dialect string
 
 const (
-	DialectSQLite     Dialect = "sqlite"
+	// DialectSQLite represents the SQLite dialect.
+	DialectSQLite Dialect = "sqlite"
+	// DialectPostgreSQL represents the PostgreSQL dialect.
 	DialectPostgreSQL Dialect = "postgresql"
-	DialectMySQL      Dialect = "mysql"
+	// DialectMySQL represents the MySQL dialect.
+	DialectMySQL Dialect = "mysql"
 )
 
 // GrammarDefinition represents a parsed SQL grammar

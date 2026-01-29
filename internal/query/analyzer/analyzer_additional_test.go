@@ -36,6 +36,7 @@ func TestNew(t *testing.T) {
 	catalog := model.NewCatalog()
 	a := New(catalog)
 
+	//nolint:staticcheck // Test validates nil check before dereference
 	if a == nil {
 		t.Error("New() returned nil")
 	}
@@ -54,6 +55,7 @@ func TestNewWithCustomTypes(t *testing.T) {
 
 	a := NewWithCustomTypes(catalog, customTypes)
 
+	//nolint:staticcheck // Test validates nil check before dereference
 	if a == nil {
 		t.Error("NewWithCustomTypes() returned nil")
 	}

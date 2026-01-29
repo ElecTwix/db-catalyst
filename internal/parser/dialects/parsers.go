@@ -18,19 +18,22 @@ type DialectParser interface {
 	Dialect() grammars.Dialect
 }
 
-// BaseParser provides common functionality for dialect parsers
+// BaseParser provides common functionality for dialect parsers.
 type BaseParser struct {
 	dialect grammars.Dialect
 }
 
+// NewBaseParser creates a new BaseParser for the given dialect.
 func NewBaseParser(dialect grammars.Dialect) *BaseParser {
 	return &BaseParser{dialect: dialect}
 }
 
+// Dialect returns the dialect of the parser.
 func (b *BaseParser) Dialect() grammars.Dialect {
 	return b.dialect
 }
 
+// Validate validates the SQL syntax for the parser's dialect.
 func (b *BaseParser) Validate(sql string) ([]string, error) {
 	return grammars.ValidateSyntax(b.dialect, sql)
 }
@@ -83,12 +86,13 @@ type Constraint struct {
 	Type string `(@Ident ("KEY" | @Ident?) | "NOT" "NULL" | "UNIQUE")`
 }
 
-// SQLiteParser implements parsing for SQLite dialect
+// SQLiteParser implements parsing for SQLite dialect.
 type SQLiteParser struct {
 	*BaseParser
 	parser *participle.Parser[CreateTable]
 }
 
+// NewSQLiteParser creates a new SQLite parser.
 func NewSQLiteParser() *SQLiteParser {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
@@ -104,6 +108,8 @@ func NewSQLiteParser() *SQLiteParser {
 	}
 }
 
+// ParseDDL parses SQLite DDL and returns a catalog.
+//
 //nolint:revive // Context parameter reserved for future use
 func (s *SQLiteParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := s.parser.ParseString("", sql)
@@ -128,12 +134,13 @@ func (s *SQLiteParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, 
 	return catalog, nil
 }
 
-// PostgreSQLParser implements parsing for PostgreSQL dialect
+// PostgreSQLParser implements parsing for PostgreSQL dialect.
 type PostgreSQLParser struct {
 	*BaseParser
 	parser *participle.Parser[CreateTable]
 }
 
+// NewPostgreSQLParser creates a new PostgreSQL parser.
 func NewPostgreSQLParser() *PostgreSQLParser {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
@@ -149,6 +156,8 @@ func NewPostgreSQLParser() *PostgreSQLParser {
 	}
 }
 
+// ParseDDL parses PostgreSQL DDL and returns a catalog.
+//
 //nolint:revive // Context parameter reserved for future use
 func (p *PostgreSQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := p.parser.ParseString("", sql)
@@ -173,12 +182,13 @@ func (p *PostgreSQLParser) ParseDDL(_ context.Context, sql string) (*model.Catal
 	return catalog, nil
 }
 
-// MySQLParser implements parsing for MySQL dialect
+// MySQLParser implements parsing for MySQL dialect.
 type MySQLParser struct {
 	*BaseParser
 	parser *participle.Parser[CreateTable]
 }
 
+// NewMySQLParser creates a new MySQL parser.
 func NewMySQLParser() *MySQLParser {
 	parser, err := participle.Build[CreateTable](
 		participle.Lexer(SQLLexer),
@@ -194,6 +204,8 @@ func NewMySQLParser() *MySQLParser {
 	}
 }
 
+// ParseDDL parses MySQL DDL and returns a catalog.
+//
 //nolint:revive // Context parameter reserved for future use
 func (m *MySQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := m.parser.ParseString("", sql)

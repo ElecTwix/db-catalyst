@@ -112,6 +112,7 @@ func TestParser_mapGraphQLTypeToSQLite(t *testing.T) {
 
 func TestParser_ParserCreation(t *testing.T) {
 	parser := NewParser()
+	//nolint:staticcheck // Test validates nil check before dereference
 	if parser == nil {
 		t.Error("NewParser() returned nil")
 	}
