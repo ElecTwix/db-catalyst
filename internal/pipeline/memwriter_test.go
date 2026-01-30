@@ -73,7 +73,7 @@ func TestMemoryWriter_Concurrent(t *testing.T) {
 
 	// Test concurrent writes
 	done := make(chan bool, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(n int) {
 			path := fmt.Sprintf("file%d.go", n)
 			_ = w.WriteFile(path, []byte("data"))
@@ -81,7 +81,7 @@ func TestMemoryWriter_Concurrent(t *testing.T) {
 		}(i)
 	}
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 

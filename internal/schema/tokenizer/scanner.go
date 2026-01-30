@@ -361,7 +361,7 @@ func (s *Scanner) recordDocBlock(raw string, line, column int) {
 	if s.pendingDoc == nil {
 		s.pendingDoc = &docBuffer{line: line, col: column}
 	}
-	for _, part := range strings.Split(clean, "\n") {
+	for part := range strings.SplitSeq(clean, "\n") {
 		s.pendingDoc.lines = append(s.pendingDoc.lines, strings.TrimSpace(part))
 	}
 }

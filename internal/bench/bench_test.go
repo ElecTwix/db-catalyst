@@ -50,7 +50,7 @@ func BenchmarkPipeline(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := pipe.Run(ctx, pipeline.RunOptions{ConfigPath: configPath})
 		if err != nil {
 			b.Fatalf("pipeline run: %v", err)
@@ -120,7 +120,7 @@ queries = ["queries.sql"]
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := pipe.Run(ctx, pipeline.RunOptions{ConfigPath: configPath})
 		if err != nil {
 			b.Fatalf("pipeline run: %v", err)

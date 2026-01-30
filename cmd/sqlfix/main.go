@@ -36,7 +36,7 @@ func main() {
 
 	paths := make([]string, 0)
 	if pathsFlag != "" {
-		for _, p := range strings.Split(pathsFlag, ",") {
+		for p := range strings.SplitSeq(pathsFlag, ",") {
 			trimmed := strings.TrimSpace(p)
 			if trimmed != "" {
 				paths = append(paths, trimmed)

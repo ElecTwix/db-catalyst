@@ -21,7 +21,7 @@ func NewMemoryCache() *MemoryCache {
 
 // Get retrieves a value from the cache.
 //
-func (m *MemoryCache) Get(_ context.Context, key string) (interface{}, bool) {
+func (m *MemoryCache) Get(_ context.Context, key string) (any, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -39,7 +39,7 @@ func (m *MemoryCache) Get(_ context.Context, key string) (interface{}, bool) {
 
 // Set stores a value in the cache with the given TTL.
 //
-func (m *MemoryCache) Set(_ context.Context, key string, value interface{}, ttl time.Duration) {
+func (m *MemoryCache) Set(_ context.Context, key string, value any, ttl time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

@@ -373,9 +373,7 @@ func parseCTEList(tokens []tokenizer.Token, idx int, blk block.Block, pos positi
 		endTok := inner[len(inner)-1]
 		startOffset := pos.offset(startTok)
 		endOffset := pos.offset(endTok) + len(endTok.Text)
-		if endOffset > len(pos.sql) {
-			endOffset = len(pos.sql)
-		}
+		endOffset = min(endOffset, len(pos.sql))
 		cte.SelectSQL = strings.TrimSpace(pos.sql[startOffset:endOffset])
 		i = bodyEnd + 1
 
@@ -627,7 +625,7 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 			})
 			named[strings.ToLower(group.name)] = len(params) - 1
 			// Skip the whole macro: sqlc . slice ( 'name' ) = 6 tokens
-			for k := 0; k < 6; k++ {
+			for k := range 6 {
 				skipIndices[i+k] = struct{}{}
 			}
 			i++
@@ -961,9 +959,7 @@ func buildColumn(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (
 	endTok := exprTokens[len(exprTokens)-1]
 	startOffset := pos.offset(startTok)
 	endOffset := pos.offset(endTok) + len(endTok.Text)
-	if endOffset > len(pos.sql) {
-		endOffset = len(pos.sql)
-	}
+	endOffset = min(endOffset, len(pos.sql))
 	expr := strings.TrimSpace(pos.sql[startOffset:endOffset])
 	line, column := actualPosition(blk, startTok.Line, startTok.Column)
 	col := Column{

@@ -458,10 +458,8 @@ func tableIndexes(catalog *model.Catalog) []*model.Index {
 
 func findTableForIndex(catalog *model.Catalog, idx *model.Index) string {
 	for _, t := range catalog.Tables {
-		for _, i := range t.Indexes {
-			if i == idx {
-				return t.Name
-			}
+		if slices.Contains(t.Indexes, idx) {
+			return t.Name
 		}
 	}
 	return ""

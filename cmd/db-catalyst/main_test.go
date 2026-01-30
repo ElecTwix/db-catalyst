@@ -2110,7 +2110,7 @@ queries = ["queries/*.sql"]
 	// Create a reasonably sized schema
 	var schemaBuilder strings.Builder
 	schemaBuilder.WriteString("CREATE TABLE t (id INTEGER PRIMARY KEY);")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		schemaBuilder.WriteString(fmt.Sprintf("CREATE TABLE t%d (id INTEGER PRIMARY KEY);\n", i))
 	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaBuilder.String()), 0o600); err != nil {

@@ -3,6 +3,7 @@ package analyzer
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -1180,9 +1181,7 @@ func (s *queryScope) clone() *queryScope {
 		return newQueryScope()
 	}
 	clone := newQueryScope()
-	for key, entry := range s.entries {
-		clone.entries[key] = entry
-	}
+	maps.Copy(clone.entries, s.entries)
 	return clone
 }
 
@@ -1929,11 +1928,8 @@ func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Toke
 	if table == nil {
 		return
 	}
-	limit := len(columns)
-	if len(paramOrder) < limit {
-		limit = len(paramOrder)
-	}
-	for i := 0; i < limit; i++ {
+	limit := min(len(columns), len(paramOrder))
+	for i := range limit {
 		paramIdx := paramOrder[i]
 		if _, exists := infos[paramIdx]; exists {
 			continue

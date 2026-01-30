@@ -11,8 +11,8 @@ import (
 
 // Cache provides a generic caching interface.
 type Cache interface {
-	Get(ctx context.Context, key string) (interface{}, bool)
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration)
+	Get(ctx context.Context, key string) (any, bool)
+	Set(ctx context.Context, key string, value any, ttl time.Duration)
 	Delete(ctx context.Context, key string)
 	Clear(ctx context.Context)
 }
@@ -35,7 +35,7 @@ func ComputeKeyWithPrefix(prefix string, content []byte) string {
 
 // Entry represents a cached entry with expiration.
 type Entry struct {
-	Value     interface{}
+	Value     any
 	ExpiresAt time.Time
 }
 

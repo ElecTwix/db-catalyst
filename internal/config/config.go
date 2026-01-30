@@ -54,7 +54,7 @@ type DatabaseTypeOverride struct {
 // ColumnOverride defines column-specific type overrides (sqlc compatibility).
 type ColumnOverride struct {
 	Column string      `toml:"column"`
-	GoType interface{} `toml:"go_type"` // Can be string or complex object
+	GoType any `toml:"go_type"` // Can be string or complex object
 }
 
 // GoTypeDetails captures complex go_type configuration (sqlc compatibility).
