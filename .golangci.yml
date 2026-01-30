@@ -33,7 +33,7 @@ linters:
     - nestif          # Detect deeply nested conditionals
     # - maintidx        # Code complexity measurement (disabled - requires refactoring)
     # - containedctx    # Context should not be stored in structs (disabled - requires architectural changes)
-    - nestif          # Detect deeply nested conditionals
+    - modernize       # Suggest modern Go code simplifications
 linters-settings:
   errorlint:
     error-functions:
