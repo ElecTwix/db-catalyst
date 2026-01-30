@@ -183,7 +183,7 @@ func TestRunMissingConfig(t *testing.T) {
 func TestRunInvalidConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	invalidConfig := filepath.Join(tmpDir, "invalid.toml")
-	if err := os.WriteFile(invalidConfig, []byte("invalid toml content [[["), 0o644); err != nil {
+	if err := os.WriteFile(invalidConfig, []byte("invalid toml content [[["), 0o600); err != nil {
 		t.Fatalf("failed to write invalid config: %v", err)
 	}
 
@@ -304,7 +304,7 @@ func TestPrintDiagnostics(t *testing.T) {
 }
 
 // TestPrintDiagnosticsWriterError tests error handling when writer fails
-func TestPrintDiagnosticsWriterError(t *testing.T) {
+func TestPrintDiagnosticsWriterError(_ *testing.T) {
 	diags := []queryanalyzer.Diagnostic{
 		{Path: "test.sql", Line: 1, Column: 1, Message: "test", Severity: queryanalyzer.SeverityWarning},
 	}
@@ -433,7 +433,7 @@ func TestPrintQuerySummary(t *testing.T) {
 }
 
 // TestPrintQuerySummaryWriterError tests error handling when writer fails
-func TestPrintQuerySummaryWriterError(t *testing.T) {
+func TestPrintQuerySummaryWriterError(_ *testing.T) {
 	analyses := []queryanalyzer.Result{
 		{
 			Query: parser.Query{
@@ -561,7 +561,7 @@ schemas = ["nonexistent.sql"]
 queries = ["queries/*.sql"]
 `
 	configPath := filepath.Join(tmpDir, "config.toml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -589,7 +589,7 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -599,14 +599,14 @@ queries = ["queries/*.sql"]
     email TEXT
 );
 `
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	queryContent := `-- name: GetUser :one
@@ -615,7 +615,7 @@ SELECT id, name, email FROM users WHERE id = ?1;
 -- name: CreateUser :exec
 INSERT INTO users (name, email) VALUES (?1, ?2);
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -668,7 +668,7 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -678,21 +678,21 @@ queries = ["queries/*.sql"]
     name TEXT NOT NULL
 );
 `
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Query with ambiguous column reference (no table specified for id)
 	queryContent := `-- name: GetUser :one
 SELECT id, name FROM users WHERE id = ?1;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -723,22 +723,22 @@ unknown_field = "value"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
 	// Create minimal schema
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Test :one\nSELECT * FROM t;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Test :one\nSELECT * FROM t;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -773,14 +773,16 @@ func TestRunWithWriteError(t *testing.T) {
 
 	// Create a read-only output directory to cause write failures
 	genDir := filepath.Join(filepath.Dir(configPath), "gen")
-	if err := os.MkdirAll(genDir, 0o755); err != nil {
+	if err := os.MkdirAll(genDir, 0o750); err != nil {
 		t.Fatalf("failed to create gen dir: %v", err)
 	}
+	//nolint:gosec // Intentionally setting restrictive permissions for test
 	if err := os.Chmod(genDir, 0o555); err != nil {
 		t.Fatalf("failed to chmod gen dir: %v", err)
 	}
 	defer func() {
-		_ = os.Chmod(genDir, 0o755) // Restore permissions for cleanup
+		//nolint:gosec // Restoring permissions for cleanup
+		_ = os.Chmod(genDir, 0o750)
 	}()
 
 	stdout := &bytes.Buffer{}
@@ -801,24 +803,24 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte("-- name: GetUser :one\nSELECT * FROM users WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte("-- name: GetUser :one\nSELECT * FROM users WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "extra.sql"), []byte("-- name: CountUsers :one\nSELECT COUNT(*) FROM users;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "extra.sql"), []byte("-- name: CountUsers :one\nSELECT COUNT(*) FROM users;"), 0o600); err != nil {
 		t.Fatalf("failed to write extra query: %v", err)
 	}
 
@@ -848,24 +850,24 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write users schema: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "posts.sql"), []byte("CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "posts.sql"), []byte("CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER);"), 0o600); err != nil {
 		t.Fatalf("failed to write posts schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetPosts :many\nSELECT * FROM posts WHERE user_id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetPosts :many\nSELECT * FROM posts WHERE user_id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -884,10 +886,10 @@ func TestRunDryRunWithExistingOutput(t *testing.T) {
 
 	// Create an existing output file
 	genDir := filepath.Join(filepath.Dir(configPath), "gen")
-	if err := os.MkdirAll(genDir, 0o755); err != nil {
+	if err := os.MkdirAll(genDir, 0o750); err != nil {
 		t.Fatalf("failed to create gen dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(genDir, "existing.txt"), []byte("existing"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(genDir, "existing.txt"), []byte("existing"), 0o600); err != nil {
 		t.Fatalf("failed to write existing file: %v", err)
 	}
 
@@ -900,6 +902,7 @@ func TestRunDryRunWithExistingOutput(t *testing.T) {
 	}
 
 	// Dry run should not modify files
+	//nolint:gosec // Test file path is constructed safely
 	content, err := os.ReadFile(filepath.Join(genDir, "existing.txt"))
 	if err != nil {
 		t.Fatalf("failed to read existing file: %v", err)
@@ -957,19 +960,19 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
 	// Create empty queries directory
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 
@@ -997,19 +1000,19 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
 	// Create empty schemas directory
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Test :one\nSELECT 1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Test :one\nSELECT 1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1032,25 +1035,25 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Query with IN clause creates variadic params
 	queryContent := `-- name: GetUsersByIDs :many
 SELECT * FROM users WHERE id IN (/*IDS*/);
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1077,18 +1080,18 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "users.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	queryContent := `-- name: GetUser :one
@@ -1103,7 +1106,7 @@ DELETE FROM users WHERE id = ?1;
 -- name: UpdateUser :execresult
 UPDATE users SET name = ?1 WHERE id = ?2;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "users.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1137,11 +1140,11 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	schemaContent := `CREATE TABLE users (
@@ -1159,11 +1162,11 @@ CREATE TABLE posts (
     published BOOLEAN DEFAULT FALSE
 );
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "app.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "app.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	queryContent := `-- name: GetUser :one
@@ -1175,7 +1178,7 @@ INSERT INTO users (name, email) VALUES (?1, ?2);
 -- name: GetPublishedPosts :many
 SELECT * FROM posts WHERE published = TRUE;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "app.sql"), []byte(queryContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "app.sql"), []byte(queryContent), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1274,21 +1277,21 @@ enabled = true
 metrics = true
 thread_safe = true
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1320,21 +1323,21 @@ sqlite_type = "JSON"
 go_type = "json.RawMessage"
 import_path = "encoding/json"
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY, created DATETIME);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY, created DATETIME);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1352,7 +1355,7 @@ type failingWriter struct {
 	err error
 }
 
-func (w *failingWriter) Write(p []byte) (n int, err error) {
+func (w *failingWriter) Write(_ []byte) (n int, err error) {
 	return 0, w.err
 }
 
@@ -1430,22 +1433,22 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Query with unused parameter (may generate warning)
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1467,22 +1470,22 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Empty query file with just comments
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "empty.sql"), []byte("-- Just a comment\n-- Another comment"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "empty.sql"), []byte("-- Just a comment\n-- Another comment"), 0o600); err != nil {
 		t.Fatalf("failed to write empty query: %v", err)
 	}
 
@@ -1505,22 +1508,22 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Whitespace-only file
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "whitespace.sql"), []byte("   \n\t\n   "), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "whitespace.sql"), []byte("   \n\t\n   "), 0o600); err != nil {
 		t.Fatalf("failed to write whitespace query: %v", err)
 	}
 
@@ -1542,26 +1545,26 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	// First schema file with users table
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "a.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "a.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema a: %v", err)
 	}
 	// Second schema file with duplicate users table
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "b.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "b.sql"), []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema b: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM users WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM users WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1589,24 +1592,24 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	schemaContent := `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
 CREATE VIEW active_users AS SELECT * FROM users WHERE name IS NOT NULL;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetActive :many\nSELECT * FROM active_users;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetActive :many\nSELECT * FROM active_users;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1628,24 +1631,24 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	schemaContent := `CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);
 CREATE INDEX idx_email ON users(email);
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetByEmail :one\nSELECT * FROM users WHERE email = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetByEmail :one\nSELECT * FROM users WHERE email = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1667,11 +1670,11 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	schemaContent := `CREATE TABLE users (id INTEGER PRIMARY KEY);
@@ -1680,14 +1683,14 @@ CREATE TABLE posts (
     user_id INTEGER REFERENCES users(id)
 );
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetPosts :many\nSELECT * FROM posts WHERE user_id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: GetPosts :many\nSELECT * FROM posts WHERE user_id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1785,21 +1788,21 @@ emit_pointers_for_null = true
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1825,21 +1828,21 @@ queries = ["queries/*.sql"]
 enabled = true
 emit_empty_slices = true
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: List :many\nSELECT * FROM t;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: List :many\nSELECT * FROM t;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1861,22 +1864,22 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
 	// Query with SQL before block marker will cause error
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("SELECT * FROM t;\n-- name: Bad :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("SELECT * FROM t;\n-- name: Bad :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1901,21 +1904,21 @@ sqlite_driver = "modernc"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1938,21 +1941,21 @@ sqlite_driver = "mattn"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -1975,21 +1978,21 @@ sql_dialect = "sqlite"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -2041,21 +2044,21 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "db-catalyst.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte("CREATE TABLE t (id INTEGER PRIMARY KEY);"), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 
@@ -2097,11 +2100,11 @@ out = "gen"
 schemas = ["schemas/*.sql"]
 queries = ["queries/*.sql"]
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.toml"), []byte(configContent), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
 		t.Fatalf("failed to create schemas dir: %v", err)
 	}
 	// Create a reasonably sized schema
@@ -2110,14 +2113,14 @@ queries = ["queries/*.sql"]
 	for i := 0; i < 100; i++ {
 		schemaBuilder.WriteString(fmt.Sprintf("CREATE TABLE t%d (id INTEGER PRIMARY KEY);\n", i))
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaBuilder.String()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaBuilder.String()), 0o600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
 		t.Fatalf("failed to create queries dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte("-- name: Get :one\nSELECT * FROM t WHERE id = ?1;"), 0o600); err != nil {
 		t.Fatalf("failed to write query: %v", err)
 	}
 

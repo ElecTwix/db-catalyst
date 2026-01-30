@@ -809,7 +809,7 @@ func TestParser_Parse_MaxErrorsLimit(t *testing.T) {
 	}
 }
 
-func TestTokenizerErrorType(t *testing.T) {
+func TestTokenizerErrorType(_ *testing.T) {
 	// Test that tokenizer errors are properly returned
 	ctx := context.Background()
 	p := NewParser()

@@ -45,7 +45,7 @@ func TestSqliteParserParseExtended(t *testing.T) {
 		}
 	})
 
-	t.Run("tokenization failure", func(t *testing.T) {
+	t.Run("tokenization failure", func(_ *testing.T) {
 		ctx := context.Background()
 		// Invalid UTF-8 sequence that might cause tokenizer issues
 		input := []byte{0x80, 0x81, 0x82}

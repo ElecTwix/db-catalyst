@@ -109,7 +109,9 @@ SELECT id, title FROM posts;
 `
 
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries1)
 	writeFile(t, filepath.Join(queriesDir, "posts.sql"), queries2)
 
@@ -164,7 +166,9 @@ func TestRunNoQueryFiles(t *testing.T) {
 
 	// Create an empty queries directory - no matching files
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 
 	config := `package = "app"
 out = "gen"
@@ -216,7 +220,9 @@ func TestRunWithStarExpansion(t *testing.T) {
 SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -256,7 +262,9 @@ func TestRunWithAliasAddition(t *testing.T) {
 SELECT id, name FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -296,7 +304,9 @@ func TestRunWithAggregateFunctions(t *testing.T) {
 SELECT COUNT(*) FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -339,7 +349,9 @@ FROM users u
 JOIN posts p ON p.user_id = u.id;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -375,7 +387,9 @@ func TestRunWithExpressionColumns(t *testing.T) {
 SELECT id, name, salary * 1.1 FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -458,7 +472,9 @@ CREATE TABLE users (
 SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -496,8 +512,10 @@ func TestRunWithEmptyQueryFile(t *testing.T) {
 
 	queries := ``
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
-	writeFile(t, filepath.Join(queriesDir, "empty.sql"), queries)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
+	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
 out = "gen"
@@ -536,7 +554,9 @@ func TestRunWithInsertQuery(t *testing.T) {
 INSERT INTO users (name) VALUES (?);
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -576,7 +596,9 @@ func TestRunWithUpdateQuery(t *testing.T) {
 UPDATE users SET name = ? WHERE id = ?;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -616,7 +638,9 @@ func TestRunWithDeleteQuery(t *testing.T) {
 DELETE FROM users WHERE id = ?;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -674,7 +698,9 @@ WHERE u.created_at > '2024-01-01'
 GROUP BY u.id, u.name;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -715,7 +741,9 @@ CREATE TABLE posts (
 SELECT id, name FROM users WHERE id IN (SELECT user_id FROM posts);
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -756,7 +784,9 @@ SELECT * FROM users WHERE id = 1;
 SELECT COUNT(*) FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -802,7 +832,9 @@ SELECT
 FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -843,7 +875,9 @@ SELECT
 FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -878,7 +912,9 @@ func TestRunWithExistingAliases(t *testing.T) {
 SELECT id AS user_id, name AS user_name FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -924,7 +960,9 @@ INSERT INTO users (name) VALUES (?);
 SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -957,10 +995,12 @@ func TestRunNoSchema(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "schema.sql"), "")
 
 	queries := `-- name: ListUsers :many
-SELECT id, name FROM users;
+SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -998,7 +1038,9 @@ SELECT id, name FROM users WHERE status = 'active';
 SELECT * FROM active_users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1040,7 +1082,9 @@ UNION ALL
 SELECT id, name FROM admins;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1077,7 +1121,9 @@ SELECT users.id, users.name
 FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1112,7 +1158,9 @@ func TestRunWithOrderByAndLimit(t *testing.T) {
 SELECT id, name FROM users ORDER BY created_at DESC LIMIT 10;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1149,7 +1197,9 @@ func TestRunWithGroupByAndHaving(t *testing.T) {
 SELECT user_id, SUM(total) FROM orders GROUP BY user_id HAVING SUM(total) > 1000;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "orders.sql"), queries)
 
 	config := `package = "app"
@@ -1184,7 +1234,9 @@ func TestRunWithDistinct(t *testing.T) {
 SELECT DISTINCT status FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1225,7 +1277,9 @@ SELECT
 FROM sales;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "sales.sql"), queries)
 
 	config := `package = "app"
@@ -1268,7 +1322,9 @@ WITH RECURSIVE hierarchy AS (
 SELECT * FROM hierarchy;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "employees.sql"), queries)
 
 	config := `package = "app"
@@ -1304,7 +1360,9 @@ func TestRunWithCommentsInQuery(t *testing.T) {
 SELECT id, name FROM users; -- simple select
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1348,7 +1406,9 @@ FROM users u
 JOIN posts p ON p.user_id = u.id;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1384,7 +1444,9 @@ func TestRunWithCoalesce(t *testing.T) {
 SELECT id, COALESCE(name, email, 'Unknown') FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1419,7 +1481,9 @@ func TestRunWithNullIf(t *testing.T) {
 SELECT id, NULLIF(status, 'inactive') FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1460,7 +1524,9 @@ SELECT
 FROM events;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "events.sql"), queries)
 
 	config := `package = "app"
@@ -1501,7 +1567,9 @@ SELECT
 FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1544,7 +1612,9 @@ FROM users u
 LEFT JOIN profiles p ON p.user_id = u.id;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1586,7 +1656,9 @@ FROM categories c
 CROSS JOIN products p;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "combinations.sql"), queries)
 
 	config := `package = "app"
@@ -1622,7 +1694,9 @@ func TestRunWithInClause(t *testing.T) {
 SELECT id, name FROM users WHERE status IN ('active', 'pending');
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1658,7 +1732,9 @@ func TestRunWithBetweenClause(t *testing.T) {
 SELECT id, name, price FROM products WHERE price BETWEEN 10 AND 100;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "products.sql"), queries)
 
 	config := `package = "app"
@@ -1698,7 +1774,9 @@ CREATE TABLE orders (
 SELECT id, name FROM users WHERE EXISTS (SELECT 1 FROM orders WHERE orders.user_id = users.id);
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1731,10 +1809,12 @@ func TestRunWithNotNullConstraint(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "schema.sql"), schema)
 
 	queries := `-- name: ListUsers :many
-SELECT id, name, email FROM users;
+SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1782,7 +1862,9 @@ FROM posts p
 JOIN users u ON u.id = p.user_id;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "posts.sql"), queries)
 
 	config := `package = "app"
@@ -1819,7 +1901,9 @@ CREATE INDEX idx_users_email ON users(email);
 SELECT id, email FROM users WHERE email = ?;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1854,7 +1938,9 @@ func TestRunWithUniqueConstraint(t *testing.T) {
 SELECT id, email FROM users WHERE email = ?;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1887,10 +1973,12 @@ func TestRunWithDefaultValue(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "schema.sql"), schema)
 
 	queries := `-- name: ListUsers :many
-SELECT id, name, status FROM users;
+SELECT * FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1926,7 +2014,9 @@ func TestRunWithCheckConstraint(t *testing.T) {
 SELECT id, name, price FROM products WHERE price < 100;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "products.sql"), queries)
 
 	config := `package = "app"
@@ -1961,7 +2051,9 @@ func TestRunWithLikeClause(t *testing.T) {
 SELECT id, name FROM users WHERE name LIKE '%john%';
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -1997,7 +2089,9 @@ func TestRunWithIsNullClause(t *testing.T) {
 SELECT id, name FROM users WHERE deleted_at IS NULL;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2033,7 +2127,9 @@ func TestRunWithIsNotNullClause(t *testing.T) {
 SELECT id, name FROM users WHERE deleted_at IS NOT NULL;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2068,7 +2164,9 @@ func TestRunWithOffset(t *testing.T) {
 SELECT id, name FROM users ORDER BY id LIMIT 10 OFFSET 20;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2103,7 +2201,9 @@ func TestRunWithCastExpression(t *testing.T) {
 SELECT id, CAST(price AS TEXT) FROM products WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "products.sql"), queries)
 
 	config := `package = "app"
@@ -2139,7 +2239,9 @@ func TestRunWithArithmeticExpression(t *testing.T) {
 SELECT id, quantity * unit_price FROM orders WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "orders.sql"), queries)
 
 	config := `package = "app"
@@ -2175,7 +2277,9 @@ func TestRunWithConcatenation(t *testing.T) {
 SELECT id, first_name || ' ' || last_name FROM users WHERE id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2224,7 +2328,9 @@ JOIN orders o ON o.user_id = u.id
 JOIN order_items oi ON oi.order_id = o.id;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "orders.sql"), queries)
 
 	config := `package = "app"
@@ -2263,7 +2369,9 @@ LEFT JOIN employees m ON m.id = e.manager_id
 WHERE e.id = 1;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "employees.sql"), queries)
 
 	config := `package = "app"
@@ -2306,7 +2414,9 @@ WHERE p.category_id = (SELECT id FROM categories WHERE name = 'Electronics')
 AND p.price > (SELECT AVG(price) FROM products);
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "products.sql"), queries)
 
 	config := `package = "app"
@@ -2342,7 +2452,9 @@ SELECT u.id, u.name, (SELECT COUNT(*) FROM users) as total_users
 FROM users u;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2387,7 +2499,9 @@ FROM sales
 GROUP BY region;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "sales.sql"), queries)
 
 	config := `package = "app"
@@ -2427,7 +2541,9 @@ SELECT
 FROM orders;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "orders.sql"), queries)
 
 	config := `package = "app"
@@ -2463,7 +2579,9 @@ func TestRunWithTableAliasStar(t *testing.T) {
 SELECT u.* FROM users u;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2503,7 +2621,9 @@ func TestRunWithReturningClause(t *testing.T) {
 INSERT INTO users (name) VALUES (?) RETURNING id, name;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"
@@ -2541,7 +2661,9 @@ ON CONFLICT(email) DO UPDATE SET name = excluded.name
 RETURNING id, email, name;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
-	os.MkdirAll(queriesDir, 0750)
+	if err := os.MkdirAll(queriesDir, 0750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries)
 
 	config := `package = "app"

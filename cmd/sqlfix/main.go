@@ -53,7 +53,7 @@ func main() {
 func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []string, stdout, stderr io.Writer) int {
 	configResult, err := config.Load(configPath, config.LoadOptions{Strict: false})
 	if err != nil {
-		fmt.Fprintf(stderr, "load config: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
 	}
 	plan := configResult.Plan
@@ -63,7 +63,7 @@ func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []s
 	}
 
 	if len(paths) == 0 {
-		fmt.Fprintln(stderr, "sqlfix: no query files to process")
+		_, _ = fmt.Fprintln(stderr, "sqlfix: no query files to process")
 		return 1
 	}
 
@@ -71,7 +71,7 @@ func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []s
 	for _, p := range paths {
 		abs, err := filepath.Abs(p)
 		if err != nil {
-			fmt.Fprintf(stderr, "resolve path %s: %v\n", p, err)
+			_, _ = fmt.Fprintf(stderr, "resolve path %s: %v\n", p, err)
 			return 1
 		}
 		dedup[abs] = struct{}{}
@@ -85,7 +85,7 @@ func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []s
 
 	schemaResult, err := sqlfix.LoadSchemaCatalog(plan.Schemas, nil)
 	if err != nil {
-		fmt.Fprintf(stderr, "load schema catalog: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "load schema catalog: %v\n", err)
 		return 1
 	}
 
