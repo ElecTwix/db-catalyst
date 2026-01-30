@@ -1178,10 +1178,14 @@ func parseStmt(code string) (goast.Stmt, error) {
 	return fn.Body.List[0], nil
 }
 
+// mustParseStmt parses a Go statement from code string.
+// It panics on error because all code strings are hardcoded templates
+// that should always be valid Go syntax. A panic indicates a programming
+// error in the code generator itself, not a user input error.
 func mustParseStmt(code string) goast.Stmt {
 	stmt, err := parseStmt(code)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("failed to parse generated code %q: %w", code, err))
 	}
 	return stmt
 }
