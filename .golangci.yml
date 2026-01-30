@@ -21,11 +21,37 @@ linters:
     - errorlint       # More thorough error checking
     - noctx           # Functions should use context.Context
     - testifylint     # Better testify assertions
+    # New linters
+    - gocritic        # Code style and performance issues
+    - nolintlint      # Validate nolint comments
+    # - paralleltest    # Detect missing t.Parallel() (disabled - would require adding t.Parallel() to many tests)
+    - thelper         # Detect missing t.Helper() in test helpers
+    - wastedassign    # Find wasted assignments
+    # - exhaustive      # Check exhaustive enum switches (disabled - requires significant refactoring)
+    - perfsprint      # fmt.Sprintf performance issues
+    - gochecknoinits  # Discourage init() functions
+    - nestif          # Detect deeply nested conditionals
+    # - maintidx        # Code complexity measurement (disabled - requires refactoring)
+    # - containedctx    # Context should not be stored in structs (disabled - requires architectural changes)
+    - nestif          # Detect deeply nested conditionals
 linters-settings:
   errorlint:
     error-functions:
       - fmt.Errorf
       - errors.New
+  gocritic:
+    enabled-tags:
+      - performance
+      - style
+      - experimental
+    disabled-checks:
+      - wrapperFunc
+  exhaustive:
+    default-signifies-exhaustive: true
+  nestif:
+    min-complexity: 4
+  maintidx:
+    min-maint-index: 50  # Warn on complex functions
 issues:
   exclude-use-default: false
   max-issues-per-linter: 50

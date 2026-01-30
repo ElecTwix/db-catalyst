@@ -110,7 +110,6 @@ func NewSQLiteParser() (*SQLiteParser, error) {
 
 // ParseDDL parses SQLite DDL and returns a catalog.
 //
-//nolint:revive // Context parameter reserved for future use
 func (s *SQLiteParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := s.parser.ParseString("", sql)
 	if err != nil {
@@ -158,7 +157,6 @@ func NewPostgreSQLParser() (*PostgreSQLParser, error) {
 
 // ParseDDL parses PostgreSQL DDL and returns a catalog.
 //
-//nolint:revive // Context parameter reserved for future use
 func (p *PostgreSQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := p.parser.ParseString("", sql)
 	if err != nil {
@@ -206,7 +204,6 @@ func NewMySQLParser() (*MySQLParser, error) {
 
 // ParseDDL parses MySQL DDL and returns a catalog.
 //
-//nolint:revive // Context parameter reserved for future use
 func (m *MySQLParser) ParseDDL(_ context.Context, sql string) (*model.Catalog, error) {
 	stmt, err := m.parser.ParseString("", sql)
 	if err != nil {

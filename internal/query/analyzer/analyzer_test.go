@@ -23,6 +23,7 @@ func TestAnalyzerAnalyze(t *testing.T) {
 			catalog: catalog,
 			sql: `SELECT users.id, users.email FROM users
 WHERE users.id = :id AND users.email = :email;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -61,6 +62,7 @@ WHERE users.id = :id AND users.email = :email;`,
     SELECT u.id, u.email FROM users u WHERE u.status = :status
 )
 SELECT latest.id, latest.email FROM latest;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -91,6 +93,7 @@ SELECT latest.id, latest.email FROM latest;`,
     SELECT u.id, numbers.depth + 1 FROM users u JOIN numbers ON u.id = numbers.id
 )
 SELECT numbers.id, numbers.depth FROM numbers;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Columns) != 2 {
 					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
@@ -128,6 +131,7 @@ SELECT numbers.id, numbers.depth FROM numbers;`,
     SELECT u.id, bad_cte.depth, u.email FROM users u JOIN bad_cte ON bad_cte.id = u.id
 )
 SELECT id, depth FROM bad_cte;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) == 0 {
 					t.Fatalf("expected diagnostics, got none")
@@ -153,6 +157,7 @@ SELECT id, depth FROM bad_cte;`,
 SELECT u.id, flagged.email
 FROM users u
 JOIN flagged ON flagged.id = u.id;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -178,6 +183,7 @@ JOIN flagged ON flagged.id = u.id;`,
 			name:    "aggregate count star alias",
 			catalog: catalog,
 			sql:     "SELECT COUNT(*) AS total FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -195,6 +201,7 @@ JOIN flagged ON flagged.id = u.id;`,
 			name:    "aggregate count column not nullable",
 			catalog: catalog,
 			sql:     "SELECT COUNT(users.email) AS email_count FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -212,6 +219,7 @@ JOIN flagged ON flagged.id = u.id;`,
 			name:    "aggregate sum nullable integer",
 			catalog: catalog,
 			sql:     "SELECT SUM(users.credits) AS total_credits FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -229,6 +237,7 @@ JOIN flagged ON flagged.id = u.id;`,
 			name:    "aggregate max text column",
 			catalog: catalog,
 			sql:     "SELECT MAX(users.email) AS max_email FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -249,6 +258,7 @@ JOIN flagged ON flagged.id = u.id;`,
     SELECT COUNT(*) AS count_users FROM users
 )
 SELECT totals.count_users FROM totals;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -266,6 +276,7 @@ SELECT totals.count_users FROM totals;`,
 			name:    "unknown table diagnostic",
 			catalog: catalog,
 			sql:     "SELECT orders.id FROM orders;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) == 0 {
 					t.Fatalf("expected diagnostics, got none")
@@ -290,6 +301,7 @@ SELECT totals.count_users FROM totals;`,
 			catalog: nil,
 			sql: `SELECT users.id FROM users
 WHERE users.id = :id;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 1 {
 					t.Fatalf("expected one warning, got %d", len(res.Diagnostics))
@@ -320,6 +332,7 @@ WHERE users.id = :id;`,
 			catalog: catalog,
 			sql: `SELECT users.email FROM users
 WHERE users.email = ? AND ? = users.id;`,
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -339,6 +352,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "insert parameter mapping",
 			catalog: catalog,
 			sql:     "INSERT INTO users (id, email) VALUES (:id, :email);",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Columns) != 0 {
 					t.Fatalf("expected no result columns, got %d", len(res.Columns))
@@ -361,6 +375,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "sqlc slice parameter",
 			catalog: catalog,
 			sql:     "SELECT id FROM users WHERE id IN (sqlc.slice('ids'));",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -384,6 +399,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "aggregate count star implicit alias",
 			catalog: catalog,
 			sql:     "SELECT COUNT(*) FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Columns) != 1 {
 					t.Fatalf("expected 1 column, got %d", len(res.Columns))
@@ -408,6 +424,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "star expansion",
 			catalog: catalog,
 			sql:     "SELECT * FROM users;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Diagnostics) != 0 {
 					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
@@ -432,6 +449,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "insert returning star",
 			catalog: catalog,
 			sql:     "INSERT INTO users (id, email) VALUES (?, ?) RETURNING *;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				if len(res.Columns) != 4 {
 					t.Fatalf("expected 4 columns from RETURNING *, got %d", len(res.Columns))
@@ -445,6 +463,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "where clause unknown column",
 			catalog: catalog,
 			sql:     "SELECT id FROM users WHERE users.unknown_col = ?;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				found := false
 				for _, d := range res.Diagnostics {
@@ -462,6 +481,7 @@ WHERE users.email = ? AND ? = users.id;`,
 			name:    "order by unknown column",
 			catalog: catalog,
 			sql:     "SELECT id FROM users ORDER BY users.invalid_col;",
+			//nolint:thelper // Anonymous function in test table
 			assert: func(t *testing.T, res analyzer.Result) {
 				found := false
 				for _, d := range res.Diagnostics {

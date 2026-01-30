@@ -360,6 +360,8 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 		case block.CommandExecResult:
 			info.returnType = "QueryResult"
 			info.returnZero = "QueryResult{}"
+		default:
+			// CommandUnknown or other unhandled commands - skip
 		}
 
 		queries = append(queries, info)
@@ -1021,7 +1023,7 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	}
 
 	if hasDynamic {
-		body = append(body, mustParseStmt(fmt.Sprintf("query := %s", q.constName)))
+		body = append(body, mustParseStmt("query := "+q.constName))
 
 		// Generate slice expansion strings
 		// query = strings.Replace(query, "/*SLICE:ids*/", strings.Repeat("?, ", len(ids))[:len(strings.Repeat("?, ", len(ids)))-2], 1)

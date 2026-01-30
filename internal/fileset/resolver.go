@@ -42,7 +42,7 @@ type NoMatchError struct {
 
 // Error implements the error interface.
 func (e NoMatchError) Error() string {
-	return fmt.Sprintf("patterns matched no files: %s", strings.Join(e.Patterns, ", "))
+	return "patterns matched no files: " + strings.Join(e.Patterns, ", ")
 }
 
 // NewResolver constructs a Resolver against the provided filesystem without any

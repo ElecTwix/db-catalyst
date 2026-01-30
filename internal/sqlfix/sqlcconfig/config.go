@@ -182,7 +182,7 @@ func (c Config) schemaPaths() ([]string, error) {
 		}
 	}
 	if len(uniq) == 0 {
-		return nil, fmt.Errorf("no schema files resolved from sqlc config")
+		return nil, errors.New("no schema files resolved from sqlc config")
 	}
 	paths := make([]string, 0, len(uniq))
 	for p := range uniq {
@@ -290,7 +290,7 @@ func (c *ColumnTarget) UnmarshalYAML(value *yaml.Node) error {
 	case yaml.ScalarNode:
 		text := strings.TrimSpace(value.Value)
 		if text == "" {
-			return fmt.Errorf("column override cannot be empty")
+			return errors.New("column override cannot be empty")
 		}
 		parts := strings.Split(text, ".")
 		switch len(parts) {
@@ -316,7 +316,7 @@ func (c *ColumnTarget) UnmarshalYAML(value *yaml.Node) error {
 			return err
 		}
 		if tmp.Table == "" || tmp.Column == "" {
-			return fmt.Errorf("column override requires table and column")
+			return errors.New("column override requires table and column")
 		}
 		c.Schema = tmp.Schema
 		c.Table = tmp.Table
@@ -401,7 +401,7 @@ func (g GoType) Normalize() (GoTypeInfo, error) {
 		info.TypeName = expr
 	}
 	if info.TypeName == "" {
-		return GoTypeInfo{}, fmt.Errorf("invalid go_type expression")
+		return GoTypeInfo{}, errors.New("invalid go_type expression")
 	}
 	return info, nil
 }

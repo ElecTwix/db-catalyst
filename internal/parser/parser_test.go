@@ -547,10 +547,8 @@ func TestParser_Parse_ReturnsCatalog(t *testing.T) {
 	profilesTable, ok := catalog.Tables["profiles"]
 	if !ok {
 		t.Error("expected 'profiles' table in catalog")
-	} else {
-		if len(profilesTable.Columns) != 2 {
-			t.Errorf("expected 2 columns in profiles table, got %d", len(profilesTable.Columns))
-		}
+	} else if len(profilesTable.Columns) != 2 {
+		t.Errorf("expected 2 columns in profiles table, got %d", len(profilesTable.Columns))
 	}
 
 	// Verify views

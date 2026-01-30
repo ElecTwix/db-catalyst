@@ -43,6 +43,7 @@ func (m *MemoryResolver) Resolve(patterns []string) ([]string, error) {
 				results = append(results, pattern)
 				seen[pattern] = true
 			}
+			//nolint:wastedassign // matched is used to skip glob matching below
 			matched = true
 			continue
 		}

@@ -690,7 +690,7 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 						endTok := tokens[group.placeholderIdxs[len(group.placeholderIdxs)-1]]
 						endOffset := pos.offset(endTok) + len(endTok.Text)
 
-						order := 0
+						var order int
 						if len(group.numbers) > 0 && group.numbers[0] > 0 {
 							order = group.numbers[0]
 						} else {

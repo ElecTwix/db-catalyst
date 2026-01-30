@@ -103,6 +103,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "basic table with all constraints",
 			input: "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, email TEXT DEFAULT 'test', age INTEGER CHECK (age > 0));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table == nil {
@@ -122,6 +123,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with composite primary key",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER, PRIMARY KEY (a, b));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table.PrimaryKey == nil {
@@ -135,6 +137,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with named constraint",
 			input: "CREATE TABLE t (id INTEGER, CONSTRAINT pk_id PRIMARY KEY (id), CONSTRAINT uq_name UNIQUE (id));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table.PrimaryKey == nil || table.PrimaryKey.Name != "pk_id" {
@@ -148,6 +151,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with foreign key constraint",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (id INTEGER, parent_id INTEGER, FOREIGN KEY (parent_id) REFERENCES parent(id));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				if child == nil {
@@ -161,6 +165,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with multiple foreign key actions",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (id INTEGER, parent_id INTEGER, FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE ON UPDATE SET NULL);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				if child == nil {
@@ -174,6 +179,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with WITHOUT ROWID",
 			input: "CREATE TABLE t (id INTEGER PRIMARY KEY) WITHOUT ROWID;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if !table.WithoutRowID {
@@ -184,6 +190,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with STRICT",
 			input: "CREATE TABLE t (id INTEGER) STRICT;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if !table.Strict {
@@ -194,6 +201,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with IF NOT EXISTS",
 			input: "CREATE TABLE IF NOT EXISTS t (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["t"] == nil {
 					t.Error("table 't' not found")
@@ -203,6 +211,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with schema-qualified name",
 			input: "CREATE TABLE main.t (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Should use the last part of the name
 				if cat.Tables["t"] == nil {
@@ -235,6 +244,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with CHECK constraint",
 			input: "CREATE TABLE t (id INTEGER, CHECK (id > 0));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// CHECK constraints are parsed but not stored in model
 				if cat.Tables["t"] == nil {
@@ -245,6 +255,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with column check constraint",
 			input: "CREATE TABLE t (id INTEGER CHECK (id > 0));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["t"] == nil {
 					t.Error("table 't' not found")
@@ -254,6 +265,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with autoincrement",
 			input: "CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table.PrimaryKey == nil {
@@ -264,6 +276,7 @@ func TestParseCreateTable(t *testing.T) {
 		{
 			name:  "table with various data types",
 			input: "CREATE TABLE t (a INTEGER, b TEXT, c REAL, d BLOB, e NUMERIC, f VARCHAR, g DECIMAL);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Columns) != 7 {
@@ -322,6 +335,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "basic index",
 			input: "CREATE TABLE t (id INTEGER, name TEXT); CREATE INDEX idx ON t (name);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -335,6 +349,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "unique index",
 			input: "CREATE TABLE t (id INTEGER, email TEXT); CREATE UNIQUE INDEX idx ON t (email);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -348,6 +363,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "composite index",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER); CREATE INDEX idx ON t (a, b);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes[0].Columns) != 2 {
@@ -358,6 +374,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "index with WHERE clause",
 			input: "CREATE TABLE t (id INTEGER, active INTEGER); CREATE INDEX idx ON t (id) WHERE active = 1;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -368,6 +385,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "index with IF NOT EXISTS",
 			input: "CREATE TABLE t (id INTEGER); CREATE INDEX IF NOT EXISTS idx ON t (id);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -390,6 +408,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "index with column ordering",
 			input: "CREATE TABLE t (id INTEGER, name TEXT); CREATE INDEX idx ON t (id ASC, name DESC);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -400,6 +419,7 @@ func TestParseCreateIndex(t *testing.T) {
 		{
 			name:  "index with COLLATE",
 			input: "CREATE TABLE t (name TEXT); CREATE INDEX idx ON t (name COLLATE NOCASE);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Indexes) != 1 {
@@ -454,6 +474,7 @@ func TestParseCreateView(t *testing.T) {
 		{
 			name:  "basic view",
 			input: "CREATE VIEW v AS SELECT * FROM t;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				view := cat.Views["v"]
 				if view == nil {
@@ -467,6 +488,7 @@ func TestParseCreateView(t *testing.T) {
 		{
 			name:  "view with doc comment",
 			input: "-- My view\nCREATE VIEW v AS SELECT 1;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				view := cat.Views["v"]
 				if view == nil {
@@ -480,6 +502,7 @@ func TestParseCreateView(t *testing.T) {
 		{
 			name:  "view with IF NOT EXISTS",
 			input: "CREATE VIEW IF NOT EXISTS v AS SELECT 1;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Views["v"] == nil {
 					t.Error("view 'v' not found")
@@ -501,6 +524,7 @@ func TestParseCreateView(t *testing.T) {
 		{
 			name:  "complex view",
 			input: "CREATE VIEW v AS SELECT a.id, b.name FROM a JOIN b ON a.id = b.id WHERE a.active = 1;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				view := cat.Views["v"]
 				if view == nil {
@@ -558,6 +582,7 @@ func TestParseAlter(t *testing.T) {
 		{
 			name:  "alter table add column",
 			input: "CREATE TABLE t (id INTEGER); ALTER TABLE t ADD COLUMN name TEXT;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Columns) != 2 {
@@ -571,6 +596,7 @@ func TestParseAlter(t *testing.T) {
 		{
 			name:  "alter table add column without COLUMN keyword",
 			input: "CREATE TABLE t (id INTEGER); ALTER TABLE t ADD name TEXT;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.Columns) != 2 {
@@ -581,6 +607,7 @@ func TestParseAlter(t *testing.T) {
 		{
 			name:  "alter table add column with constraints",
 			input: "CREATE TABLE t (id INTEGER); ALTER TABLE t ADD COLUMN email TEXT NOT NULL DEFAULT 'test';",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				col := table.Columns[1]
@@ -622,6 +649,7 @@ func TestParseAlter(t *testing.T) {
 		{
 			name:  "alter table add column with primary key",
 			input: "CREATE TABLE t (id INTEGER); ALTER TABLE t ADD COLUMN pk INTEGER PRIMARY KEY;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table.PrimaryKey == nil {
@@ -682,6 +710,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with all constraints",
 			input: "CREATE TABLE t (id INTEGER PRIMARY KEY NOT NULL UNIQUE DEFAULT 1 CHECK (id > 0));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Name != "id" {
@@ -701,6 +730,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with string default",
 			input: "CREATE TABLE t (name TEXT DEFAULT 'hello world');",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil || col.Default.Text != "'hello world'" {
@@ -714,6 +744,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with numeric default",
 			input: "CREATE TABLE t (count INTEGER DEFAULT 42);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil || col.Default.Text != "42" {
@@ -727,6 +758,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with blob default",
 			input: "CREATE TABLE t (data BLOB DEFAULT X'ABCD');",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil {
@@ -740,6 +772,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with keyword default",
 			input: "CREATE TABLE t (created TEXT DEFAULT CURRENT_TIMESTAMP);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil {
@@ -753,6 +786,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with expression default",
 			input: "CREATE TABLE t (value INTEGER DEFAULT (1 + 2));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil {
@@ -766,6 +800,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with inline foreign key",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (parent_id INTEGER REFERENCES parent(id));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				col := child.Columns[0]
@@ -783,6 +818,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with inline foreign key no columns",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (parent_id INTEGER REFERENCES parent);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				if len(child.ForeignKeys) != 1 {
@@ -808,6 +844,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column no type",
 			input: "CREATE TABLE t (id);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Type != "" {
@@ -818,6 +855,7 @@ func TestParseColumnDefinition(t *testing.T) {
 		{
 			name:  "column with unsupported constraint",
 			input: "CREATE TABLE t (id INTEGER GENERATED ALWAYS AS IDENTITY);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Should parse but with warning diagnostic
 				if cat.Tables["t"] == nil {
@@ -872,6 +910,7 @@ func TestParseTableConstraint(t *testing.T) {
 		{
 			name:  "named primary key constraint",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER, CONSTRAINT pk_ab PRIMARY KEY (a, b));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if table.PrimaryKey == nil {
@@ -888,6 +927,7 @@ func TestParseTableConstraint(t *testing.T) {
 		{
 			name:  "named unique constraint",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER, CONSTRAINT uq_ab UNIQUE (a, b));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.UniqueKeys) != 1 {
@@ -901,6 +941,7 @@ func TestParseTableConstraint(t *testing.T) {
 		{
 			name:  "named foreign key constraint",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY, id2 INTEGER); CREATE TABLE child (a INTEGER, b INTEGER, CONSTRAINT fk_parent FOREIGN KEY (a, b) REFERENCES parent(id, id2));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				if len(child.ForeignKeys) != 1 {
@@ -914,6 +955,7 @@ func TestParseTableConstraint(t *testing.T) {
 		{
 			name:  "check constraint",
 			input: "CREATE TABLE t (id INTEGER, CHECK (id > 0));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// CHECK constraints are parsed but not stored
 				if cat.Tables["t"] == nil {
@@ -986,6 +1028,7 @@ func TestParseCreate(t *testing.T) {
 		{
 			name:  "create temp table with warning",
 			input: "CREATE TEMP TABLE t (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["t"] == nil {
 					t.Error("table 't' not found")
@@ -995,6 +1038,7 @@ func TestParseCreate(t *testing.T) {
 		{
 			name:  "create temporary table with warning",
 			input: "CREATE TEMPORARY TABLE t (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["t"] == nil {
 					t.Error("table 't' not found")
@@ -1066,6 +1110,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{
 			name:  "empty tokens",
 			input: "",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat == nil {
 					t.Error("expected non-nil catalog")
@@ -1075,6 +1120,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{
 			name:  "only semicolons",
 			input: ";;;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat == nil {
 					t.Error("expected non-nil catalog")
@@ -1084,6 +1130,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{
 			name:  "doc comment without following statement",
 			input: "-- Orphan comment",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat == nil {
 					t.Error("expected non-nil catalog")
@@ -1105,6 +1152,7 @@ func TestParseEdgeCases(t *testing.T) {
 		{
 			name:  "multiple doc comments",
 			input: "-- First\n-- Second\nCREATE TABLE t (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Doc comments are accumulated with newlines
 				table := cat.Tables["t"]
@@ -1144,6 +1192,7 @@ func TestParseEdgeCases(t *testing.T) {
 				JOIN users u ON p.user_id = u.id 
 				WHERE p.published = 1;
 			`,
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables) != 2 {
 					t.Errorf("expected 2 tables, got %d", len(cat.Tables))
@@ -1488,6 +1537,7 @@ func TestSyncAndRecovery(t *testing.T) {
 			name:      "recovery after semicolon in column list",
 			input:     "CREATE TABLE t1 (id INTEGER); CREATE TABLE t2 (name TEXT);",
 			wantDiags: false,
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Both tables should be parsed
 				if cat.Tables["t1"] == nil {
@@ -1501,6 +1551,7 @@ func TestSyncAndRecovery(t *testing.T) {
 		{
 			name:  "sync after unsupported statement",
 			input: "DROP TABLE t1; CREATE TABLE t2 (name TEXT);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// t2 should still be parsed after error recovery
 				if cat.Tables["t2"] == nil {
@@ -1534,6 +1585,7 @@ func TestParseForeignKeyRef(t *testing.T) {
 		{
 			name:  "foreign key with multiple columns",
 			input: "CREATE TABLE parent (a INTEGER, b INTEGER, PRIMARY KEY (a, b)); CREATE TABLE child (a INTEGER, b INTEGER, FOREIGN KEY (a, b) REFERENCES parent(a, b));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				child := cat.Tables["child"]
 				if len(child.ForeignKeys) != 1 {
@@ -1548,6 +1600,7 @@ func TestParseForeignKeyRef(t *testing.T) {
 		{
 			name:  "foreign key self-reference",
 			input: "CREATE TABLE t (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES t(id));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				table := cat.Tables["t"]
 				if len(table.ForeignKeys) != 1 {
@@ -1640,6 +1693,7 @@ func TestParseObjectName(t *testing.T) {
 		{
 			name:  "schema qualified table name",
 			input: "CREATE TABLE myschema.mytable (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Should use the table name, not schema
 				if cat.Tables["mytable"] == nil {
@@ -1650,6 +1704,7 @@ func TestParseObjectName(t *testing.T) {
 		{
 			name:  "quoted identifier",
 			input: "CREATE TABLE \"My Table\" (id INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				// Should use the unquoted name
 				if cat.Tables["my table"] == nil {
@@ -1726,6 +1781,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "column with complex default expression",
 			input: "CREATE TABLE t (id INTEGER DEFAULT (CASE WHEN 1=1 THEN 2 ELSE 3 END));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil {
@@ -1736,6 +1792,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "index with complex WHERE clause",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER); CREATE INDEX idx ON t (a) WHERE b > 0 AND a IS NOT NULL;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].Indexes) != 1 {
 					t.Error("expected 1 index")
@@ -1745,6 +1802,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "foreign key with DEFERRABLE",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (pid INTEGER REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["child"].ForeignKeys) != 1 {
 					t.Error("expected 1 foreign key")
@@ -1754,6 +1812,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "column with COLLATE in index",
 			input: "CREATE TABLE t (name TEXT); CREATE INDEX idx ON t (name COLLATE NOCASE ASC);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].Indexes) != 1 {
 					t.Error("expected 1 index")
@@ -1763,6 +1822,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "table with multiple constraints same type",
 			input: "CREATE TABLE t (id INTEGER, a INTEGER, b INTEGER, UNIQUE (a), UNIQUE (b));",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].UniqueKeys) != 2 {
 					t.Errorf("expected 2 unique keys, got %d", len(cat.Tables["t"].UniqueKeys))
@@ -1772,6 +1832,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "alter table add column with unique constraint",
 			input: "CREATE TABLE t (id INTEGER); ALTER TABLE t ADD COLUMN email TEXT UNIQUE;",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].UniqueKeys) != 1 {
 					t.Errorf("expected 1 unique key, got %d", len(cat.Tables["t"].UniqueKeys))
@@ -1781,6 +1842,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "alter table add column with foreign key",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE t (id INTEGER); ALTER TABLE t ADD COLUMN pid INTEGER REFERENCES parent(id);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].ForeignKeys) != 1 {
 					t.Errorf("expected 1 foreign key, got %d", len(cat.Tables["t"].ForeignKeys))
@@ -1790,6 +1852,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "view with complex subquery",
 			input: "CREATE TABLE t (id INTEGER, val INTEGER); CREATE VIEW v AS SELECT * FROM t WHERE val > (SELECT AVG(val) FROM t);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Views["v"] == nil {
 					t.Error("expected view 'v'")
@@ -1799,6 +1862,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "table with blob default",
 			input: "CREATE TABLE t (data BLOB DEFAULT X'00');",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				col := cat.Tables["t"].Columns[0]
 				if col.Default == nil || col.Default.Kind != model.ValueKindBlob {
@@ -1809,6 +1873,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "multiple indexes on same table",
 			input: "CREATE TABLE t (a INTEGER, b INTEGER, c INTEGER); CREATE INDEX idx_a ON t (a); CREATE INDEX idx_b ON t (b); CREATE INDEX idx_c ON t (c);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["t"].Indexes) != 3 {
 					t.Errorf("expected 3 indexes, got %d", len(cat.Tables["t"].Indexes))
@@ -1818,6 +1883,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "foreign key with multiple actions",
 			input: "CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (pid INTEGER, FOREIGN KEY (pid) REFERENCES parent(id) ON DELETE CASCADE ON UPDATE NO ACTION ON DELETE SET NULL);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if len(cat.Tables["child"].ForeignKeys) != 1 {
 					t.Error("expected 1 foreign key")
@@ -1827,6 +1893,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "table with quoted identifiers",
 			input: "CREATE TABLE [my table] ([my id] INTEGER PRIMARY KEY);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["my table"] == nil {
 					t.Error("expected 'my table'")
@@ -1836,6 +1903,7 @@ func TestAdditionalEdgeCases(t *testing.T) {
 		{
 			name:  "table with backtick identifiers",
 			input: "CREATE TABLE `my table` (`my id` INTEGER);",
+			//nolint:thelper // Anonymous function in test table
 			validateFn: func(t *testing.T, cat *model.Catalog) {
 				if cat.Tables["my table"] == nil {
 					t.Error("expected 'my table'")

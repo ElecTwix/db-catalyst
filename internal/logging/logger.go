@@ -85,28 +85,18 @@ func NewNopLogger() *NopLogger {
 }
 
 // Debug is a no-op.
-//
-//nolint:revive // NopLogger intentionally ignores parameters
 func (n *NopLogger) Debug(_ string, _ ...any) {}
 
 // Info is a no-op.
-//
-//nolint:revive // NopLogger intentionally ignores parameters
 func (n *NopLogger) Info(_ string, _ ...any) {}
 
 // Warn is a no-op.
-//
-//nolint:revive // NopLogger intentionally ignores parameters
 func (n *NopLogger) Warn(_ string, _ ...any) {}
 
 // Error is a no-op.
-//
-//nolint:revive // NopLogger intentionally ignores parameters
 func (n *NopLogger) Error(_ string, _ ...any) {}
 
 // With returns the same NopLogger.
-//
-//nolint:revive // NopLogger intentionally ignores parameters
 func (n *NopLogger) With(_ ...any) Logger {
 	return n
 }

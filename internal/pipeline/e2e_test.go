@@ -31,6 +31,7 @@ func TestE2E(t *testing.T) {
 }
 
 func runE2ETestCase(t *testing.T, caseDir string) {
+	t.Helper()
 	ctx := context.Background()
 	// Create a temp workspace
 	tmpDir := t.TempDir()
