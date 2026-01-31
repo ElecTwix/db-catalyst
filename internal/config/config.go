@@ -13,6 +13,7 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 
 	"github.com/electwix/db-catalyst/internal/fileset"
+	"github.com/electwix/db-catalyst/internal/logging"
 )
 
 // Driver identifies the SQLite driver implementation to target.
@@ -53,8 +54,8 @@ type DatabaseTypeOverride struct {
 
 // ColumnOverride defines column-specific type overrides (sqlc compatibility).
 type ColumnOverride struct {
-	Column string      `toml:"column"`
-	GoType any `toml:"go_type"` // Can be string or complex object
+	Column string `toml:"column"`
+	GoType any    `toml:"go_type"` // Can be string or complex object
 }
 
 // GoTypeDetails captures complex go_type configuration (sqlc compatibility).
@@ -126,6 +127,8 @@ type Config struct {
 type LoadOptions struct {
 	Strict   bool
 	Resolver *fileset.Resolver
+	// Logger receives warning messages. If nil, warnings are only added to Result.Warnings.
+	Logger logging.Logger
 }
 
 // Result wraps a loaded job plan alongside any non-fatal warnings.
@@ -158,7 +161,9 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		if opts.Strict {
 			return res, errors.New(message)
 		}
-		// TODO: surface warnings through structured logging once CLI wiring exists.
+		if opts.Logger != nil {
+			opts.Logger.Warn("unknown configuration keys", "path", path, "keys", unknownKeys)
+		}
 		res.Warnings = append(res.Warnings, message)
 	}
 
@@ -171,6 +176,9 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		message := fmt.Sprintf("%s: unknown prepared_queries keys: %s", path, strings.Join(preparedUnknown, ", "))
 		if opts.Strict {
 			return res, errors.New(message)
+		}
+		if opts.Logger != nil {
+			opts.Logger.Warn("unknown prepared_queries keys", "path", path, "keys", preparedUnknown)
 		}
 		res.Warnings = append(res.Warnings, message)
 	}
