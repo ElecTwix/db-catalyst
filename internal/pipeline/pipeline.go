@@ -195,7 +195,11 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}
 	}
 
-	loadResult, err := config.Load(absConfigPath, config.LoadOptions{Strict: opts.StrictConfig, Resolver: &resolver})
+	loadResult, err := config.Load(absConfigPath, config.LoadOptions{
+		Strict:   opts.StrictConfig,
+		Resolver: &resolver,
+		Logger:   p.Env.Logger,
+	})
 	if err != nil {
 		addDiag(newDiagnostic(absConfigPath, 1, 1, queryanalyzer.SeverityError, err.Error()))
 		return summary, &DiagnosticsError{Diagnostic: diags[firstErrorIndex], Cause: err}

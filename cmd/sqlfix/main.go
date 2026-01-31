@@ -51,7 +51,11 @@ func main() {
 }
 
 func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []string, stdout, stderr io.Writer) int {
-	configResult, err := config.Load(configPath, config.LoadOptions{Strict: false})
+	logger := logging.New(logging.Options{Verbose: verbose, Writer: stderr})
+	configResult, err := config.Load(configPath, config.LoadOptions{
+		Strict: false,
+		Logger: logging.NewSlogAdapter(logger),
+	})
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "load config: %v\n", err)
 		return 1
