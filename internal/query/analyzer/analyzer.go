@@ -1285,6 +1285,31 @@ func normalizeIdent(name string) string {
 	return strings.ToLower(tokenizer.NormalizeIdentifier(name))
 }
 
+func shouldSkipIdentifier(isQualified bool, table, upperName, name string, scope *queryScope, queryAliases map[string]struct{}) bool {
+	if isQualified {
+		// Skip sqlc macros: sqlc.arg, sqlc.narg, sqlc.slice
+		if strings.ToUpper(table) == "SQLC" {
+			return true
+		}
+		return false
+	}
+	// Skip common SQL functions and special identifiers for bare names
+	if isCommonFunction(upperName) || upperName == "SQLC" {
+		return true
+	}
+
+	// Skip if it's a known relation name (table or CTE)
+	if _, ok := scope.get(name); ok {
+		return true
+	}
+
+	// Skip if it's an alias defined in this query
+	if _, ok := queryAliases[normalizeIdent(name)]; ok {
+		return true
+	}
+	return false
+}
+
 func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *queryScope, blk block.Block) []Diagnostic {
 	var diags []Diagnostic
 
@@ -1324,26 +1349,8 @@ func (a *Analyzer) validateIdentifiers(tokens []tokenizer.Token, scope *querySco
 			}
 		}
 
-		if isQualified {
-			// Skip sqlc macros: sqlc.arg, sqlc.narg, sqlc.slice
-			if strings.ToUpper(table) == "SQLC" {
-				continue
-			}
-		} else {
-			// Skip common SQL functions and special identifiers for bare names
-			if isCommonFunction(upperName) || upperName == "SQLC" {
-				continue
-			}
-
-			// Skip if it's a known relation name (table or CTE)
-			if _, ok := scope.get(name); ok {
-				continue
-			}
-
-			// Skip if it's an alias defined in this query
-			if _, ok := queryAliases[normalizeIdent(name)]; ok {
-				continue
-			}
+		if shouldSkipIdentifier(isQualified, table, upperName, name, scope, queryAliases) {
+			continue
 		}
 
 		// If it's a star, it's already handled or valid in some contexts
@@ -2003,7 +2010,15 @@ func parseInsertStructure(tokens []tokenizer.Token, paramIndexByToken map[int]in
 		return tableName, columns, nil
 	}
 	i++
+	params = collectInsertParams(tokens, i, paramIndexByToken)
+
+	return tableName, columns, params
+}
+
+func collectInsertParams(tokens []tokenizer.Token, start int, paramIndexByToken map[int]int) []int {
+	var params []int
 	depth := 1
+	i := start
 	for i < len(tokens) && depth > 0 {
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindSymbol {
@@ -2030,8 +2045,7 @@ func parseInsertStructure(tokens []tokenizer.Token, paramIndexByToken map[int]in
 		}
 		i++
 	}
-
-	return tableName, columns, params
+	return params
 }
 
 func actualTokenLine(q parser.Query, tok tokenizer.Token) int {

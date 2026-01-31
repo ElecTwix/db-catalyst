@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
 func TestNewParser(t *testing.T) {
@@ -522,25 +524,10 @@ func TestParser_Parse_ReturnsCatalog(t *testing.T) {
 	}
 
 	// Verify users table
-	usersTable, ok := catalog.Tables["users"]
-	if !ok {
+	if usersTable, ok := catalog.Tables["users"]; !ok {
 		t.Error("expected 'users' table in catalog")
 	} else {
-		if len(usersTable.Columns) != 3 {
-			t.Errorf("expected 3 columns in users table, got %d", len(usersTable.Columns))
-		}
-		if usersTable.PrimaryKey == nil {
-			t.Error("expected users table to have primary key")
-		}
-		if len(usersTable.UniqueKeys) != 1 {
-			t.Errorf("expected 1 unique key in users table, got %d", len(usersTable.UniqueKeys))
-		}
-		if len(usersTable.ForeignKeys) != 1 {
-			t.Errorf("expected 1 foreign key in users table, got %d", len(usersTable.ForeignKeys))
-		}
-		if len(usersTable.Indexes) != 1 {
-			t.Errorf("expected 1 index in users table, got %d", len(usersTable.Indexes))
-		}
+		assertUsersTable(t, usersTable)
 	}
 
 	// Verify profiles table
@@ -556,14 +543,32 @@ func TestParser_Parse_ReturnsCatalog(t *testing.T) {
 		t.Errorf("expected 1 view, got %d", len(catalog.Views))
 	}
 
-	activeUsersView, ok := catalog.Views["active_users"]
-	if !ok {
+	if activeUsersView, ok := catalog.Views["active_users"]; !ok {
 		t.Error("expected 'active_users' view in catalog")
 	} else {
 		expectedSQL := "SELECT * FROM users WHERE profile_id IS NOT NULL"
 		if activeUsersView.SQL != expectedSQL {
 			t.Errorf("view SQL = %q, want %q", activeUsersView.SQL, expectedSQL)
 		}
+	}
+}
+
+func assertUsersTable(t *testing.T, usersTable *model.Table) {
+	t.Helper()
+	if len(usersTable.Columns) != 3 {
+		t.Errorf("expected 3 columns in users table, got %d", len(usersTable.Columns))
+	}
+	if usersTable.PrimaryKey == nil {
+		t.Error("expected users table to have primary key")
+	}
+	if len(usersTable.UniqueKeys) != 1 {
+		t.Errorf("expected 1 unique key in users table, got %d", len(usersTable.UniqueKeys))
+	}
+	if len(usersTable.ForeignKeys) != 1 {
+		t.Errorf("expected 1 foreign key in users table, got %d", len(usersTable.ForeignKeys))
+	}
+	if len(usersTable.Indexes) != 1 {
+		t.Errorf("expected 1 index in users table, got %d", len(usersTable.Indexes))
 	}
 }
 

@@ -137,29 +137,19 @@ func (r *Runner) rewriteFile(ctx context.Context, path string) (Report, []byte, 
 		blockChanged := false
 
 		if r.catalog != nil {
-			expandedSQL, warnings, replaced, err := r.expandStars(parseBlock, currentSQL, query)
+			changed, newSQL, newQuery, skip, err := r.processStarExpansion(parseBlock, currentSQL, query, &report, path, blk.Name)
 			if err != nil {
-				return report, nil, fmt.Errorf("expand stars for %s:%s: %w", path, blk.Name, err)
+				return report, nil, err
 			}
-			if len(warnings) > 0 {
-				report.Warnings = append(report.Warnings, warnings...)
+			if skip {
+				continue
 			}
-			if replaced > 0 {
+			if changed {
 				blockChanged = true
-				currentSQL = expandedSQL
+				currentSQL = newSQL
 				parseBlock.SQL = currentSQL
-
-				query, diags = queryparser.Parse(parseBlock)
+				query = newQuery
 				recoverable = recoverableColumnErrors(diags)
-				if hasParseErrors(diags) {
-					report.Warnings = append(report.Warnings, fmt.Sprintf("skip %s:%s after star expansion due to parse errors", path, blk.Name))
-					continue
-				}
-				if query.Verb != queryparser.VerbSelect {
-					continue
-				}
-
-				report.ExpandedStars += replaced
 			}
 		}
 
@@ -263,6 +253,38 @@ func recoverableColumnErrors(diags []queryparser.Diagnostic) bool {
 		}
 	}
 	return recoverable
+}
+
+func (r *Runner) processStarExpansion(
+	parseBlock block.Block,
+	currentSQL string,
+	query queryparser.Query,
+	report *Report,
+	path, blockName string,
+) (changed bool, newSQL string, newQuery queryparser.Query, skip bool, err error) {
+	expandedSQL, warnings, replaced, err := r.expandStars(parseBlock, currentSQL, query)
+	if err != nil {
+		return false, "", queryparser.Query{}, false, fmt.Errorf("expand stars for %s:%s: %w", path, blockName, err)
+	}
+	if len(warnings) > 0 {
+		report.Warnings = append(report.Warnings, warnings...)
+	}
+	if replaced == 0 {
+		return false, currentSQL, query, false, nil
+	}
+
+	parseBlock.SQL = expandedSQL
+	newQuery, diags := queryparser.Parse(parseBlock)
+	if hasParseErrors(diags) {
+		report.Warnings = append(report.Warnings, fmt.Sprintf("skip %s:%s after star expansion due to parse errors", path, blockName))
+		return false, "", queryparser.Query{}, true, nil
+	}
+	if newQuery.Verb != queryparser.VerbSelect {
+		return false, "", queryparser.Query{}, true, nil
+	}
+
+	report.ExpandedStars += replaced
+	return true, expandedSQL, newQuery, false, nil
 }
 
 func applyByteEdits(src []byte, edits []edit) ([]byte, error) {

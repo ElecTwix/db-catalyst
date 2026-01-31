@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/electwix/db-catalyst/internal/codegen"
 )
 
 var update = flag.Bool("update", false, "update golden files")
@@ -62,27 +64,7 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 
 	goldenDir := filepath.Join(caseDir, "golden")
 	if *update {
-		if err := os.RemoveAll(goldenDir); err != nil {
-			t.Fatalf("failed to clear golden dir: %v", err)
-		}
-		if err := os.MkdirAll(goldenDir, 0750); err != nil {
-			t.Fatalf("failed to create golden dir: %v", err)
-		}
-		for _, file := range summary.Files {
-			// file.Path is absolute in summary
-			rel, err := filepath.Rel(filepath.Join(tmpDir, "gen"), file.Path)
-			if err != nil {
-				t.Fatalf("failed to get relative path: %v", err)
-			}
-			dst := filepath.Join(goldenDir, rel)
-			if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
-				t.Fatalf("failed to create dst dir: %v", err)
-			}
-			if err := os.WriteFile(dst, file.Content, 0600); err != nil {
-				t.Fatalf("failed to write golden file: %v", err)
-			}
-		}
-		t.Logf("updated golden files for %s", caseDir)
+		updateGoldenFiles(t, tmpDir, goldenDir, caseDir, summary.Files)
 		return
 	}
 
@@ -105,6 +87,30 @@ func runE2ETestCase(t *testing.T, caseDir string) {
 			t.Errorf("file %s does not match golden", rel)
 		}
 	}
+}
+
+func updateGoldenFiles(t *testing.T, tmpDir, goldenDir, caseDir string, files []codegen.File) {
+	t.Helper()
+	if err := os.RemoveAll(goldenDir); err != nil {
+		t.Fatalf("failed to clear golden dir: %v", err)
+	}
+	if err := os.MkdirAll(goldenDir, 0750); err != nil {
+		t.Fatalf("failed to create golden dir: %v", err)
+	}
+	for _, file := range files {
+		rel, err := filepath.Rel(filepath.Join(tmpDir, "gen"), file.Path)
+		if err != nil {
+			t.Fatalf("failed to get relative path: %v", err)
+		}
+		dst := filepath.Join(goldenDir, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0750); err != nil {
+			t.Fatalf("failed to create dst dir: %v", err)
+		}
+		if err := os.WriteFile(dst, file.Content, 0600); err != nil {
+			t.Fatalf("failed to write golden file: %v", err)
+		}
+	}
+	t.Logf("updated golden files for %s", caseDir)
 }
 
 type diskWriter struct{}

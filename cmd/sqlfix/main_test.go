@@ -1809,7 +1809,7 @@ func TestRunWithNotNullConstraint(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "schema.sql"), schema)
 
 	queries := `-- name: ListUsers :many
-SELECT * FROM users;
+SELECT id, name, email FROM users;
 `
 	queriesDir := filepath.Join(tmpDir, "queries")
 	if err := os.MkdirAll(queriesDir, 0750); err != nil {

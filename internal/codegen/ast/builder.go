@@ -378,19 +378,7 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error
 	result := make([]paramSpec, 0, len(params))
 	used := map[string]int{"ctx": 1}
 	for idx, p := range params {
-		name := UnexportedIdentifier(p.Name)
-		if name == "" {
-			name = fmt.Sprintf("arg%d", idx+1)
-		}
-		if _, exists := used[name]; exists {
-			var err error
-			name, err = UniqueName(name, used)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			used[name] = 1
-		}
+		name := b.resolveParamName(p, idx, used)
 
 		var typeInfo TypeInfo
 		if b.opts.TypeResolver != nil {
@@ -414,15 +402,9 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error
 			// For dynamic slices, the argument is just the slice name
 			spec.argExpr = name
 		} else if p.IsVariadic {
-			sliceName := name + "Args"
-			if _, exists := used[sliceName]; exists {
-				var err error
-				sliceName, err = UniqueName(sliceName, used)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				used[sliceName] = 1
+			sliceName, err := b.resolveSliceName(name, used)
+			if err != nil {
+				return nil, err
 			}
 			spec.sliceName = sliceName
 			spec.argExpr = sliceName + "..."
@@ -431,6 +413,37 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error
 		result = append(result, spec)
 	}
 	return result, nil
+}
+
+func (b *Builder) resolveParamName(p analyzer.ResultParam, idx int, used map[string]int) string {
+	name := UnexportedIdentifier(p.Name)
+	if name == "" {
+		name = fmt.Sprintf("arg%d", idx+1)
+	}
+	if _, exists := used[name]; exists {
+		var err error
+		name, err = UniqueName(name, used)
+		if err != nil {
+			return name
+		}
+	} else {
+		used[name] = 1
+	}
+	return name
+}
+
+func (b *Builder) resolveSliceName(baseName string, used map[string]int) (string, error) {
+	sliceName := baseName + "Args"
+	if _, exists := used[sliceName]; exists {
+		var err error
+		sliceName, err = UniqueName(sliceName, used)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		used[sliceName] = 1
+	}
+	return sliceName, nil
 }
 
 func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn) (*helperSpec, error) {

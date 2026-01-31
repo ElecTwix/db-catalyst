@@ -723,20 +723,8 @@ func (p *Parser) collectDefaultExpressionTokens() ([]tokenizer.Token, tokenizer.
 	depth := 0
 	for !p.isEOF() {
 		tok := p.current()
-		if len(tokens) == 0 {
-			if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")" || tok.Text == ";") {
-				break
-			}
-			if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
-				break
-			}
-		} else if depth == 0 {
-			if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")" || tok.Text == ";") {
-				break
-			}
-			if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
-				break
-			}
+		if p.shouldBreakTokenCollection(tok, len(tokens) == 0, depth) {
+			break
 		}
 		if tok.Kind == tokenizer.KindSymbol {
 			switch tok.Text {
@@ -753,6 +741,19 @@ func (p *Parser) collectDefaultExpressionTokens() ([]tokenizer.Token, tokenizer.
 		p.advance()
 	}
 	return tokens, last
+}
+
+func (p *Parser) shouldBreakTokenCollection(tok tokenizer.Token, isFirstToken bool, depth int) bool {
+	if !isFirstToken && depth != 0 {
+		return false
+	}
+	if tok.Kind == tokenizer.KindSymbol && (tok.Text == "," || tok.Text == ")" || tok.Text == ";") {
+		return true
+	}
+	if tok.Kind == tokenizer.KindKeyword && isClauseBoundaryKeyword(tok.Text) {
+		return true
+	}
+	return false
 }
 
 func (p *Parser) skipColumnOrderingTokens(last tokenizer.Token) tokenizer.Token {
