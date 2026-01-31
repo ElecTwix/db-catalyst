@@ -340,9 +340,12 @@ WHERE users.email = ? AND ? = users.id;`,
 				if len(res.Params) != 2 {
 					t.Fatalf("expected 2 params, got %d", len(res.Params))
 				}
-				if res.Params[0].Name != "arg1" || res.Params[0].GoType != "string" || !res.Params[0].Nullable {
+				// First param inferred from users.email = ?
+				if res.Params[0].Name != "email" || res.Params[0].GoType != "string" || !res.Params[0].Nullable {
 					t.Errorf("unexpected first param %+v", res.Params[0])
 				}
+				// Second param - reversed pattern ? = users.id is harder to infer
+				// because we need to look ahead, not backward
 				if res.Params[1].Name != "arg2" || res.Params[1].GoType != "int64" || res.Params[1].Nullable {
 					t.Errorf("unexpected second param %+v", res.Params[1])
 				}

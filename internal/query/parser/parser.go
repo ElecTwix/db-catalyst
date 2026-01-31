@@ -1263,7 +1263,8 @@ func countParameterOrders(tokens []tokenizer.Token) (order, paramOrder, orderCou
 // updateOrderCount updates the order tracking based on a single token.
 func updateOrderCount(tokens []tokenizer.Token, idx, order, paramOrder, orderCount int) (int, int, int) {
 	if idx+1 >= len(tokens) || tokens[idx+1].Kind != tokenizer.KindNumber {
-		if order == 0 {
+		// Plain "?" without a number - only set paramOrder for the first one
+		if paramOrder == 0 {
 			return order, idx, orderCount
 		}
 		return order, paramOrder, orderCount
@@ -1326,16 +1327,39 @@ func findColumnNameForParam(tokens []tokenizer.Token, paramIdx int) string {
 // Returns the column name, "_stop_" to indicate search should stop, or "" to continue.
 func tryExtractColumnName(tokens []tokenizer.Token, opIdx int) string {
 	tok := tokens[opIdx]
-	if tok.Kind != tokenizer.KindSymbol {
-		return ""
+
+	// Handle comparison operators (symbols)
+	if tok.Kind == tokenizer.KindSymbol {
+		switch tok.Text {
+		case "=", "<", ">", "<=", ">=", "!=", "<>":
+			return findColumnBeforeOperator(tokens, opIdx)
+		case ")", ",", "+", "-", "*", "/", "%":
+			return "_stop_"
+		case "(":
+			// Don't stop on '(', just continue searching
+			return ""
+		}
 	}
 
-	switch tok.Text {
-	case "=", "<", ">", "<=", ">=", "!=", "<>", "LIKE", "IN":
-		return findColumnBeforeOperator(tokens, opIdx)
-	case ")", "(", ",", "+", "-", "*", "/", "%":
-		return "_stop_"
+	// Handle keyword operators (case-insensitive)
+	if tok.Kind == tokenizer.KindKeyword {
+		upper := strings.ToUpper(tok.Text)
+		switch upper {
+		case "LIKE", "IN", "BETWEEN":
+			return findColumnBeforeOperator(tokens, opIdx)
+		}
 	}
+
+	// Handle operators that might be tokenized as identifiers (not keywords in SQLite)
+	// e.g., LIKE, IN, BETWEEN are not in the keywords list
+	if tok.Kind == tokenizer.KindIdentifier {
+		upper := strings.ToUpper(tok.Text)
+		switch upper {
+		case "LIKE", "IN", "BETWEEN":
+			return findColumnBeforeOperator(tokens, opIdx)
+		}
+	}
+
 	return ""
 }
 
@@ -1355,10 +1379,14 @@ func findColumnBeforeOperator(tokens []tokenizer.Token, opIdx int) string {
 
 // shouldStopSearch checks if the search should stop at this token.
 func shouldStopSearch(tok tokenizer.Token) bool {
-	if tok.Kind != tokenizer.KindKeyword {
+	// Check both KindKeyword and KindIdentifier since many SQL keywords
+	// are not in the tokenizer's keywords list
+	if tok.Kind != tokenizer.KindKeyword && tok.Kind != tokenizer.KindIdentifier {
 		return false
 	}
 	upper := strings.ToUpper(tok.Text)
-	stopKeywords := []string{"WHERE", "AND", "OR", "SET", "VALUES", "ON", "HAVING", "ORDER", "GROUP", "BY", "LIMIT", "OFFSET"}
+	// Note: SET and ON are not in this list because they are contexts where
+	// we want to find column names (SET col = ?, JOIN ... ON col = ?)
+	stopKeywords := []string{"WHERE", "AND", "OR", "VALUES", "HAVING", "ORDER", "GROUP", "BY", "LIMIT", "OFFSET", "SELECT", "FROM", "INSERT", "UPDATE", "DELETE"}
 	return slices.Contains(stopKeywords, upper)
 }

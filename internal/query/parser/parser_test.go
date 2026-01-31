@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -308,8 +309,8 @@ func TestParseVariadicInClause(t *testing.T) {
 			if param.Style != ParamStylePositional {
 				t.Fatalf("expected positional style, got %v", param.Style)
 			}
-			if param.Name != "arg1" {
-				t.Fatalf("expected param name arg1, got %q", param.Name)
+			if param.Name != "id" {
+				t.Fatalf("expected param name id, got %q", param.Name)
 			}
 		})
 	}
@@ -332,5 +333,131 @@ WHERE u.status = :status AND u.signup_after >= :signup_after AND u.score > ? AND
 		if _, diags := Parse(blk); len(diags) != 0 {
 			b.Fatalf("unexpected diagnostics: %+v", diags)
 		}
+	}
+}
+
+// TestInferParamName tests parameter name inference for various SQL patterns.
+func TestInferParamName(t *testing.T) {
+	tests := []struct {
+		name          string
+		sql           string
+		paramIdx      int
+		wantName      string
+		wantAmbiguous bool // if true, we expect default "argN" name
+	}{
+		// Basic WHERE clause - already works
+		{
+			name:     "WHERE equals",
+			sql:      "SELECT * FROM users WHERE id = ?",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		{
+			name:     "WHERE LIKE",
+			sql:      "SELECT * FROM users WHERE name LIKE ?",
+			paramIdx: 0,
+			wantName: "name",
+		},
+		{
+			name:     "WHERE IN",
+			sql:      "SELECT * FROM users WHERE status IN (?)",
+			paramIdx: 0,
+			wantName: "status",
+		},
+		// JOIN conditions - new
+		{
+			name:     "JOIN ON clause",
+			sql:      "SELECT * FROM users u JOIN orders o ON o.user_id = ?",
+			paramIdx: 0,
+			wantName: "userId",
+		},
+		{
+			name:     "LEFT JOIN ON clause",
+			sql:      "SELECT * FROM users u LEFT JOIN profiles p ON p.id = ?",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		// UPDATE SET - new
+		{
+			name:     "UPDATE SET",
+			sql:      "UPDATE users SET name = ? WHERE id = 1",
+			paramIdx: 0,
+			wantName: "name",
+		},
+		{
+			name:     "UPDATE SET multiple",
+			sql:      "UPDATE users SET name = ?, email = ? WHERE id = 1",
+			paramIdx: 0,
+			wantName: "name",
+		},
+		{
+			name:          "UPDATE_SET_multiple_second_param",
+			sql:           "UPDATE users SET name = ?, email = ? WHERE id = 1",
+			paramIdx:      1,
+			wantAmbiguous: true, // Second param, not first occurrence
+		},
+		// BETWEEN - new
+		{
+			name:     "BETWEEN first param",
+			sql:      "SELECT * FROM users WHERE age BETWEEN ? AND ?",
+			paramIdx: 0,
+			wantName: "age",
+		},
+		{
+			name:          "BETWEEN second param (ambiguous)",
+			sql:           "SELECT * FROM users WHERE age BETWEEN ? AND ?",
+			paramIdx:      1,
+			wantAmbiguous: true,
+		},
+		// Multiple params - different columns
+		{
+			name:     "multiple WHERE conditions first",
+			sql:      "SELECT * FROM users WHERE id = ? AND name = ?",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		{
+			name:          "multiple WHERE conditions second",
+			sql:           "SELECT * FROM users WHERE id = ? AND name = ?",
+			paramIdx:      1,
+			wantAmbiguous: true, // Second param, not first occurrence
+		},
+		// Table-qualified columns
+		{
+			name:     "table qualified column",
+			sql:      "SELECT * FROM users u WHERE u.email = ?",
+			paramIdx: 0,
+			wantName: "email",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			blk := block.Block{
+				Path:   "query/test.sql",
+				Line:   1,
+				Column: 1,
+				SQL:    tc.sql,
+			}
+
+			q, diags := Parse(blk)
+			if len(diags) != 0 {
+				t.Fatalf("unexpected diagnostics: %+v", diags)
+			}
+
+			if tc.paramIdx >= len(q.Params) {
+				t.Fatalf("paramIdx %d out of range, only %d params found", tc.paramIdx, len(q.Params))
+			}
+
+			param := q.Params[tc.paramIdx]
+			expectedName := tc.wantName
+			if tc.wantAmbiguous {
+				expectedName = fmt.Sprintf("arg%d", tc.paramIdx+1)
+			}
+
+			if param.Name != expectedName {
+				t.Errorf("param[%d].Name = %q, want %q", tc.paramIdx, param.Name, expectedName)
+			}
+		})
 	}
 }
