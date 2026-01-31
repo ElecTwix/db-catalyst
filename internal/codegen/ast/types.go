@@ -53,56 +53,76 @@ func (r *TypeResolver) findCustomMappingBySQLiteType(sqlType string) *config.Cus
 // ResolveType determines the Go type for a given SQL type or existing Go type.
 func (r *TypeResolver) ResolveType(typeOrSQLType string, nullable bool) TypeInfo {
 	// Check if this is already a Go type (contains package qualifiers like "example.IDWrap")
-	if strings.Contains(typeOrSQLType, ".") || strings.HasPrefix(typeOrSQLType, "*") {
-		// This is already a Go type, handle nullable logic
-		goType := typeOrSQLType
-		if nullable && !strings.HasPrefix(goType, "*") {
-			goType = "*" + goType
-		}
-		return TypeInfo{GoType: goType, UsesSQLNull: false}
+	if info, ok := r.resolveGoType(typeOrSQLType, nullable); ok {
+		return info
 	}
 
 	// This is a SQLite type, check if it has a custom type mapping
-	if r.transformer != nil {
-		// Look for a custom type mapping for this SQLite type
-		if customMapping := r.findCustomMappingBySQLiteType(typeOrSQLType); customMapping != nil {
-			goType, isPointer, err := r.transformer.GetGoTypeForCustomType(customMapping.CustomType)
-			if err != nil {
-				// Fall back to interface{} if mapping is incomplete
-				return TypeInfo{GoType: "interface{}", UsesSQLNull: false}
-			}
-
-			// Handle nullable custom types BEFORE import check
-			if isPointer {
-				// Config says this should always be a pointer type
-				if !strings.HasPrefix(goType, "*") {
-					goType = "*" + goType
-				}
-			} else if nullable {
-				// Add pointer for nullable columns only if not already a pointer
-				if !strings.HasPrefix(goType, "*") {
-					goType = "*" + goType
-				}
-			}
-
-			importPath, packageName, err := r.transformer.GetImportsForCustomType(customMapping.CustomType)
-			if err != nil {
-				// Custom type without import - use just the type name
-				return TypeInfo{GoType: goType, UsesSQLNull: false}
-			}
-
-			return TypeInfo{
-				GoType:      goType,
-				UsesSQLNull: false,
-				Import:      importPath,
-				Package:     packageName,
-			}
-		}
+	if info, ok := r.resolveCustomType(typeOrSQLType, nullable); ok {
+		return info
 	}
 
 	// Handle standard SQLite types
 	goType := r.sqliteTypeToGo(typeOrSQLType)
 	return r.resolveStandardType(goType, nullable)
+}
+
+// resolveGoType handles types that are already Go types.
+func (r *TypeResolver) resolveGoType(typeOrSQLType string, nullable bool) (TypeInfo, bool) {
+	if !strings.Contains(typeOrSQLType, ".") && !strings.HasPrefix(typeOrSQLType, "*") {
+		return TypeInfo{}, false
+	}
+	goType := typeOrSQLType
+	if nullable && !strings.HasPrefix(goType, "*") {
+		goType = "*" + goType
+	}
+	return TypeInfo{GoType: goType, UsesSQLNull: false}, true
+}
+
+// resolveCustomType handles custom type mappings.
+func (r *TypeResolver) resolveCustomType(sqlType string, nullable bool) (TypeInfo, bool) {
+	if r.transformer == nil {
+		return TypeInfo{}, false
+	}
+
+	customMapping := r.findCustomMappingBySQLiteType(sqlType)
+	if customMapping == nil {
+		return TypeInfo{}, false
+	}
+
+	goType, isPointer, err := r.transformer.GetGoTypeForCustomType(customMapping.CustomType)
+	if err != nil {
+		return TypeInfo{GoType: "interface{}", UsesSQLNull: false}, true
+	}
+
+	goType = r.applyNullability(goType, isPointer, nullable)
+	return r.buildCustomTypeInfo(customMapping, goType)
+}
+
+// applyNullability adds pointer for nullable types.
+func (r *TypeResolver) applyNullability(goType string, isPointer, nullable bool) string {
+	if isPointer && !strings.HasPrefix(goType, "*") {
+		return "*" + goType
+	}
+	if nullable && !strings.HasPrefix(goType, "*") {
+		return "*" + goType
+	}
+	return goType
+}
+
+// buildCustomTypeInfo creates TypeInfo for custom types with import info.
+func (r *TypeResolver) buildCustomTypeInfo(mapping *config.CustomTypeMapping, goType string) (TypeInfo, bool) {
+	importPath, packageName, err := r.transformer.GetImportsForCustomType(mapping.CustomType)
+	if err != nil {
+		return TypeInfo{GoType: goType, UsesSQLNull: false}, true
+	}
+
+	return TypeInfo{
+		GoType:      goType,
+		UsesSQLNull: false,
+		Import:      importPath,
+		Package:     packageName,
+	}, true
 }
 
 func (r *TypeResolver) sqliteTypeToGo(sqlType string) string {

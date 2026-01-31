@@ -450,103 +450,11 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 
 		suppressDefaultWarning := false
 		if hasCatalog {
-			alias := col.Table
-			columnName := deriveColumnName(col)
-			agg, isAggregate := parseAggregateExpr(col.Expr)
-			skipLookup := false
-			if isAggregate {
-				switch {
-				case agg.argStar:
-					sc.goType = "int64"
-					sc.nullable = false
-					skipLookup = true
-				case agg.argColumn == "":
-					diags = append(diags, Diagnostic{
-						Path:     parent.Block.Path,
-						Line:     col.Line,
-						Column:   col.Column,
-						Message:  fmt.Sprintf("unable to infer metadata for aggregate %s in CTE %s; defaulting to interface{}", col.Expr, cte.Name),
-						Severity: SeverityWarning,
-					})
-					suppressDefaultWarning = true
-					skipLookup = true
-				default:
-					alias = agg.argAlias
-					columnName = agg.argColumn
-				}
-			}
-
-			if !skipLookup {
-				lookup, _, res := workingScope.lookup(alias, columnName)
-				switch res {
-				case scopeLookupOK:
-					if isAggregate {
-						goType, nullable, ok := aggregateResultFromOperand(agg.kind, lookup)
-						if !ok {
-							diags = append(diags, Diagnostic{
-								Path:     parent.Block.Path,
-								Line:     col.Line,
-								Column:   col.Column,
-								Message:  fmt.Sprintf("unable to infer Go type for aggregate %s in CTE %s; defaulting to interface{}", col.Expr, cte.Name),
-								Severity: SeverityWarning,
-							})
-							sc.goType = "interface{}"
-							sc.nullable = true
-							suppressDefaultWarning = true
-						} else {
-							sc.goType = goType
-							sc.nullable = nullable
-						}
-					} else {
-						sc.goType = lookup.goType
-						sc.nullable = lookup.nullable
-					}
-				case scopeLookupAliasNotFound:
-					if alias != "" {
-						diags = append(diags, Diagnostic{
-							Path:     parent.Block.Path,
-							Line:     col.Line,
-							Column:   col.Column,
-							Message:  fmt.Sprintf("CTE %s references unknown relation %s", cte.Name, alias),
-							Severity: SeverityError,
-						})
-					} else if col.Alias != "" {
-						diags = append(diags, Diagnostic{
-							Path:     parent.Block.Path,
-							Line:     col.Line,
-							Column:   col.Column,
-							Message:  fmt.Sprintf("CTE %s column %s derives from expression without schema mapping", cte.Name, col.Alias),
-							Severity: SeverityWarning,
-						})
-					}
-				case scopeLookupColumnNotFound:
-					if alias != "" {
-						diags = append(diags, Diagnostic{
-							Path:     parent.Block.Path,
-							Line:     col.Line,
-							Column:   col.Column,
-							Message:  fmt.Sprintf("CTE %s references unknown column %s.%s", cte.Name, alias, columnName),
-							Severity: SeverityError,
-						})
-					} else if col.Alias != "" {
-						diags = append(diags, Diagnostic{
-							Path:     parent.Block.Path,
-							Line:     col.Line,
-							Column:   col.Column,
-							Message:  fmt.Sprintf("CTE %s column %s derives from expression without schema mapping", cte.Name, col.Alias),
-							Severity: SeverityWarning,
-						})
-					}
-				case scopeLookupAmbiguous:
-					diags = append(diags, Diagnostic{
-						Path:     parent.Block.Path,
-						Line:     col.Line,
-						Column:   col.Column,
-						Message:  fmt.Sprintf("CTE %s column %s is ambiguous; qualify with a table alias", cte.Name, name),
-						Severity: SeverityError,
-					})
-				}
-			}
+			colInfo, warn := a.resolveCTEColumn(col, cte, workingScope, parent.Block.Path)
+			sc.goType = colInfo.goType
+			sc.nullable = colInfo.nullable
+			suppressDefaultWarning = colInfo.suppressWarning
+			diags = append(diags, warn...)
 		}
 
 		if sc.goType == "interface{}" && hasCatalog && !suppressDefaultWarning {
@@ -661,6 +569,136 @@ func cteOutputNames(cte parser.CTE, q parser.Query) ([]string, []Diagnostic) {
 		names[i] = name
 	}
 	return names, diags
+}
+
+// cteColumnInfo holds resolved information for a CTE column.
+type cteColumnInfo struct {
+	goType          string
+	nullable        bool
+	suppressWarning bool
+}
+
+// resolveCTEColumn resolves a single CTE column's type information.
+func (a *Analyzer) resolveCTEColumn(col parser.Column, cte parser.CTE, workingScope *queryScope, path string) (cteColumnInfo, []Diagnostic) {
+	info := cteColumnInfo{goType: "interface{}", nullable: true}
+	var diags []Diagnostic
+
+	alias := col.Table
+	columnName := deriveColumnName(col)
+	agg, isAggregate := parseAggregateExpr(col.Expr)
+	skipLookup := false
+
+	if isAggregate {
+		switch {
+		case agg.argStar:
+			info.goType = "int64"
+			info.nullable = false
+			skipLookup = true
+		case agg.argColumn == "":
+			diags = append(diags, Diagnostic{
+				Path:     path,
+				Line:     col.Line,
+				Column:   col.Column,
+				Message:  fmt.Sprintf("unable to infer metadata for aggregate %s in CTE %s; defaulting to interface{}", col.Expr, cte.Name),
+				Severity: SeverityWarning,
+			})
+			info.suppressWarning = true
+			skipLookup = true
+		default:
+			alias = agg.argAlias
+			columnName = agg.argColumn
+		}
+	}
+
+	if skipLookup {
+		return info, diags
+	}
+
+	lookup, _, res := workingScope.lookup(alias, columnName)
+	switch res {
+	case scopeLookupOK:
+		if isAggregate {
+			info = a.resolveAggregateType(agg, lookup, col, cte, path)
+		} else {
+			info.goType = lookup.goType
+			info.nullable = lookup.nullable
+		}
+	case scopeLookupAliasNotFound:
+		diags = append(diags, a.makeAliasNotFoundDiag(alias, col, cte, path)...)
+	case scopeLookupColumnNotFound:
+		diags = append(diags, a.makeColumnNotFoundDiag(alias, columnName, col, cte, path)...)
+	case scopeLookupAmbiguous:
+		diags = append(diags, Diagnostic{
+			Path:     path,
+			Line:     col.Line,
+			Column:   col.Column,
+			Message:  fmt.Sprintf("CTE %s column %s is ambiguous; qualify with a table alias", cte.Name, columnName),
+			Severity: SeverityError,
+		})
+	}
+
+	return info, diags
+}
+
+// resolveAggregateType determines the type for an aggregate expression.
+func (a *Analyzer) resolveAggregateType(agg aggregateExpr, lookup scopeColumn, _ parser.Column, _ parser.CTE, _ string) cteColumnInfo {
+	info := cteColumnInfo{goType: "interface{}", nullable: true, suppressWarning: true}
+
+	goType, nullable, ok := aggregateResultFromOperand(agg.kind, lookup)
+	if !ok {
+		return info
+	}
+
+	info.goType = goType
+	info.nullable = nullable
+	info.suppressWarning = false
+	return info
+}
+
+// makeAliasNotFoundDiag creates diagnostics for alias not found errors.
+func (a *Analyzer) makeAliasNotFoundDiag(alias string, col parser.Column, cte parser.CTE, path string) []Diagnostic {
+	var diags []Diagnostic
+	if alias != "" {
+		diags = append(diags, Diagnostic{
+			Path:     path,
+			Line:     col.Line,
+			Column:   col.Column,
+			Message:  fmt.Sprintf("CTE %s references unknown relation %s", cte.Name, alias),
+			Severity: SeverityError,
+		})
+	} else if col.Alias != "" {
+		diags = append(diags, Diagnostic{
+			Path:     path,
+			Line:     col.Line,
+			Column:   col.Column,
+			Message:  fmt.Sprintf("CTE %s column %s derives from expression without schema mapping", cte.Name, col.Alias),
+			Severity: SeverityWarning,
+		})
+	}
+	return diags
+}
+
+// makeColumnNotFoundDiag creates diagnostics for column not found errors.
+func (a *Analyzer) makeColumnNotFoundDiag(alias, columnName string, col parser.Column, cte parser.CTE, path string) []Diagnostic {
+	var diags []Diagnostic
+	if alias != "" {
+		diags = append(diags, Diagnostic{
+			Path:     path,
+			Line:     col.Line,
+			Column:   col.Column,
+			Message:  fmt.Sprintf("CTE %s references unknown column %s.%s", cte.Name, alias, columnName),
+			Severity: SeverityError,
+		})
+	} else if col.Alias != "" {
+		diags = append(diags, Diagnostic{
+			Path:     path,
+			Line:     col.Line,
+			Column:   col.Column,
+			Message:  fmt.Sprintf("CTE %s column %s derives from expression without schema mapping", cte.Name, col.Alias),
+			Severity: SeverityWarning,
+		})
+	}
+	return diags
 }
 
 type aggregateKind int
@@ -1955,7 +1993,6 @@ func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Toke
 func parseInsertStructure(tokens []tokenizer.Token, paramIndexByToken map[int]int) (string, []string, []int) {
 	var tableName string
 	columns := make([]string, 0, 4)
-	params := make([]int, 0, 4)
 
 	i := 0
 	for i < len(tokens) {
@@ -2010,7 +2047,7 @@ func parseInsertStructure(tokens []tokenizer.Token, paramIndexByToken map[int]in
 		return tableName, columns, nil
 	}
 	i++
-	params = collectInsertParams(tokens, i, paramIndexByToken)
+	params := collectInsertParams(tokens, i, paramIndexByToken)
 
 	return tableName, columns, params
 }
@@ -2021,29 +2058,38 @@ func collectInsertParams(tokens []tokenizer.Token, start int, paramIndexByToken 
 	i := start
 	for i < len(tokens) && depth > 0 {
 		tok := tokens[i]
-		if tok.Kind == tokenizer.KindSymbol {
-			switch tok.Text {
-			case "(":
-				depth++
-			case ")":
-				depth--
-			case ":":
-				if depth == 1 {
-					if paramIdx, ok := paramIndexByToken[i]; ok {
-						params = append(params, paramIdx)
-					}
-				}
-			case "?":
-				if depth == 1 {
-					if paramIdx, ok := paramIndexByToken[i]; ok {
-						params = append(params, paramIdx)
-					}
-				}
-			}
+		if tok.Kind != tokenizer.KindSymbol {
 			i++
 			continue
 		}
+		depth = updateDepth(tok.Text, depth)
+		params = maybeCollectParam(tok.Text, depth, i, paramIndexByToken, params)
 		i++
+	}
+	return params
+}
+
+// updateDepth adjusts the parenthesis depth based on the token.
+func updateDepth(text string, depth int) int {
+	switch text {
+	case "(":
+		return depth + 1
+	case ")":
+		return depth - 1
+	}
+	return depth
+}
+
+// maybeCollectParam adds a parameter index if the token is a parameter at depth 1.
+func maybeCollectParam(text string, depth, idx int, paramIndexByToken map[int]int, params []int) []int {
+	if depth != 1 {
+		return params
+	}
+	if text != ":" && text != "?" {
+		return params
+	}
+	if paramIdx, ok := paramIndexByToken[idx]; ok {
+		params = append(params, paramIdx)
 	}
 	return params
 }

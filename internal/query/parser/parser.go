@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"go/token"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -667,163 +668,266 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 		}
 
 		tok := tokens[i]
-		if tok.Kind == tokenizer.KindSymbol {
-			switch tok.Text {
-			case "?":
-				if group, ok := groups[i]; ok {
-					conflict := false
-					for _, num := range group.numbers {
-						if num <= 0 {
-							continue
-						}
-						if _, exists := numbered[num]; exists {
-							conflict = true
-							break
-						}
-					}
-					if !conflict {
-						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
-						startOffset := pos.offset(tok)
-						// For multiple ?, end is last token
-						endTok := tokens[group.placeholderIdxs[len(group.placeholderIdxs)-1]]
-						endOffset := pos.offset(endTok) + len(endTok.Text)
+		if tok.Kind != tokenizer.KindSymbol {
+			i++
+			continue
+		}
 
-						var order int
-						if len(group.numbers) > 0 && group.numbers[0] > 0 {
-							order = group.numbers[0]
-						} else {
-							order = nextAvailableOrder(numbered)
-						}
-						// Try to infer parameter name from context
-						paramName := inferParamName(tokens, i, numbered)
-						if paramName == "" {
-							paramName = fmt.Sprintf("arg%d", order)
-						}
-						params = append(params, Param{
-							Name:          paramName,
-							Style:         ParamStylePositional,
-							Order:         order,
-							Line:          actualLine,
-							Column:        actualColumn,
-							IsVariadic:    true,
-							VariadicCount: len(group.placeholderIdxs),
-							StartOffset:   startOffset,
-							EndOffset:     endOffset,
-						})
-						paramIdx := len(params) - 1
-						numbered[order] = paramIdx
-						for _, num := range group.numbers {
-							if num <= 0 {
-								continue
-							}
-							numbered[num] = paramIdx
-						}
-						for _, idx := range group.placeholderIdxs[1:] {
-							skipIndices[idx] = struct{}{}
-						}
-						for _, idx := range group.numberIdxs {
-							skipIndices[idx] = struct{}{}
-						}
-						i++
-						continue
-					}
-					delete(groups, i)
-				}
-
-				order := nextAvailableOrder(numbered)
-				actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
-				startOffset := pos.offset(tok)
-				endOffset := startOffset + len(tok.Text)
-
-				if i+1 < len(tokens) {
-					nextTok := tokens[i+1]
-					if nextTok.Kind == tokenizer.KindNumber && nextTok.Line == tok.Line && nextTok.Column == tok.Column+1 {
-						parsed, err := strconv.Atoi(nextTok.Text)
-						if err != nil || parsed <= 0 {
-							diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text))
-						} else {
-							order = parsed
-							// Try to infer parameter name from context
-							paramName := inferParamName(tokens, i, numbered)
-							if paramName == "" {
-								paramName = fmt.Sprintf("arg%d", order)
-							}
-							if idx, exists := numbered[order]; exists {
-								if params[idx].Name != paramName {
-									diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", order))
-								}
-							} else {
-								endOffset = pos.offset(nextTok) + len(nextTok.Text)
-								params = append(params, Param{
-									Name:        paramName,
-									Style:       ParamStylePositional,
-									Order:       order,
-									Line:        actualLine,
-									Column:      actualColumn,
-									StartOffset: startOffset,
-									EndOffset:   endOffset,
-								})
-								numbered[order] = len(params) - 1
-							}
-						}
-						i += 2
-						continue
-					}
-				}
-				// Try to infer parameter name from context
-				paramName := inferParamName(tokens, i, numbered)
-				if paramName == "" {
-					paramName = fmt.Sprintf("arg%d", order)
-				}
-				params = append(params, Param{
-					Name:        paramName,
-					Style:       ParamStylePositional,
-					Order:       order,
-					Line:        actualLine,
-					Column:      actualColumn,
-					StartOffset: startOffset,
-					EndOffset:   endOffset,
-				})
-				numbered[order] = len(params) - 1
-				i++
+		switch tok.Text {
+		case "?":
+			newParams, newDiags, consumed := handlePositionalParam(tokens, i, blk, pos, groups, numbered, params, skipIndices)
+			params = newParams
+			diags = append(diags, newDiags...)
+			i += consumed
+			if consumed > 0 {
 				continue
-			case ":":
-				if i+1 < len(tokens) {
-					nameTok := tokens[i+1]
-					if nameTok.Kind == tokenizer.KindIdentifier {
-						raw := tokenizer.NormalizeIdentifier(nameTok.Text)
-						key := strings.ToLower(raw)
-						camel := camelCaseParam(raw)
-						actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
-						startOffset := pos.offset(tok)
-						endOffset := pos.offset(nameTok) + len(nameTok.Text)
-
-						if idx, exists := named[key]; exists {
-							if params[idx].Name != camel {
-								diags = append(diags, makeDiag(blk, tok.Line, tok.Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel))
-							}
-						} else {
-							params = append(params, Param{
-								Name:        camel,
-								Style:       ParamStyleNamed,
-								Order:       len(params) + 1,
-								Line:        actualLine,
-								Column:      actualColumn,
-								StartOffset: startOffset,
-								EndOffset:   endOffset,
-							})
-							named[key] = len(params) - 1
-						}
-						i += 2
-						continue
-					}
-				}
+			}
+		case ":":
+			newParams, newDiags, consumed := handleNamedParam(tokens, i, blk, pos, named, params)
+			params = newParams
+			diags = append(diags, newDiags...)
+			i += consumed
+			if consumed > 0 {
+				continue
 			}
 		}
 		i++
 	}
 
 	return params, diags
+}
+
+// handlePositionalParam processes a "?" positional parameter.
+// Returns the updated params slice, diagnostics, and the number of tokens consumed.
+func handlePositionalParam(
+	tokens []tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	groups map[int]variadicGroup,
+	numbered map[int]int,
+	params []Param,
+	skipIndices map[int]struct{},
+) ([]Param, []Diagnostic, int) {
+	tok := tokens[idx]
+
+	// Check for variadic group first
+	if group, ok := groups[idx]; ok {
+		result, consumed := tryProcessVariadicGroup(tokens, tok, idx, blk, pos, group, numbered, params, skipIndices)
+		if consumed > 0 {
+			return result, nil, consumed
+		}
+		delete(groups, idx)
+	}
+
+	// Check for numbered parameter (e.g., ?1)
+	if result, diags, consumed := tryProcessNumberedParam(tokens, idx, blk, pos, numbered, params); consumed > 0 {
+		return result, diags, consumed
+	}
+
+	// Simple positional parameter
+	return processSimplePositionalParam(tokens, tok, idx, blk, pos, numbered, params)
+}
+
+// tryProcessVariadicGroup handles variadic parameter groups like ?1,?2,?3.
+func tryProcessVariadicGroup(
+	tokens []tokenizer.Token,
+	tok tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	group variadicGroup,
+	numbered map[int]int,
+	params []Param,
+	skipIndices map[int]struct{},
+) ([]Param, int) {
+	// Check for conflicts
+	for _, num := range group.numbers {
+		if num <= 0 {
+			continue
+		}
+		if _, exists := numbered[num]; exists {
+			return nil, 0
+		}
+	}
+
+	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+	startOffset := pos.offset(tok)
+	endTok := tokens[group.placeholderIdxs[len(group.placeholderIdxs)-1]]
+	endOffset := pos.offset(endTok) + len(endTok.Text)
+
+	order := nextAvailableOrder(numbered)
+	if len(group.numbers) > 0 && group.numbers[0] > 0 {
+		order = group.numbers[0]
+	}
+
+	paramName := inferParamName(tokens, idx, numbered)
+	if paramName == "" {
+		paramName = fmt.Sprintf("arg%d", order)
+	}
+
+	params = append(params, Param{
+		Name:          paramName,
+		Style:         ParamStylePositional,
+		Order:         order,
+		Line:          actualLine,
+		Column:        actualColumn,
+		IsVariadic:    true,
+		VariadicCount: len(group.placeholderIdxs),
+		StartOffset:   startOffset,
+		EndOffset:     endOffset,
+	})
+
+	paramIdx := len(params) - 1
+	numbered[order] = paramIdx
+	for _, num := range group.numbers {
+		if num > 0 {
+			numbered[num] = paramIdx
+		}
+	}
+	for _, i := range group.placeholderIdxs[1:] {
+		skipIndices[i] = struct{}{}
+	}
+	for _, i := range group.numberIdxs {
+		skipIndices[i] = struct{}{}
+	}
+
+	return params, 1
+}
+
+// tryProcessNumberedParam handles numbered positional parameters like ?1.
+func tryProcessNumberedParam(
+	tokens []tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	numbered map[int]int,
+	params []Param,
+) ([]Param, []Diagnostic, int) {
+	tok := tokens[idx]
+	if idx+1 >= len(tokens) {
+		return nil, nil, 0
+	}
+
+	nextTok := tokens[idx+1]
+	if nextTok.Kind != tokenizer.KindNumber || nextTok.Line != tok.Line || nextTok.Column != tok.Column+1 {
+		return nil, nil, 0
+	}
+
+	parsed, err := strconv.Atoi(nextTok.Text)
+	if err != nil || parsed <= 0 {
+		return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text)}, 2
+	}
+
+	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+	startOffset := pos.offset(tok)
+	endOffset := pos.offset(nextTok) + len(nextTok.Text)
+
+	paramName := inferParamName(tokens, idx, numbered)
+	if paramName == "" {
+		paramName = fmt.Sprintf("arg%d", parsed)
+	}
+
+	if existingIdx, exists := numbered[parsed]; exists {
+		if params[existingIdx].Name != paramName {
+			return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", parsed)}, 2
+		}
+		return params, nil, 2
+	}
+
+	params = append(params, Param{
+		Name:        paramName,
+		Style:       ParamStylePositional,
+		Order:       parsed,
+		Line:        actualLine,
+		Column:      actualColumn,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+	})
+	numbered[parsed] = len(params) - 1
+	return params, nil, 2
+}
+
+// processSimplePositionalParam handles a simple "?" parameter.
+func processSimplePositionalParam(
+	tokens []tokenizer.Token,
+	tok tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	numbered map[int]int,
+	params []Param,
+) ([]Param, []Diagnostic, int) {
+	order := nextAvailableOrder(numbered)
+	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+	startOffset := pos.offset(tok)
+	endOffset := startOffset + len(tok.Text)
+
+	paramName := inferParamName(tokens, idx, numbered)
+	if paramName == "" {
+		paramName = fmt.Sprintf("arg%d", order)
+	}
+
+	params = append(params, Param{
+		Name:        paramName,
+		Style:       ParamStylePositional,
+		Order:       order,
+		Line:        actualLine,
+		Column:      actualColumn,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+	})
+	numbered[order] = len(params) - 1
+	return params, nil, 1
+}
+
+// handleNamedParam processes a ":" named parameter.
+// Returns the updated params slice, diagnostics, and the number of tokens consumed.
+func handleNamedParam(
+	tokens []tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	named map[string]int,
+	params []Param,
+) ([]Param, []Diagnostic, int) {
+	if idx+1 >= len(tokens) {
+		return params, nil, 0
+	}
+
+	nameTok := tokens[idx+1]
+	if nameTok.Kind != tokenizer.KindIdentifier {
+		return params, nil, 0
+	}
+
+	raw := tokenizer.NormalizeIdentifier(nameTok.Text)
+	key := strings.ToLower(raw)
+	camel := camelCaseParam(raw)
+
+	actualLine, actualColumn := actualPosition(blk, tokens[idx].Line, tokens[idx].Column)
+	startOffset := pos.offset(tokens[idx])
+	endOffset := pos.offset(nameTok) + len(nameTok.Text)
+
+	if existingIdx, exists := named[key]; exists {
+		if params[existingIdx].Name != camel {
+			return params, []Diagnostic{
+				makeDiag(blk, tokens[idx].Line, tokens[idx].Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel),
+			}, 2
+		}
+		return params, nil, 2
+	}
+
+	params = append(params, Param{
+		Name:        camel,
+		Style:       ParamStyleNamed,
+		Order:       len(params) + 1,
+		Line:        actualLine,
+		Column:      actualColumn,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+	})
+	named[key] = len(params) - 1
+	return params, nil, 2
 }
 
 type positionIndex struct {
@@ -1121,104 +1225,140 @@ func actualPosition(blk block.Block, relLine, relColumn int) (int, int) {
 // It looks backward from the parameter position for comparison operators and column names.
 // Returns empty string if no meaningful name can be inferred or if inference would be ambiguous.
 func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]int) string {
+	if !isValidParamToken(tokens, paramIdx) {
+		return ""
+	}
+
+	order, paramOrder, orderCount := countParameterOrders(tokens)
+
+	// Check for ambiguous parameter usage
+	if shouldSkipInference(paramIdx, paramOrder, orderCount, order, usedOrders) {
+		return ""
+	}
+
+	// Look backward for column name
+	return findColumnNameForParam(tokens, paramIdx)
+}
+
+// isValidParamToken checks if the token at paramIdx is a valid parameter placeholder.
+func isValidParamToken(tokens []tokenizer.Token, paramIdx int) bool {
 	if paramIdx <= 0 || paramIdx >= len(tokens) {
-		return ""
+		return false
 	}
-
-	// Look for the parameter token first
 	paramTok := tokens[paramIdx]
-	if paramTok.Kind != tokenizer.KindSymbol || paramTok.Text != "?" {
-		return ""
-	}
+	return paramTok.Kind == tokenizer.KindSymbol && paramTok.Text == "?"
+}
 
-	// Count how many times this order appears in the query
-	// If the same order is used multiple times (like ?1 and ?), don't infer
-	// to avoid conflicts when same parameter is used in different contexts
-	order := 0
-	paramOrder := 0
-	orderCount := 0
-
+// countParameterOrders counts how many times the first encountered order appears.
+func countParameterOrders(tokens []tokenizer.Token) (order, paramOrder, orderCount int) {
 	for i, tok := range tokens {
-		if tok.Kind == tokenizer.KindSymbol && tok.Text == "?" {
-			// Check if next token is a number
-			if i+1 < len(tokens) && tokens[i+1].Kind == tokenizer.KindNumber {
-				parsed, _ := strconv.Atoi(tokens[i+1].Text)
-				if parsed > 0 {
-					if order == 0 {
-						order = parsed
-						paramOrder = i
-					}
-					if parsed == order {
-						orderCount++
-					}
-				}
-			} else if order == 0 {
-				// This is the first ? without explicit order
-				paramOrder = i
-			}
+		if tok.Kind != tokenizer.KindSymbol || tok.Text != "?" {
+			continue
 		}
+		order, paramOrder, orderCount = updateOrderCount(tokens, i, order, paramOrder, orderCount)
+	}
+	return order, paramOrder, orderCount
+}
+
+// updateOrderCount updates the order tracking based on a single token.
+func updateOrderCount(tokens []tokenizer.Token, idx, order, paramOrder, orderCount int) (int, int, int) {
+	if idx+1 >= len(tokens) || tokens[idx+1].Kind != tokenizer.KindNumber {
+		if order == 0 {
+			return order, idx, orderCount
+		}
+		return order, paramOrder, orderCount
 	}
 
-	// If this order appears multiple times (like ?1 and ?), don't infer
-	// to avoid conflicts when same parameter is used in different contexts
+	parsed, _ := strconv.Atoi(tokens[idx+1].Text)
+	if parsed <= 0 {
+		return order, paramOrder, orderCount
+	}
+
+	if order == 0 {
+		order = parsed
+		paramOrder = idx
+	}
+	if parsed == order {
+		orderCount++
+	}
+	return order, paramOrder, orderCount
+}
+
+// shouldSkipInference determines if parameter name inference should be skipped.
+func shouldSkipInference(paramIdx, paramOrder, orderCount, order int, usedOrders map[int]int) bool {
 	if orderCount > 1 {
-		return ""
+		return true
 	}
-
-	// If this param is not the first occurrence of its order, don't infer
 	if paramIdx != paramOrder {
-		return ""
+		return true
 	}
-
-	// Also check if this order is already used by another positional param
-	// (e.g., if ? was assigned order 1, but ?1 also uses order 1)
 	if usedOrders[order] > 0 && order > 0 {
-		return ""
+		return true
 	}
+	return false
+}
 
-	// First, check if ? is AFTER the operator (pattern: <column> <operator> ?)
-	// This is the valid case: users.id = ?
-	j := paramIdx - 1
-	for j >= 0 {
+// findColumnNameForParam searches backward from paramIdx for a column name.
+func findColumnNameForParam(tokens []tokenizer.Token, paramIdx int) string {
+	for j := paramIdx - 1; j >= 0; j-- {
 		tok := tokens[j]
 
 		if tok.Kind == tokenizer.KindEOF {
 			break
 		}
 
-		// Check for comparison operator
-		if tok.Kind == tokenizer.KindSymbol {
-			switch tok.Text {
-			case "=", "<", ">", "<=", ">=", "!=", "<>", "LIKE", "IN":
-				// Found operator, now look for column name to the left
-				for k := j - 1; k >= 0; k-- {
-					prevTok := tokens[k]
-					if prevTok.Kind == tokenizer.KindIdentifier {
-						return camelCaseParam(prevTok.Text)
-					}
-					// Skip other symbols (like parentheses, commas)
-					if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text != "(" && prevTok.Text != "," {
-						break
-					}
-				}
-				return ""
-			case ")", "(", ",", "+", "-", "*", "/", "%":
-				return ""
-			}
+		name := tryExtractColumnName(tokens, j)
+		if name == "_stop_" {
+			return ""
+		}
+		if name != "" {
+			return name
 		}
 
-		// If we hit a keyword that's not part of a column expression, stop
-		if tok.Kind == tokenizer.KindKeyword {
-			upper := strings.ToUpper(tok.Text)
-			if upper == "WHERE" || upper == "AND" || upper == "OR" || upper == "SET" ||
-				upper == "VALUES" || upper == "ON" || upper == "HAVING" || upper == "ORDER" ||
-				upper == "GROUP" || upper == "BY" || upper == "LIMIT" || upper == "OFFSET" {
-				return ""
-			}
+		if shouldStopSearch(tok) {
+			break
 		}
+	}
+	return ""
+}
 
-		j--
+// tryExtractColumnName attempts to extract a column name when an operator is found.
+// Returns the column name, "_stop_" to indicate search should stop, or "" to continue.
+func tryExtractColumnName(tokens []tokenizer.Token, opIdx int) string {
+	tok := tokens[opIdx]
+	if tok.Kind != tokenizer.KindSymbol {
+		return ""
 	}
 
+	switch tok.Text {
+	case "=", "<", ">", "<=", ">=", "!=", "<>", "LIKE", "IN":
+		return findColumnBeforeOperator(tokens, opIdx)
+	case ")", "(", ",", "+", "-", "*", "/", "%":
+		return "_stop_"
+	}
 	return ""
+}
+
+// findColumnBeforeOperator searches for an identifier before the operator.
+func findColumnBeforeOperator(tokens []tokenizer.Token, opIdx int) string {
+	for k := opIdx - 1; k >= 0; k-- {
+		prevTok := tokens[k]
+		if prevTok.Kind == tokenizer.KindIdentifier {
+			return camelCaseParam(prevTok.Text)
+		}
+		if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text != "(" && prevTok.Text != "," {
+			break
+		}
+	}
+	return ""
+}
+
+// shouldStopSearch checks if the search should stop at this token.
+func shouldStopSearch(tok tokenizer.Token) bool {
+	if tok.Kind != tokenizer.KindKeyword {
+		return false
+	}
+	upper := strings.ToUpper(tok.Text)
+	stopKeywords := []string{"WHERE", "AND", "OR", "SET", "VALUES", "ON", "HAVING", "ORDER", "GROUP", "BY", "LIMIT", "OFFSET"}
+	return slices.Contains(stopKeywords, upper)
 }
