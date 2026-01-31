@@ -34,6 +34,8 @@ linters:
     # - maintidx        # Code complexity measurement (disabled - requires refactoring)
     # - containedctx    # Context should not be stored in structs (disabled - requires architectural changes)
     - modernize       # Suggest modern Go code simplifications
+    - sloglint        # Ensure consistent slog usage
+    - loggercheck     # Check logger key-value pairs
 linters-settings:
   errorlint:
     error-functions:
