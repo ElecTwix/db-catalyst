@@ -3,13 +3,11 @@ package advanceddb
 import (
 	"context"
 	"database/sql"
-
-	"github.com/electwix/db-catalyst/examples/advanced/types"
 )
 
 type Querier interface {
 	CreateOrder(ctx context.Context, arg1 int32, arg2 int32, arg3 int32) (CreateOrderRow, error)
-	CreateProduct(ctx context.Context, arg1 int32, arg2 types.SKU, arg3 int32) (CreateProductRow, error)
+	CreateProduct(ctx context.Context, arg1 int32, arg2 interface{}, arg3 int32) (CreateProductRow, error)
 	CreateUser(ctx context.Context, arg1 int32) (CreateUserRow, error)
 	GetOrder(ctx context.Context, id *int32) (GetOrderRow, error)
 	GetOrderStatistics(ctx context.Context, userId *int32) (GetOrderStatisticsRow, error)

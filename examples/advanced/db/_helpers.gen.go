@@ -1,18 +1,14 @@
 package advanceddb
 
-import (
-	"database/sql"
-
-	"github.com/electwix/db-catalyst/examples/advanced/types"
-)
+import "database/sql"
 
 type CreateOrderRow struct {
 	Id          int32
 	UserId      int32
 	Status      int32
 	TotalAmount int32
-	CreatedAt   types.Money
-	UpdatedAt   *types.Money
+	CreatedAt   interface{}
+	UpdatedAt   *interface{}
 }
 
 func scanCreateOrderRow(rows sql.Rows) (CreateOrderRow, error) {
@@ -26,9 +22,9 @@ func scanCreateOrderRow(rows sql.Rows) (CreateOrderRow, error) {
 type CreateProductRow struct {
 	Id        int32
 	Sku       int32
-	Name      types.SKU
+	Name      interface{}
 	Price     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanCreateProductRow(rows sql.Rows) (CreateProductRow, error) {
@@ -42,7 +38,7 @@ func scanCreateProductRow(rows sql.Rows) (CreateProductRow, error) {
 type CreateUserRow struct {
 	Id        int32
 	Email     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
@@ -58,8 +54,8 @@ type GetOrderRow struct {
 	UserId      int32
 	Status      int32
 	TotalAmount int32
-	CreatedAt   types.Money
-	UpdatedAt   *types.Money
+	CreatedAt   interface{}
+	UpdatedAt   *interface{}
 }
 
 func scanGetOrderRow(rows sql.Rows) (GetOrderRow, error) {
@@ -88,7 +84,7 @@ type GetOrdersByStatusRow struct {
 	UserId      int32
 	Status      int32
 	TotalAmount int32
-	CreatedAt   types.Money
+	CreatedAt   interface{}
 }
 
 func scanGetOrdersByStatusRow(rows sql.Rows) (GetOrdersByStatusRow, error) {
@@ -102,9 +98,9 @@ func scanGetOrdersByStatusRow(rows sql.Rows) (GetOrdersByStatusRow, error) {
 type GetProductBySkuRow struct {
 	Id        int32
 	Sku       int32
-	Name      types.SKU
+	Name      interface{}
 	Price     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanGetProductBySkuRow(rows sql.Rows) (GetProductBySkuRow, error) {
@@ -118,9 +114,9 @@ func scanGetProductBySkuRow(rows sql.Rows) (GetProductBySkuRow, error) {
 type GetProductRow struct {
 	Id        int32
 	Sku       int32
-	Name      types.SKU
+	Name      interface{}
 	Price     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanGetProductRow(rows sql.Rows) (GetProductRow, error) {
@@ -134,7 +130,7 @@ func scanGetProductRow(rows sql.Rows) (GetProductRow, error) {
 type GetUserByEmailRow struct {
 	Id        int32
 	Email     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
@@ -148,7 +144,7 @@ func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
 type GetUserRow struct {
 	Id        int32
 	Email     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
@@ -163,7 +159,7 @@ type ListOrdersByUserRow struct {
 	Id          int32
 	Status      int32
 	TotalAmount int32
-	CreatedAt   types.Money
+	CreatedAt   interface{}
 }
 
 func scanListOrdersByUserRow(rows sql.Rows) (ListOrdersByUserRow, error) {
@@ -177,9 +173,9 @@ func scanListOrdersByUserRow(rows sql.Rows) (ListOrdersByUserRow, error) {
 type ListProductsRow struct {
 	Id        int32
 	Sku       int32
-	Name      types.SKU
+	Name      interface{}
 	Price     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanListProductsRow(rows sql.Rows) (ListProductsRow, error) {
@@ -193,7 +189,7 @@ func scanListProductsRow(rows sql.Rows) (ListProductsRow, error) {
 type ListUsersRow struct {
 	Id        int32
 	Email     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
@@ -209,8 +205,8 @@ type UpdateOrderStatusRow struct {
 	UserId      int32
 	Status      int32
 	TotalAmount int32
-	CreatedAt   types.Money
-	UpdatedAt   *types.Money
+	CreatedAt   interface{}
+	UpdatedAt   *interface{}
 }
 
 func scanUpdateOrderStatusRow(rows sql.Rows) (UpdateOrderStatusRow, error) {
@@ -224,9 +220,9 @@ func scanUpdateOrderStatusRow(rows sql.Rows) (UpdateOrderStatusRow, error) {
 type UpdateProductPriceRow struct {
 	Id        int32
 	Sku       int32
-	Name      types.SKU
+	Name      interface{}
 	Price     int32
-	CreatedAt types.Money
+	CreatedAt interface{}
 }
 
 func scanUpdateProductPriceRow(rows sql.Rows) (UpdateProductPriceRow, error) {

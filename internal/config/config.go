@@ -226,13 +226,16 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		EmitEmptySlices: cfg.PreparedQueries.EmitEmptySlices,
 	}
 
+	// Process custom types to extract import paths from go_type if needed
+	customTypes := normalizeCustomTypes(cfg.CustomTypes.Mappings)
+
 	res.Plan = JobPlan{
 		Package:             cfg.Package,
 		Out:                 out,
 		SQLiteDriver:        driver,
 		Schemas:             schemas,
 		Queries:             queries,
-		CustomTypes:         cfg.CustomTypes.Mappings,
+		CustomTypes:         customTypes,
 		EmitJSONTags:        cfg.Generation.EmitJSONTags,
 		EmitPointersForNull: cfg.Generation.EmitPointersForNull,
 		PreparedQueries:     prepared,
@@ -356,4 +359,69 @@ func resolvePatterns(resolver fileset.Resolver, field string, patterns []string)
 	}
 
 	return paths, nil
+}
+
+// normalizeCustomTypes processes custom type mappings to extract import paths
+// from go_type when go_import is not explicitly provided.
+// For example, go_type="github.com/example/types.UserID" becomes:
+//   - go_import="github.com/example/types"
+//   - go_package="types"
+//   - go_type="UserID"
+func normalizeCustomTypes(mappings []CustomTypeMapping) []CustomTypeMapping {
+	result := make([]CustomTypeMapping, len(mappings))
+	for i, m := range mappings {
+		result[i] = m
+
+		// If go_import is already set, just ensure go_package is set
+		if m.GoImport != "" {
+			if m.GoPackage == "" {
+				result[i].GoPackage = extractPackageName(m.GoImport)
+			}
+			continue
+		}
+
+		// Try to extract import from go_type
+		if m.GoType != "" && strings.Contains(m.GoType, ".") {
+			importPath, typeName := extractImportAndType(m.GoType)
+			if importPath != "" {
+				result[i].GoImport = importPath
+				result[i].GoPackage = extractPackageName(importPath)
+				result[i].GoType = typeName
+			}
+		}
+	}
+	return result
+}
+
+// extractImportAndType splits a fully qualified Go type into import path and type name.
+// Example: "github.com/example/types.UserID" -> ("github.com/example/types", "UserID")
+func extractImportAndType(qualifiedType string) (importPath, typeName string) {
+	// Handle pointer types
+	isPointer := strings.HasPrefix(qualifiedType, "*")
+	if isPointer {
+		qualifiedType = strings.TrimPrefix(qualifiedType, "*")
+	}
+
+	// Find the last dot to separate import path from type name
+	lastDot := strings.LastIndex(qualifiedType, ".")
+	if lastDot == -1 {
+		return "", qualifiedType
+	}
+
+	importPath = qualifiedType[:lastDot]
+	typeName = qualifiedType[lastDot+1:]
+
+	// Re-add pointer if it was there
+	if isPointer {
+		typeName = "*" + typeName
+	}
+
+	return importPath, typeName
+}
+
+// extractPackageName extracts the package name from an import path.
+// Example: "github.com/example/types" -> "types"
+func extractPackageName(importPath string) string {
+	parts := strings.Split(importPath, "/")
+	return parts[len(parts)-1]
 }

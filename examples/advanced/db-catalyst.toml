@@ -4,54 +4,48 @@ sqlite_driver = "modernc"
 schemas = ["schema/*.sql"]
 queries = ["queries/*.sql"]
 
-# Custom type mappings - this is what makes db-catalyst special!
+# Custom type mappings - simplified format!
+# Just specify the full qualified type, import is auto-extracted
 [[custom_types.mapping]]
 custom_type = "user_id"
 sqlite_type = "INTEGER"
-go_type = "types.UserID"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.UserID"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "product_id"
 sqlite_type = "INTEGER"
-go_type = "types.ProductID"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.ProductID"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "order_id"
 sqlite_type = "INTEGER"
-go_type = "types.OrderID"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.OrderID"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "status"
 sqlite_type = "TEXT"
-go_type = "types.Status"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.Status"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "money"
 sqlite_type = "INTEGER"
-go_type = "types.Money"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.Money"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "email"
 sqlite_type = "TEXT"
-go_type = "types.Email"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.Email"
 pointer = false
 
 [[custom_types.mapping]]
 custom_type = "sku"
 sqlite_type = "TEXT"
-go_type = "types.SKU"
-go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+go_type = "github.com/electwix/db-catalyst/examples/advanced/types.SKU"
 pointer = false
 
 [generation]
