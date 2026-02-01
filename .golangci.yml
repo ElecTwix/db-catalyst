@@ -36,6 +36,9 @@ linters:
     - modernize       # Suggest modern Go code simplifications
     - sloglint        # Ensure consistent slog usage
     - loggercheck     # Check logger key-value pairs
+    - mnd             # Detect magic numbers
+    - goconst         # Detect repeated strings that could be constants
+    - dupword         # Detect duplicated words in comments
 linters-settings:
   errorlint:
     error-functions:
@@ -54,6 +57,49 @@ linters-settings:
     min-complexity: 4
   maintidx:
     min-maint-index: 50  # Warn on complex functions
+
+  mnd:
+    # Magic number detector
+    checks:
+      - argument
+      - case
+      - condition
+      - return
+      - operation
+      - assign
+    ignored-numbers:
+      - "0"
+      - "1"
+      - "2"
+      - "3"
+      - "4"
+      - "5"
+      - "10"
+      - "64"
+      - "100"
+      - "1000"
+      - "1024"
+      - "0755"
+      - "0644"
+      - "0600"
+    ignored-functions:
+      - "os\\.Chmod"
+      - "os\\.Mkdir"
+      - "os\\.MkdirAll"
+      - "os\\.OpenFile"
+      - "strconv\\."
+      - "strings\\.SplitN"
+      - "time\\."
+
+  goconst:
+    # Detect repeated strings that could be constants
+    match-constant: true
+    min-len: 3
+    min-occurrences: 3
+    ignore-tests: false
+    numbers: true
+    min-occurrences-const: 2
+
 issues:
   exclude-use-default: false
   max-issues-per-linter: 50
