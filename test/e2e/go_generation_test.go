@@ -4,6 +4,7 @@ package e2e
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -140,13 +141,14 @@ queries = ["queries.sql"]
 
 	t.Log("✅ Generated files successfully")
 
-	// TODO: Enable compilation check once generator bug is fixed
-	// Currently missing Row types in generated code
-	// cmd := exec.Command("go", "build", "./...")
-	// cmd.Dir = tmpDir
-	// if output, err := cmd.CombinedOutput(); err != nil {
-	// 	t.Fatalf("generated code failed to compile:\n%s", output)
-	// }
+	// Verify the generated code compiles
+	cmd := exec.Command("go", "build", "./...")
+	cmd.Dir = tmpDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generated code failed to compile:\n%s", output)
+	}
+
+	t.Log("✅ Generated code compiles successfully")
 }
 
 // TestGeneratedGoCode_WithComplexSchema tests a more complex schema.
