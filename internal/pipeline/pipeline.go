@@ -308,7 +308,7 @@ func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalo
 	if p.Env.Generator != nil {
 		generator = p.Env.Generator
 	} else {
-		generator = codegen.New(codegen.Options{
+		factory := codegen.NewGeneratorFactory(codegen.Options{
 			Package:             plan.Package,
 			EmitJSONTags:        plan.EmitJSONTags,
 			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
@@ -325,6 +325,11 @@ func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalo
 				EmitIFNotExists: opts.EmitIFNotExists,
 			},
 		})
+		var err error
+		generator, err = factory.Create(plan.Language)
+		if err != nil {
+			return nil, fmt.Errorf("create generator: %w", err)
+		}
 	}
 
 	generatedFiles, err := generator.Generate(ctx, catalog, analyses)

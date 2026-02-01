@@ -31,6 +31,24 @@ var validDrivers = map[Driver]struct{}{
 	DriverMattN:   {},
 }
 
+// Language identifies the target programming language for code generation.
+type Language string
+
+const (
+	// LanguageGo generates Go code.
+	LanguageGo Language = "go"
+	// LanguageRust generates Rust code.
+	LanguageRust Language = "rust"
+	// LanguageTypeScript generates TypeScript code.
+	LanguageTypeScript Language = "typescript"
+)
+
+var validLanguages = map[Language]struct{}{
+	LanguageGo:         {},
+	LanguageRust:       {},
+	LanguageTypeScript: {},
+}
+
 // CustomTypeMapping defines how a custom type maps to SQLite and Go types.
 type CustomTypeMapping struct {
 	CustomType string `toml:"custom_type"`
@@ -85,6 +103,7 @@ type GenerationOptions struct {
 type JobPlan struct {
 	Package             string
 	Out                 string
+	Language            Language
 	SQLiteDriver        Driver
 	Schemas             []string
 	Queries             []string
@@ -115,6 +134,7 @@ type PreparedQueries struct {
 type Config struct {
 	Package         string                `toml:"package"`
 	Out             string                `toml:"out"`
+	Language        Language              `toml:"language"`
 	SQLiteDriver    Driver                `toml:"sqlite_driver"`
 	Schemas         []string              `toml:"schemas"`
 	Queries         []string              `toml:"queries"`
@@ -197,6 +217,11 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		return res, err
 	}
 
+	lang, err := resolveLanguage(path, cfg.Language)
+	if err != nil {
+		return res, err
+	}
+
 	baseDir := filepath.Dir(path)
 
 	var resolver fileset.Resolver
@@ -232,6 +257,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 	res.Plan = JobPlan{
 		Package:             cfg.Package,
 		Out:                 out,
+		Language:            lang,
 		SQLiteDriver:        driver,
 		Schemas:             schemas,
 		Queries:             queries,
@@ -254,6 +280,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 	known := map[string]struct{}{
 		"package":          {},
 		"out":              {},
+		"language":         {},
 		"sqlite_driver":    {},
 		"schemas":          {},
 		"queries":          {},
@@ -335,6 +362,16 @@ func resolveDriver(path string, driver Driver) (Driver, error) {
 		return "", fmt.Errorf("%s: unsupported sqlite_driver %q", path, driver)
 	}
 	return driver, nil
+}
+
+func resolveLanguage(path string, lang Language) (Language, error) {
+	if lang == "" {
+		return LanguageGo, nil
+	}
+	if _, ok := validLanguages[lang]; !ok {
+		return "", fmt.Errorf("%s: unsupported language %q", path, lang)
+	}
+	return lang, nil
 }
 
 func resolvePatterns(resolver fileset.Resolver, field string, patterns []string) ([]string, error) {
