@@ -1,0 +1,14 @@
+package complexdb
+
+import (
+	"context"
+	"database/sql"
+)
+
+const queryIncrementViewCount string = `UPDATE posts
+SET view_count = view_count + 1
+WHERE id = ?;`
+
+func (q *Queries) IncrementViewCount(ctx context.Context, id int32) (sql.Result, error) {
+	return q.db.ExecContext(ctx, queryIncrementViewCount, id)
+}

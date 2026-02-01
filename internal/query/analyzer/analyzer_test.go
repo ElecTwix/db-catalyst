@@ -572,6 +572,50 @@ func TestAnalyzerAggregateRequiresAlias(t *testing.T) {
 	}
 }
 
+func TestAnalyzer_JoinTwoTables(t *testing.T) {
+	catalog := buildTestCatalog()
+	sql := `SELECT u.id, u.email, p.title 
+FROM users u 
+JOIN posts p ON p.user_id = u.id`
+
+	blk := block.Block{
+		Path:   "query/join.sql",
+		Line:   1,
+		Column: 1,
+		SQL:    sql,
+	}
+
+	q, diags := parser.Parse(blk)
+	if len(diags) != 0 {
+		t.Fatalf("unexpected parser diagnostics: %+v", diags)
+	}
+
+	res := analyzer.New(catalog).Analyze(q)
+
+	t.Logf("Diagnostics: %+v", res.Diagnostics)
+	for _, d := range res.Diagnostics {
+		t.Logf("  - Line %d:%d: %s", d.Line, d.Column, d.Message)
+	}
+
+	if len(res.Diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+	}
+
+	if len(res.Columns) != 3 {
+		t.Fatalf("expected 3 columns, got %d", len(res.Columns))
+	}
+
+	if res.Columns[0].Name != "id" || res.Columns[0].GoType != "int64" {
+		t.Errorf("unexpected first column %+v", res.Columns[0])
+	}
+	if res.Columns[1].Name != "email" || res.Columns[1].GoType != "string" {
+		t.Errorf("unexpected second column %+v", res.Columns[1])
+	}
+	if res.Columns[2].Name != "title" || res.Columns[2].GoType != "string" {
+		t.Errorf("unexpected third column %+v", res.Columns[2])
+	}
+}
+
 func BenchmarkAnalyzeSelect(b *testing.B) {
 	cat := buildTestCatalog()
 	blk := block.Block{
@@ -603,6 +647,14 @@ func buildTestCatalog() *model.Catalog {
 					{Name: "email", Type: "TEXT", NotNull: false},
 					{Name: "status", Type: "NUMERIC", NotNull: false},
 					{Name: "credits", Type: "INTEGER", NotNull: false},
+				},
+			},
+			"posts": {
+				Name: "posts",
+				Columns: []*model.Column{
+					{Name: "id", Type: "INTEGER", NotNull: true},
+					{Name: "user_id", Type: "INTEGER", NotNull: true},
+					{Name: "title", Type: "TEXT", NotNull: false},
 				},
 			},
 		},

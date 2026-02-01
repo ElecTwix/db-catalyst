@@ -1,0 +1,25 @@
+package complexdb
+
+import "context"
+
+const queryListUnpublishedPosts string = `SELECT * FROM posts WHERE published = 0 ORDER BY created_at DESC;`
+
+func (q *Queries) ListUnpublishedPosts(ctx context.Context) ([]ListUnpublishedPostsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListUnpublishedPosts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUnpublishedPostsRow
+	for rows.Next() {
+		item, err := scanListUnpublishedPostsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

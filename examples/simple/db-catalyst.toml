@@ -1,0 +1,5 @@
+package = "simpledb"
+out = "db"
+sqlite_driver = "modernc"
+schemas = ["schema/*.sql"]
+queries = ["queries/*.sql"]

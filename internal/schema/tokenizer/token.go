@@ -204,6 +204,7 @@ var keywords = map[string]struct{}{
 	"INTEGER":       {},
 	"INSTEAD":       {},
 	"INTO":          {},
+	"JOIN":          {},
 	"KEY":           {},
 	"LEFT":          {},
 	"MATCH":         {},

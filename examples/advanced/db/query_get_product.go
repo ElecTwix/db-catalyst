@@ -1,0 +1,30 @@
+package advanceddb
+
+import (
+	"context"
+	"database/sql"
+)
+
+const queryGetProduct string = `SELECT * FROM products WHERE id = ?;`
+
+func (q *Queries) GetProduct(ctx context.Context, id *int32) (GetProductRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetProduct, id)
+	if err != nil {
+		return GetProductRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return GetProductRow{}, err
+		}
+		return GetProductRow{}, sql.ErrNoRows
+	}
+	item, err := scanGetProductRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
+}

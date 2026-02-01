@@ -1,0 +1,59 @@
+package = "advanceddb"
+out = "db"
+sqlite_driver = "modernc"
+schemas = ["schema/*.sql"]
+queries = ["queries/*.sql"]
+
+# Custom type mappings - this is what makes db-catalyst special!
+[[custom_types.mapping]]
+custom_type = "user_id"
+sqlite_type = "INTEGER"
+go_type = "types.UserID"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "product_id"
+sqlite_type = "INTEGER"
+go_type = "types.ProductID"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "order_id"
+sqlite_type = "INTEGER"
+go_type = "types.OrderID"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "status"
+sqlite_type = "TEXT"
+go_type = "types.Status"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "money"
+sqlite_type = "INTEGER"
+go_type = "types.Money"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "email"
+sqlite_type = "TEXT"
+go_type = "types.Email"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[[custom_types.mapping]]
+custom_type = "sku"
+sqlite_type = "TEXT"
+go_type = "types.SKU"
+go_import = "github.com/electwix/db-catalyst/examples/advanced/types"
+pointer = false
+
+[generation]
+emit_json_tags = true
+emit_empty_slices = true

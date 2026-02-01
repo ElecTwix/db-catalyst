@@ -1,0 +1,27 @@
+package complexdb
+
+import "context"
+
+const queryGetPostTags string = `SELECT t.id, t.name, t.description
+FROM tags t
+WHERE t.id IN (SELECT pt.tag_id FROM post_tags pt WHERE pt.post_id = ?);`
+
+func (q *Queries) GetPostTags(ctx context.Context, postId int32) ([]GetPostTagsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetPostTags, postId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostTagsRow
+	for rows.Next() {
+		item, err := scanGetPostTagsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -1,0 +1,25 @@
+package advanceddb
+
+import "context"
+
+const queryListProducts string = `SELECT * FROM products ORDER BY name;`
+
+func (q *Queries) ListProducts(ctx context.Context) ([]ListProductsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListProducts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProductsRow
+	for rows.Next() {
+		item, err := scanListProductsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

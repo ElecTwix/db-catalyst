@@ -1,0 +1,30 @@
+package complexdb
+
+import "context"
+
+const querySearchPosts string = `SELECT *
+FROM posts
+WHERE published = 1
+  AND (title LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%')
+ORDER BY view_count DESC
+LIMIT ? OFFSET ?;`
+
+func (q *Queries) SearchPosts(ctx context.Context, title *int32, arg2 *int32, arg3 *int32, arg4 *int32) ([]SearchPostsRow, error) {
+	rows, err := q.db.QueryContext(ctx, querySearchPosts, title, arg2, arg3, arg4)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchPostsRow
+	for rows.Next() {
+		item, err := scanSearchPostsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

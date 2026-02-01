@@ -1,0 +1,9 @@
+package = "complexdb"
+out = "db"
+sqlite_driver = "modernc"
+schemas = ["schema/*.sql"]
+queries = ["queries/*.sql"]
+
+[generation]
+emit_json_tags = true
+emit_empty_slices = true

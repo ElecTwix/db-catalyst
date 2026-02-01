@@ -1443,13 +1443,15 @@ func isCommonFunction(name string) bool {
 
 func discoverReferencedRelations(tokens []tokenizer.Token) []string {
 	var referenced []string
-	for i := 0; i < len(tokens); i++ {
+	for i := 0; i < len(tokens); {
 		tok := tokens[i]
 		if tok.Kind != tokenizer.KindKeyword {
+			i++
 			continue
 		}
 		text := strings.ToUpper(tok.Text)
 		if text != "FROM" && text != "JOIN" && text != "INTO" && text != "UPDATE" && text != "DELETE" {
+			i++
 			continue
 		}
 		i++
@@ -1469,16 +1471,18 @@ func addAliasesFromTokens(scope *queryScope, tokens []tokenizer.Token) {
 	if scope == nil || len(tokens) == 0 {
 		return
 	}
-	for i := 0; i < len(tokens); i++ {
+	for i := 0; i < len(tokens); {
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindEOF {
 			break
 		}
 		if tok.Kind != tokenizer.KindKeyword {
+			i++
 			continue
 		}
 		text := strings.ToUpper(tok.Text)
 		if text != "FROM" && text != "JOIN" {
+			i++
 			continue
 		}
 		i++
