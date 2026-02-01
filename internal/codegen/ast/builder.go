@@ -104,7 +104,7 @@ func (b *Builder) Build(ctx context.Context, catalog *model.Catalog, analyses []
 		if err != nil {
 			return nil, err
 		}
-		files = append(files, File{Path: "_helpers.gen.go", Node: helperNode})
+		files = append(files, File{Path: "helpers.gen.go", Node: helperNode})
 	}
 
 	queryFiles, err := b.buildQueryFiles(packageName, queries)

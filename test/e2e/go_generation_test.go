@@ -125,7 +125,7 @@ queries = ["queries.sql"]
 	expectedFiles := []string{
 		"gen/models.gen.go",
 		"gen/querier.gen.go",
-		"gen/_helpers.gen.go",
+		"gen/helpers.gen.go",
 		"gen/query_get_user.go",
 		"gen/query_list_users.go",
 		"gen/query_create_user.go",

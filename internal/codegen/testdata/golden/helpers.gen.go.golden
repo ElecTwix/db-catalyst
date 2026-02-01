@@ -1,0 +1,57 @@
+package store
+
+import "database/sql"
+
+type GetUserRow struct {
+	Id      int32
+	Email   *interface{}
+	Credits sql.NullFloat64
+}
+
+func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+	var item GetUserRow
+	if err := rows.Scan(&item.Id, &item.Email, &item.Credits); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+type ListUsersByIDsRow struct {
+	Id    int32
+	Email *interface{}
+}
+
+func scanListUsersByIDsRow(rows sql.Rows) (ListUsersByIDsRow, error) {
+	var item ListUsersByIDsRow
+	if err := rows.Scan(&item.Id, &item.Email); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+type ListUsersRow struct {
+	Id    int32
+	Email *interface{}
+}
+
+func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
+	var item ListUsersRow
+	if err := rows.Scan(&item.Id, &item.Email); err != nil {
+		return item, err
+	}
+	return item, nil
+}
+
+type SummarizeCreditsRow struct {
+	TotalUsers int32
+	SumCredits sql.NullFloat64
+	AvgCredit  sql.NullFloat64
+}
+
+func scanSummarizeCreditsRow(rows sql.Rows) (SummarizeCreditsRow, error) {
+	var item SummarizeCreditsRow
+	if err := rows.Scan(&item.TotalUsers, &item.SumCredits, &item.AvgCredit); err != nil {
+		return item, err
+	}
+	return item, nil
+}
