@@ -137,12 +137,32 @@ func TestParser(t *testing.T) {
 - Target 80%+ coverage for new code
 - Update golden fixtures intentionally
 
+## Multi-Database & Multi-Language Support
+
+**One Schema → Multiple Languages:**
+```toml
+# db-catalyst.toml
+language = "rust"  # or "go" (default), "typescript"
+```
+
+**Supported Databases:**
+- **SQLite** (fully supported) - Primary dialect
+- **PostgreSQL** (proof-of-concept parser)
+- **MySQL** (proof-of-concept parser)
+
+**Supported Languages:**
+- **Go** (AST-based generation) - Default
+- **Rust** (template-based with sqlx)
+- **TypeScript** (template-based with pg)
+
+**Architecture:** Grammar-driven parsers → Semantic types → Language-specific generators
+
 ## Project Architecture
 
 - **Grammar-driven**: SQL dialects defined in `.grammar` files (EBNF-style)
 - **Parser library**: Participle for LL(k) parsing
-- **Primary dialect**: SQLite (fully supported)
-- **Multi-language**: Rust, TypeScript generators use templates; Go uses AST
+- **Semantic type system**: Language-agnostic type representation
+- **Multi-language**: Go (AST), Rust/TypeScript (templates)
 - **No global state**: Pipeline stages are immutable
 
 ### Key Directories
