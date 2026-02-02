@@ -3,6 +3,7 @@ package tokenizer
 
 import (
 	"fmt"
+	"iter"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -29,6 +30,48 @@ func Scan(path string, src []byte, captureDocs bool) ([]Token, error) {
 	return scanner.tokens, nil
 }
 
+// ScanSeq returns an iterator over tokens in the source.
+// This is memory-efficient for large files and enables early termination.
+// Use this when you only need to process tokens sequentially.
+// For random access, use Scan() instead.
+//
+// Example:
+//
+//	for tok := range tokenizer.ScanSeq(path, src, false) {
+//	    if tok.Kind == tokenizer.KindEOF {
+//	        break
+//	    }
+//	    process(tok)
+//	}
+func ScanSeq(path string, src []byte, captureDocs bool) iter.Seq[Token] {
+	return func(yield func(Token) bool) {
+		if !utf8.Valid(src) {
+			return
+		}
+
+		scanner := &scannerIter{
+			path:        path,
+			src:         string(src),
+			captureDocs: captureDocs,
+			line:        1,
+			column:      1,
+		}
+
+		for scanner.index < len(scanner.src) {
+			tok := scanner.nextToken()
+			if !yield(tok) {
+				return
+			}
+			if tok.Kind == KindEOF {
+				return
+			}
+		}
+
+		// Yield EOF
+		yield(Token{Kind: KindEOF, Line: scanner.line, Column: scanner.column})
+	}
+}
+
 // Scanner maintains scanning state over a schema source.
 type Scanner struct {
 	path        string
@@ -45,6 +88,247 @@ type docBuffer struct {
 	lines []string
 	line  int
 	col   int
+}
+
+// scannerIter is a lightweight scanner for iterator-based tokenization.
+type scannerIter struct {
+	path        string
+	src         string
+	captureDocs bool
+	index       int
+	line        int
+	column      int
+	pendingDoc  *docBuffer
+}
+
+// nextToken returns the next token from the source.
+func (s *scannerIter) nextToken() Token {
+	for s.index < len(s.src) {
+		r := s.peek()
+		switch {
+		case r == eofRune:
+			s.index = len(s.src)
+			return s.emitEOF()
+		case unicode.IsSpace(r):
+			s.consumeWhitespace()
+		case r == '-' && s.peekNext() == '-':
+			s.consumeLineComment()
+		case r == '/' && s.peekNext() == '*':
+			s.consumeBlockComment()
+		case r == '\'':
+			return s.consumeStringLiteral()
+		case (r == 'x' || r == 'X') && s.peekNext() == '\'':
+			return s.consumeBlobLiteral()
+		case r == '"' || r == '[' || r == '`':
+			return s.consumeQuotedIdentifier()
+		case r == '$' && isDigit(s.peekNext()):
+			return s.consumePostgresParam()
+		case isIdentifierStart(r):
+			return s.consumeIdentifier()
+		case isDigit(r):
+			return s.consumeNumber()
+		case isSymbolRune(r):
+			return s.consumeSymbol()
+		default:
+			startLine, startCol := s.line, s.column
+			s.advance()
+			return s.newToken(KindSymbol, string(r), startLine, startCol)
+		}
+	}
+	return s.emitEOF()
+}
+
+func (s *scannerIter) emitEOF() Token {
+	return Token{Kind: KindEOF, Line: s.line, Column: s.column}
+}
+
+func (s *scannerIter) newToken(kind Kind, text string, line, col int) Token {
+	return Token{
+		Kind:   kind,
+		Text:   text,
+		File:   s.path,
+		Line:   line,
+		Column: col,
+	}
+}
+
+func (s *scannerIter) peek() rune {
+	if s.index >= len(s.src) {
+		return eofRune
+	}
+	r, _ := utf8.DecodeRuneInString(s.src[s.index:])
+	return r
+}
+
+func (s *scannerIter) peekNext() rune {
+	if s.index >= len(s.src) {
+		return eofRune
+	}
+	_, size := utf8.DecodeRuneInString(s.src[s.index:])
+	nextPos := s.index + size
+	if nextPos >= len(s.src) {
+		return eofRune
+	}
+	r, _ := utf8.DecodeRuneInString(s.src[nextPos:])
+	return r
+}
+
+func (s *scannerIter) advance() {
+	if s.index >= len(s.src) {
+		return
+	}
+	_, size := utf8.DecodeRuneInString(s.src[s.index:])
+	s.index += size
+	s.column++
+}
+
+func (s *scannerIter) consumeWhitespace() {
+	for {
+		r := s.peek()
+		if r == eofRune || !unicode.IsSpace(r) {
+			return
+		}
+		if r == '\n' {
+			s.line++
+			s.column = 0
+		}
+		s.advance()
+	}
+}
+
+func (s *scannerIter) consumeLineComment() {
+	for {
+		r := s.peek()
+		if r == eofRune || r == '\n' {
+			return
+		}
+		s.advance()
+	}
+}
+
+func (s *scannerIter) consumeBlockComment() {
+	s.advance() // '/'
+	s.advance() // '*'
+	for {
+		r := s.peek()
+		if r == eofRune {
+			return
+		}
+		if r == '*' && s.peekNext() == '/' {
+			s.advance() // '*'
+			s.advance() // '/'
+			return
+		}
+		if r == '\n' {
+			s.line++
+			s.column = 0
+		}
+		s.advance()
+	}
+}
+
+func (s *scannerIter) consumeStringLiteral() Token {
+	startLine, startCol := s.line, s.column
+	s.advance() // opening quote
+	var content strings.Builder
+	for {
+		r := s.peek()
+		if r == eofRune {
+			return s.newToken(KindString, content.String(), startLine, startCol)
+		}
+		if r == '\'' {
+			s.advance()
+			if s.peek() == '\'' {
+				s.advance()
+				content.WriteRune('\'')
+			} else {
+				return s.newToken(KindString, content.String(), startLine, startCol)
+			}
+		} else {
+			content.WriteRune(r)
+			s.advance()
+		}
+	}
+}
+
+func (s *scannerIter) consumeBlobLiteral() Token {
+	startLine, startCol := s.line, s.column
+	s.advance() // 'x' or 'X'
+	s.advance() // opening quote
+	var content strings.Builder
+	for {
+		r := s.peek()
+		if r == eofRune || r == '\'' {
+			if r == '\'' {
+				s.advance()
+			}
+			return s.newToken(KindBlob, content.String(), startLine, startCol)
+		}
+		content.WriteRune(r)
+		s.advance()
+	}
+}
+
+func (s *scannerIter) consumeQuotedIdentifier() Token {
+	startLine, startCol := s.line, s.column
+	quote := s.peek()
+	s.advance() // opening quote
+	var content strings.Builder
+	for {
+		r := s.peek()
+		if r == eofRune {
+			return s.newToken(KindIdentifier, content.String(), startLine, startCol)
+		}
+		if r == quote {
+			s.advance()
+			return s.newToken(KindIdentifier, content.String(), startLine, startCol)
+		}
+		content.WriteRune(r)
+		s.advance()
+	}
+}
+
+func (s *scannerIter) consumePostgresParam() Token {
+	startLine, startCol := s.line, s.column
+	s.advance() // '$'
+	var num strings.Builder
+	for isDigit(s.peek()) {
+		num.WriteRune(s.peek())
+		s.advance()
+	}
+	return s.newToken(KindParam, "$"+num.String(), startLine, startCol)
+}
+
+func (s *scannerIter) consumeIdentifier() Token {
+	startLine, startCol := s.line, s.column
+	var content strings.Builder
+	for isIdentifierPart(s.peek()) {
+		content.WriteRune(s.peek())
+		s.advance()
+	}
+	text := content.String()
+	kind := KindIdentifier
+	if IsKeyword(strings.ToUpper(text)) {
+		kind = KindKeyword
+	}
+	return s.newToken(kind, text, startLine, startCol)
+}
+
+func (s *scannerIter) consumeNumber() Token {
+	startLine, startCol := s.line, s.column
+	var content strings.Builder
+	for isDigit(s.peek()) || s.peek() == '.' {
+		content.WriteRune(s.peek())
+		s.advance()
+	}
+	return s.newToken(KindNumber, content.String(), startLine, startCol)
+}
+
+func (s *scannerIter) consumeSymbol() Token {
+	startLine, startCol := s.line, s.column
+	r := s.peek()
+	s.advance()
+	return s.newToken(KindSymbol, string(r), startLine, startCol)
 }
 
 func (s *Scanner) scan() error {
