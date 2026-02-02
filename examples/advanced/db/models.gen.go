@@ -1,22 +1,22 @@
 package advanceddb
 
 type Orders struct {
-	Id          interface{} `json:"id"`
-	UserId      interface{} `json:"user_id"`
-	Status      interface{} `json:"status"`
-	TotalAmount interface{} `json:"total_amount"`
-	CreatedAt   Money       `json:"created_at"`
-	UpdatedAt   *Money      `json:"updated_at"`
+	Id          OrderID `json:"id"`
+	UserId      UserID  `json:"user_id"`
+	Status      Status  `json:"status"`
+	TotalAmount Money   `json:"total_amount"`
+	CreatedAt   int32   `json:"created_at"`
+	UpdatedAt   *int32  `json:"updated_at"`
 }
 type Products struct {
-	Id        interface{} `json:"id"`
-	Sku       interface{} `json:"sku"`
-	Name      Email       `json:"name"`
-	Price     interface{} `json:"price"`
-	CreatedAt Money       `json:"created_at"`
+	Id        ProductID `json:"id"`
+	Sku       SKU       `json:"sku"`
+	Name      string    `json:"name"`
+	Price     Money     `json:"price"`
+	CreatedAt int32     `json:"created_at"`
 }
 type Users struct {
-	Id        interface{} `json:"id"`
-	Email     interface{} `json:"email"`
-	CreatedAt Money       `json:"created_at"`
+	Id        UserID `json:"id"`
+	Email     Email  `json:"email"`
+	CreatedAt int32  `json:"created_at"`
 }

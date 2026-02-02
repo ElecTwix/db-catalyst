@@ -15,7 +15,7 @@ const queryGetOrder string = `SELECT
 FROM orders
 WHERE id = ?;`
 
-func (q *Queries) GetOrder(ctx context.Context, id *int32) (GetOrderRow, error) {
+func (q *Queries) GetOrder(ctx context.Context, id interface{}) (GetOrderRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetOrder, id)
 	if err != nil {
 		return GetOrderRow{}, err

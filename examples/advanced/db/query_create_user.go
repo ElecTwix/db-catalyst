@@ -9,7 +9,7 @@ const queryCreateUser string = `INSERT INTO users (email)
 VALUES (?)
 RETURNING *;`
 
-func (q *Queries) CreateUser(ctx context.Context, arg1 int32) (CreateUserRow, error) {
+func (q *Queries) CreateUser(ctx context.Context, arg1 interface{}) (CreateUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryCreateUser, arg1)
 	if err != nil {
 		return CreateUserRow{}, err

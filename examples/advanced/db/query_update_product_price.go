@@ -10,7 +10,7 @@ SET price = ?
 WHERE id = ?
 RETURNING *;`
 
-func (q *Queries) UpdateProductPrice(ctx context.Context, price *int32, arg2 *int32) (UpdateProductPriceRow, error) {
+func (q *Queries) UpdateProductPrice(ctx context.Context, price interface{}, arg2 interface{}) (UpdateProductPriceRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryUpdateProductPrice, price, arg2)
 	if err != nil {
 		return UpdateProductPriceRow{}, err

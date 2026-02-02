@@ -12,7 +12,7 @@ FROM orders
 WHERE status = ?
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetOrdersByStatus(ctx context.Context, status *int32) ([]GetOrdersByStatusRow, error) {
+func (q *Queries) GetOrdersByStatus(ctx context.Context, status interface{}) ([]GetOrdersByStatusRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetOrdersByStatus, status)
 	if err != nil {
 		return nil, err

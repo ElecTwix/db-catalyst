@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/electwix/db-catalyst/internal/cache"
@@ -618,10 +619,15 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 	}
 
 	// Convert custom types config to map for analyzer
+	// The map is keyed by normalized custom type name (uppercase, e.g., "USER_ID", "MONEY")
+	// so that when the analyzer looks up column.Type (which gets normalized to uppercase),
+	// it finds the correct mapping.
 	customTypesMap := make(map[string]config.CustomTypeMapping)
 	if len(plan.CustomTypes) > 0 {
 		for _, mapping := range plan.CustomTypes {
-			customTypesMap[mapping.SQLiteType] = mapping
+			// Normalize the custom type name to uppercase for consistent lookup
+			key := strings.ToUpper(mapping.CustomType)
+			customTypesMap[key] = mapping
 		}
 	}
 

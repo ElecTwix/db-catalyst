@@ -118,6 +118,23 @@ func (r *TypeResolver) resolveCustomType(sqlType string, nullable bool) (TypeInf
 		return TypeInfo{}, false
 	}
 
+	// First, check if sqlType is a custom type name itself (e.g., "user_id", "money")
+	// This happens when the schema has custom types that haven't been transformed yet
+	if mapping := r.transformer.FindCustomTypeMapping(sqlType); mapping != nil {
+		goType, isPointer, err := r.transformer.GetGoTypeForCustomType(mapping.CustomType)
+		if err != nil {
+			return TypeInfo{GoType: "interface{}", UsesSQLNull: false}, true
+		}
+		goType = r.applyNullability(goType, isPointer, nullable)
+		return r.buildCustomTypeInfo(mapping, goType)
+	}
+
+	// Skip standard SQLite types - they should not map to custom types
+	if r.isStandardSQLiteType(sqlType) {
+		return TypeInfo{}, false
+	}
+
+	// Otherwise, check if it's a standard SQL type that maps to a custom type
 	customMapping := r.findCustomMappingBySQLType(sqlType)
 	if customMapping == nil {
 		return TypeInfo{}, false
@@ -286,6 +303,25 @@ func (r *TypeResolver) mysqlTypeToGo(sqlType string) string {
 	// For now, use SQLite mappings as base for MySQL
 	// This can be expanded later
 	return r.sqliteTypeToGo(sqlType)
+}
+
+// isStandardSQLiteType checks if a type is a standard SQLite type (not a custom type).
+func (r *TypeResolver) isStandardSQLiteType(sqlType string) bool {
+	upperType := strings.ToUpper(sqlType)
+	standardTypes := []string{
+		"INTEGER", "INT", "BIGINT", "SMALLINT", "TINYINT",
+		"TEXT", "VARCHAR", "CHAR", "CLOB",
+		"BLOB",
+		"REAL", "FLOAT", "DOUBLE",
+		"NUMERIC", "DECIMAL", "BOOLEAN", "BOOL",
+		"DATE", "DATETIME", "TIMESTAMP",
+	}
+	for _, st := range standardTypes {
+		if strings.Contains(upperType, st) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveStandardType determines null handling for standard types.

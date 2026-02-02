@@ -7,7 +7,7 @@ import (
 
 const queryGetProductBySku string = `SELECT * FROM products WHERE sku = ?;`
 
-func (q *Queries) GetProductBySku(ctx context.Context, sku *int32) (GetProductBySkuRow, error) {
+func (q *Queries) GetProductBySku(ctx context.Context, sku interface{}) (GetProductBySkuRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetProductBySku, sku)
 	if err != nil {
 		return GetProductBySkuRow{}, err

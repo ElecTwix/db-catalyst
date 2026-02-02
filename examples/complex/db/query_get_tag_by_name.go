@@ -7,7 +7,7 @@ import (
 
 const queryGetTagByName string = `SELECT * FROM tags WHERE name = ?;`
 
-func (q *Queries) GetTagByName(ctx context.Context, name interface{}) (GetTagByNameRow, error) {
+func (q *Queries) GetTagByName(ctx context.Context, name string) (GetTagByNameRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetTagByName, name)
 	if err != nil {
 		return GetTagByNameRow{}, err

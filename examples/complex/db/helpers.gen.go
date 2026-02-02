@@ -4,9 +4,9 @@ import "database/sql"
 
 type CreateAuthorRow struct {
 	Id        int32
-	Name      interface{}
-	Email     interface{}
-	Bio       *interface{}
+	Name      string
+	Email     string
+	Bio       sql.NullString
 	CreatedAt int32
 }
 
@@ -21,8 +21,8 @@ func scanCreateAuthorRow(rows sql.Rows) (CreateAuthorRow, error) {
 type CreatePostRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -39,8 +39,8 @@ func scanCreatePostRow(rows sql.Rows) (CreatePostRow, error) {
 
 type CreateTagRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 }
 
 func scanCreateTagRow(rows sql.Rows) (CreateTagRow, error) {
@@ -53,9 +53,9 @@ func scanCreateTagRow(rows sql.Rows) (CreateTagRow, error) {
 
 type GetAuthorRow struct {
 	Id        int32
-	Name      interface{}
-	Email     interface{}
-	Bio       *interface{}
+	Name      string
+	Email     string
+	Bio       sql.NullString
 	CreatedAt int32
 }
 
@@ -69,7 +69,7 @@ func scanGetAuthorRow(rows sql.Rows) (GetAuthorRow, error) {
 
 type GetAuthorStatsRow struct {
 	Id         int32
-	Name       interface{}
+	Name       string
 	TotalPosts *int32
 	TotalViews *int32
 }
@@ -84,9 +84,9 @@ func scanGetAuthorStatsRow(rows sql.Rows) (GetAuthorStatsRow, error) {
 
 type GetAuthorWithPostCountRow struct {
 	Id         int32
-	Name       interface{}
-	Email      interface{}
-	Bio        *interface{}
+	Name       string
+	Email      string
+	Bio        sql.NullString
 	TotalPosts *int32
 }
 
@@ -100,8 +100,8 @@ func scanGetAuthorWithPostCountRow(rows sql.Rows) (GetAuthorWithPostCountRow, er
 
 type GetPopularTagsRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 	PostCount   *int32
 }
 
@@ -116,8 +116,8 @@ func scanGetPopularTagsRow(rows sql.Rows) (GetPopularTagsRow, error) {
 type GetPostRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -134,8 +134,8 @@ func scanGetPostRow(rows sql.Rows) (GetPostRow, error) {
 
 type GetPostTagsRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 }
 
 func scanGetPostTagsRow(rows sql.Rows) (GetPostTagsRow, error) {
@@ -149,8 +149,8 @@ func scanGetPostTagsRow(rows sql.Rows) (GetPostTagsRow, error) {
 type GetPostsByTagRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -167,8 +167,8 @@ func scanGetPostsByTagRow(rows sql.Rows) (GetPostsByTagRow, error) {
 
 type GetTagByNameRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 }
 
 func scanGetTagByNameRow(rows sql.Rows) (GetTagByNameRow, error) {
@@ -181,8 +181,8 @@ func scanGetTagByNameRow(rows sql.Rows) (GetTagByNameRow, error) {
 
 type GetTagRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 }
 
 func scanGetTagRow(rows sql.Rows) (GetTagRow, error) {
@@ -195,9 +195,9 @@ func scanGetTagRow(rows sql.Rows) (GetTagRow, error) {
 
 type ListAuthorsRow struct {
 	Id        int32
-	Name      interface{}
-	Email     interface{}
-	Bio       *interface{}
+	Name      string
+	Email     string
+	Bio       sql.NullString
 	CreatedAt int32
 }
 
@@ -212,8 +212,8 @@ func scanListAuthorsRow(rows sql.Rows) (ListAuthorsRow, error) {
 type ListPostsRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -230,8 +230,8 @@ func scanListPostsRow(rows sql.Rows) (ListPostsRow, error) {
 
 type ListTagsRow struct {
 	Id          int32
-	Name        interface{}
-	Description *interface{}
+	Name        string
+	Description sql.NullString
 }
 
 func scanListTagsRow(rows sql.Rows) (ListTagsRow, error) {
@@ -245,8 +245,8 @@ func scanListTagsRow(rows sql.Rows) (ListTagsRow, error) {
 type ListUnpublishedPostsRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -264,8 +264,8 @@ func scanListUnpublishedPostsRow(rows sql.Rows) (ListUnpublishedPostsRow, error)
 type SearchPostsRow struct {
 	Id        int32
 	AuthorId  int32
-	Title     interface{}
-	Content   interface{}
+	Title     string
+	Content   string
 	Published int32
 	ViewCount int32
 	CreatedAt int32
@@ -282,9 +282,9 @@ func scanSearchPostsRow(rows sql.Rows) (SearchPostsRow, error) {
 
 type UpdateAuthorRow struct {
 	Id        int32
-	Name      interface{}
-	Email     interface{}
-	Bio       *interface{}
+	Name      string
+	Email     string
+	Bio       sql.NullString
 	CreatedAt int32
 }
 

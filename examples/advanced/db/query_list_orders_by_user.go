@@ -11,7 +11,7 @@ FROM orders
 WHERE user_id = ?
 ORDER BY created_at DESC;`
 
-func (q *Queries) ListOrdersByUser(ctx context.Context, userId *int32) ([]ListOrdersByUserRow, error) {
+func (q *Queries) ListOrdersByUser(ctx context.Context, userId interface{}) ([]ListOrdersByUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryListOrdersByUser, userId)
 	if err != nil {
 		return nil, err

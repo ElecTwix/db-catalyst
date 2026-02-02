@@ -9,7 +9,7 @@ const queryCreateAuthor string = `INSERT INTO authors (name, email, bio)
 VALUES (?, ?, ?)
 RETURNING *;`
 
-func (q *Queries) CreateAuthor(ctx context.Context, arg1 interface{}, arg2 interface{}, arg3 *interface{}) (CreateAuthorRow, error) {
+func (q *Queries) CreateAuthor(ctx context.Context, arg1 string, arg2 string, arg3 sql.NullString) (CreateAuthorRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryCreateAuthor, arg1, arg2, arg3)
 	if err != nil {
 		return CreateAuthorRow{}, err

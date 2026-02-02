@@ -189,7 +189,7 @@ func TestDiagnostic(t *testing.T) {
 }
 
 func TestAnalyzer_SQLiteTypeToGo_WithCustomTypes(t *testing.T) {
-	// Custom type key must be the normalized SQLite type (uppercase, alphanumeric + underscore only)
+	// Custom type key must be the custom type name (uppercase, alphanumeric + underscore only)
 	customTypes := map[string]config.CustomTypeMapping{
 		"CUSTOMID": {GoType: "CustomID", SQLiteType: "INTEGER"},
 	}

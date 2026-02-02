@@ -7,7 +7,7 @@ import (
 
 const queryGetUserByEmail string = `SELECT * FROM users WHERE email = ?;`
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email *int32) (GetUserByEmailRow, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email interface{}) (GetUserByEmailRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetUserByEmail, email)
 	if err != nil {
 		return GetUserByEmailRow{}, err

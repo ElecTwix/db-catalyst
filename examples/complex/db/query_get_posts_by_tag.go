@@ -12,7 +12,7 @@ WHERE p.id IN (
 AND p.published = 1
 ORDER BY p.created_at DESC;`
 
-func (q *Queries) GetPostsByTag(ctx context.Context, name interface{}) ([]GetPostsByTagRow, error) {
+func (q *Queries) GetPostsByTag(ctx context.Context, name string) ([]GetPostsByTagRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetPostsByTag, name)
 	if err != nil {
 		return nil, err

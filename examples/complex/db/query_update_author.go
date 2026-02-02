@@ -10,7 +10,7 @@ SET name = ?, email = ?, bio = ?
 WHERE id = ?
 RETURNING *;`
 
-func (q *Queries) UpdateAuthor(ctx context.Context, name interface{}, arg2 interface{}, arg3 *interface{}, arg4 int32) (UpdateAuthorRow, error) {
+func (q *Queries) UpdateAuthor(ctx context.Context, name string, arg2 string, arg3 sql.NullString, arg4 int32) (UpdateAuthorRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryUpdateAuthor, name, arg2, arg3, arg4)
 	if err != nil {
 		return UpdateAuthorRow{}, err

@@ -10,7 +10,7 @@ SET status = ?, updated_at = unixepoch()
 WHERE id = ?
 RETURNING id, user_id, status, total_amount, created_at, updated_at;`
 
-func (q *Queries) UpdateOrderStatus(ctx context.Context, status *int32, arg2 *int32) (UpdateOrderStatusRow, error) {
+func (q *Queries) UpdateOrderStatus(ctx context.Context, status interface{}, arg2 interface{}) (UpdateOrderStatusRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryUpdateOrderStatus, status, arg2)
 	if err != nil {
 		return UpdateOrderStatusRow{}, err
