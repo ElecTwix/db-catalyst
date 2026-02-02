@@ -3,10 +3,10 @@ package advanceddb
 import "database/sql"
 
 type CreateOrderRow struct {
-	Id          interface{}
-	UserId      interface{}
-	Status      interface{}
-	TotalAmount interface{}
+	Id          any
+	UserId      any
+	Status      any
+	TotalAmount any
 	CreatedAt   int32
 	UpdatedAt   *int32
 }
@@ -20,10 +20,10 @@ func scanCreateOrderRow(rows sql.Rows) (CreateOrderRow, error) {
 }
 
 type CreateProductRow struct {
-	Id        interface{}
-	Sku       interface{}
+	Id        any
+	Sku       any
 	Name      string
-	Price     interface{}
+	Price     any
 	CreatedAt int32
 }
 
@@ -36,8 +36,8 @@ func scanCreateProductRow(rows sql.Rows) (CreateProductRow, error) {
 }
 
 type CreateUserRow struct {
-	Id        interface{}
-	Email     interface{}
+	Id        any
+	Email     any
 	CreatedAt int32
 }
 
@@ -50,10 +50,10 @@ func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
 }
 
 type GetOrderRow struct {
-	Id          interface{}
-	UserId      interface{}
-	Status      interface{}
-	TotalAmount interface{}
+	Id          any
+	UserId      any
+	Status      any
+	TotalAmount any
 	CreatedAt   int32
 	UpdatedAt   *int32
 }
@@ -68,7 +68,7 @@ func scanGetOrderRow(rows sql.Rows) (GetOrderRow, error) {
 
 type GetOrderStatisticsRow struct {
 	TotalOrders  int64
-	TotalRevenue *int32
+	TotalRevenue *any
 }
 
 func scanGetOrderStatisticsRow(rows sql.Rows) (GetOrderStatisticsRow, error) {
@@ -80,10 +80,10 @@ func scanGetOrderStatisticsRow(rows sql.Rows) (GetOrderStatisticsRow, error) {
 }
 
 type GetOrdersByStatusRow struct {
-	Id          interface{}
-	UserId      interface{}
-	Status      interface{}
-	TotalAmount interface{}
+	Id          any
+	UserId      any
+	Status      any
+	TotalAmount any
 	CreatedAt   int32
 }
 
@@ -96,10 +96,10 @@ func scanGetOrdersByStatusRow(rows sql.Rows) (GetOrdersByStatusRow, error) {
 }
 
 type GetProductBySkuRow struct {
-	Id        interface{}
-	Sku       interface{}
+	Id        any
+	Sku       any
 	Name      string
-	Price     interface{}
+	Price     any
 	CreatedAt int32
 }
 
@@ -112,10 +112,10 @@ func scanGetProductBySkuRow(rows sql.Rows) (GetProductBySkuRow, error) {
 }
 
 type GetProductRow struct {
-	Id        interface{}
-	Sku       interface{}
+	Id        any
+	Sku       any
 	Name      string
-	Price     interface{}
+	Price     any
 	CreatedAt int32
 }
 
@@ -128,8 +128,8 @@ func scanGetProductRow(rows sql.Rows) (GetProductRow, error) {
 }
 
 type GetUserByEmailRow struct {
-	Id        interface{}
-	Email     interface{}
+	Id        any
+	Email     any
 	CreatedAt int32
 }
 
@@ -142,8 +142,8 @@ func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
 }
 
 type GetUserRow struct {
-	Id        interface{}
-	Email     interface{}
+	Id        any
+	Email     any
 	CreatedAt int32
 }
 
@@ -156,9 +156,9 @@ func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
 }
 
 type ListOrdersByUserRow struct {
-	Id          interface{}
-	Status      interface{}
-	TotalAmount interface{}
+	Id          any
+	Status      any
+	TotalAmount any
 	CreatedAt   int32
 }
 
@@ -171,10 +171,10 @@ func scanListOrdersByUserRow(rows sql.Rows) (ListOrdersByUserRow, error) {
 }
 
 type ListProductsRow struct {
-	Id        interface{}
-	Sku       interface{}
+	Id        any
+	Sku       any
 	Name      string
-	Price     interface{}
+	Price     any
 	CreatedAt int32
 }
 
@@ -187,8 +187,8 @@ func scanListProductsRow(rows sql.Rows) (ListProductsRow, error) {
 }
 
 type ListUsersRow struct {
-	Id        interface{}
-	Email     interface{}
+	Id        any
+	Email     any
 	CreatedAt int32
 }
 
@@ -201,10 +201,10 @@ func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
 }
 
 type UpdateOrderStatusRow struct {
-	Id          interface{}
-	UserId      interface{}
-	Status      interface{}
-	TotalAmount interface{}
+	Id          any
+	UserId      any
+	Status      any
+	TotalAmount any
 	CreatedAt   int32
 	UpdatedAt   *int32
 }
@@ -218,10 +218,10 @@ func scanUpdateOrderStatusRow(rows sql.Rows) (UpdateOrderStatusRow, error) {
 }
 
 type UpdateProductPriceRow struct {
-	Id        interface{}
-	Sku       interface{}
+	Id        any
+	Sku       any
 	Name      string
-	Price     interface{}
+	Price     any
 	CreatedAt int32
 }
 

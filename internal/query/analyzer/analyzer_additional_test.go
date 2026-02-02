@@ -19,7 +19,7 @@ func TestAnalyzer_SQLiteTypeToGo(t *testing.T) {
 		{"REAL", "float64"},
 		{"BLOB", "[]byte"},
 		{"NUMERIC", "string"},
-		{"UNKNOWN", "interface{}"},
+		{"UNKNOWN", "any"},
 	}
 
 	for _, tt := range tests {
@@ -81,8 +81,8 @@ func TestSQLiteTypeToGo_Static(t *testing.T) {
 		{"REAL", "float64"},
 		{"BLOB", "[]byte"},
 		{"NUMERIC", "string"},
-		{"", "interface{}"},
-		{"UNKNOWN_TYPE", "interface{}"},
+		{"", "any"},
+		{"UNKNOWN_TYPE", "any"},
 	}
 
 	for _, tt := range tests {

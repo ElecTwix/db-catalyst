@@ -7,7 +7,7 @@ import (
 
 const queryGetProduct string = `SELECT * FROM products WHERE id = ?;`
 
-func (q *Queries) GetProduct(ctx context.Context, id interface{}) (GetProductRow, error) {
+func (q *Queries) GetProduct(ctx context.Context, id any) (GetProductRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetProduct, id)
 	if err != nil {
 		return GetProductRow{}, err

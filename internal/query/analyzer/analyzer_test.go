@@ -101,7 +101,7 @@ SELECT numbers.id, numbers.depth FROM numbers;`,
 				if res.Columns[0].GoType != "int64" || res.Columns[0].Nullable {
 					t.Errorf("unexpected id column %+v", res.Columns[0])
 				}
-				if res.Columns[1].GoType != "interface{}" || !res.Columns[1].Nullable {
+				if res.Columns[1].GoType != "any" || !res.Columns[1].Nullable {
 					t.Errorf("unexpected depth column %+v", res.Columns[1])
 				}
 				if len(res.Params) != 1 {
@@ -291,7 +291,7 @@ SELECT totals.count_users FROM totals;`,
 				if len(res.Columns) != 1 {
 					t.Fatalf("expected 1 column, got %d", len(res.Columns))
 				}
-				if res.Columns[0].GoType != "interface{}" || !res.Columns[0].Nullable {
+				if res.Columns[0].GoType != "any" || !res.Columns[0].Nullable {
 					t.Errorf("expected fallback column typing, got %+v", res.Columns[0])
 				}
 			},
@@ -316,13 +316,13 @@ WHERE users.id = :id;`,
 				if len(res.Columns) != 1 {
 					t.Fatalf("expected 1 column, got %d", len(res.Columns))
 				}
-				if res.Columns[0].GoType != "interface{}" || !res.Columns[0].Nullable {
+				if res.Columns[0].GoType != "any" || !res.Columns[0].Nullable {
 					t.Errorf("expected fallback column typing, got %+v", res.Columns[0])
 				}
 				if len(res.Params) != 1 {
 					t.Fatalf("expected 1 param, got %d", len(res.Params))
 				}
-				if res.Params[0].GoType != "interface{}" || !res.Params[0].Nullable {
+				if res.Params[0].GoType != "any" || !res.Params[0].Nullable {
 					t.Errorf("expected fallback param typing, got %+v", res.Params[0])
 				}
 			},

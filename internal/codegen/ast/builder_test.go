@@ -121,7 +121,7 @@ func TestBuilder_Build_NoTableRefs(t *testing.T) {
 				},
 			},
 			Columns: []analyzer.ResultColumn{
-				{Name: "num", GoType: "interface{}", Nullable: true},
+				{Name: "num", GoType: "any", Nullable: true},
 			},
 		},
 	}
@@ -177,7 +177,7 @@ func TestTypeResolver_ResolveType(t *testing.T) {
 		{"bool not null", "BOOL", false, "bool"},
 		{"numeric not null", "NUMERIC", false, "float64"},
 		{"decimal not null", "DECIMAL", false, "float64"},
-		{"unknown type", "UNKNOWN", false, "interface{}"},
+		{"unknown type", "UNKNOWN", false, "any"},
 	}
 
 	for _, tt := range tests {
@@ -1899,7 +1899,7 @@ func TestResolveType_Legacy(t *testing.T) {
 			name:     "empty type",
 			goType:   "",
 			nullable: false,
-			want:     "interface{}",
+			want:     "any",
 		},
 	}
 
@@ -2019,8 +2019,8 @@ func TestTypeResolver_ResolveType_SQLiteTypes(t *testing.T) {
 		{"NUMERIC nullable", "NUMERIC", true, "sql.NullFloat64", true},
 		{"DECIMAL not null", "DECIMAL", false, "float64", false},
 		{"DECIMAL nullable", "DECIMAL", true, "sql.NullFloat64", true},
-		{"UNKNOWN not null", "UNKNOWN", false, "interface{}", false},
-		{"UNKNOWN nullable", "UNKNOWN", true, "*interface{}", false},
+		{"UNKNOWN not null", "UNKNOWN", false, "any", false},
+		{"UNKNOWN nullable", "UNKNOWN", true, "*any", false},
 	}
 
 	for _, tt := range tests {

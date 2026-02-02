@@ -9,7 +9,7 @@ const queryCreateProduct string = `INSERT INTO products (sku, name, price)
 VALUES (?, ?, ?)
 RETURNING *;`
 
-func (q *Queries) CreateProduct(ctx context.Context, arg1 interface{}, arg2 string, arg3 interface{}) (CreateProductRow, error) {
+func (q *Queries) CreateProduct(ctx context.Context, arg1 any, arg2 string, arg3 any) (CreateProductRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryCreateProduct, arg1, arg2, arg3)
 	if err != nil {
 		return CreateProductRow{}, err

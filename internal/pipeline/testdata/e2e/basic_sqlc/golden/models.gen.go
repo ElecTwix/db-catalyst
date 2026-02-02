@@ -11,5 +11,5 @@ type Users struct {
 	Id        int32
 	Username  string
 	Email     string
-	CreatedAt *interface{}
+	CreatedAt *any
 }

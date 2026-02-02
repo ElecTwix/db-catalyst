@@ -4,8 +4,8 @@ import "database/sql"
 
 type CreateUserRow struct {
 	Id        int32
-	Name      interface{}
-	Email     *interface{}
+	Name      string
+	Email     sql.NullString
 	CreatedAt int32
 }
 
@@ -19,8 +19,8 @@ func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
 
 type GetUserRow struct {
 	Id        int32
-	Name      interface{}
-	Email     *interface{}
+	Name      string
+	Email     sql.NullString
 	CreatedAt int32
 }
 
@@ -34,8 +34,8 @@ func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
 
 type ListUsersRow struct {
 	Id        int32
-	Name      interface{}
-	Email     *interface{}
+	Name      string
+	Email     sql.NullString
 	CreatedAt int32
 }
 
@@ -49,8 +49,8 @@ func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
 
 type UpdateUserRow struct {
 	Id        int32
-	Name      interface{}
-	Email     *interface{}
+	Name      string
+	Email     sql.NullString
 	CreatedAt int32
 }
 

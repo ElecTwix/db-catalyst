@@ -5,8 +5,8 @@ import "database/sql"
 type GetItemWithTagsRow struct {
 	Id       int32
 	Name     string
-	Metadata *int32
-	Tags     *int32
+	Metadata *any
+	Tags     *any
 }
 
 func scanGetItemWithTagsRow(rows sql.Rows) (GetItemWithTagsRow, error) {

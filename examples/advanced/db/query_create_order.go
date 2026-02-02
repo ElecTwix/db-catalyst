@@ -9,7 +9,7 @@ const queryCreateOrder string = `INSERT INTO orders (user_id, status, total_amou
 VALUES (?, ?, ?)
 RETURNING id, user_id, status, total_amount, created_at, updated_at;`
 
-func (q *Queries) CreateOrder(ctx context.Context, arg1 interface{}, arg2 interface{}, arg3 interface{}) (CreateOrderRow, error) {
+func (q *Queries) CreateOrder(ctx context.Context, arg1 any, arg2 any, arg3 any) (CreateOrderRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryCreateOrder, arg1, arg2, arg3)
 	if err != nil {
 		return CreateOrderRow{}, err

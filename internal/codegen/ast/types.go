@@ -123,7 +123,7 @@ func (r *TypeResolver) resolveCustomType(sqlType string, nullable bool) (TypeInf
 	if mapping := r.transformer.FindCustomTypeMapping(sqlType); mapping != nil {
 		goType, isPointer, err := r.transformer.GetGoTypeForCustomType(mapping.CustomType)
 		if err != nil {
-			return TypeInfo{GoType: "interface{}", UsesSQLNull: false}, true
+			return TypeInfo{GoType: "any", UsesSQLNull: false}, true
 		}
 		goType = r.applyNullability(goType, isPointer, nullable)
 		return r.buildCustomTypeInfo(mapping, goType)
@@ -142,7 +142,7 @@ func (r *TypeResolver) resolveCustomType(sqlType string, nullable bool) (TypeInf
 
 	goType, isPointer, err := r.transformer.GetGoTypeForCustomType(customMapping.CustomType)
 	if err != nil {
-		return TypeInfo{GoType: "interface{}", UsesSQLNull: false}, true
+		return TypeInfo{GoType: "any", UsesSQLNull: false}, true
 	}
 
 	goType = r.applyNullability(goType, isPointer, nullable)
@@ -227,7 +227,7 @@ func (r *TypeResolver) sqliteTypeToGo(sqlType string) string {
 	case strings.Contains(upperType, "NUMERIC"), strings.Contains(upperType, "DECIMAL"):
 		return "float64"
 	default:
-		return "interface{}"
+		return "any"
 	}
 }
 
@@ -294,7 +294,7 @@ func (r *TypeResolver) postgresTypeToGo(sqlType string) string {
 		return "[]" + goElementType
 
 	default:
-		return "interface{}"
+		return "any"
 	}
 }
 
@@ -328,7 +328,7 @@ func (r *TypeResolver) isStandardSQLiteType(sqlType string) bool {
 func (r *TypeResolver) resolveStandardType(goType string, nullable bool) TypeInfo {
 	base := strings.TrimSpace(goType)
 	if base == "" {
-		base = "interface{}"
+		base = "any"
 	}
 
 	if nullable {

@@ -272,7 +272,7 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		rp := ResultParam{
 			Name:          param.Name,
 			Style:         param.Style,
-			GoType:        "interface{}",
+			GoType:        "any",
 			Nullable:      true,
 			IsVariadic:    param.IsVariadic,
 			VariadicCount: param.VariadicCount,
@@ -460,7 +460,7 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 	resolved := make([]scopeColumn, 0, len(columnNames))
 	for idx, col := range anchorQuery.Columns {
 		name := columnNames[idx]
-		sc := scopeColumn{name: name, owner: cte.Name, goType: "interface{}", nullable: true}
+		sc := scopeColumn{name: name, owner: cte.Name, goType: "any", nullable: true}
 
 		suppressDefaultWarning := false
 		if hasCatalog {
@@ -471,7 +471,7 @@ func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryS
 			diags = append(diags, warn...)
 		}
 
-		if sc.goType == "interface{}" && hasCatalog && !suppressDefaultWarning {
+		if sc.goType == "any" && hasCatalog && !suppressDefaultWarning {
 			diags = append(diags, Diagnostic{
 				Path:     parent.Block.Path,
 				Line:     col.Line,
@@ -594,7 +594,7 @@ type cteColumnInfo struct {
 
 // resolveCTEColumn resolves a single CTE column's type information.
 func (a *Analyzer) resolveCTEColumn(col parser.Column, cte parser.CTE, workingScope *queryScope, path string) (cteColumnInfo, []Diagnostic) {
-	info := cteColumnInfo{goType: "interface{}", nullable: true}
+	info := cteColumnInfo{goType: "any", nullable: true}
 	var diags []Diagnostic
 
 	alias := col.Table
@@ -656,7 +656,7 @@ func (a *Analyzer) resolveCTEColumn(col parser.Column, cte parser.CTE, workingSc
 
 // resolveAggregateType determines the type for an aggregate expression.
 func (a *Analyzer) resolveAggregateType(agg aggregateExpr, lookup scopeColumn, _ parser.Column, _ parser.CTE, _ string) cteColumnInfo {
-	info := cteColumnInfo{goType: "interface{}", nullable: true, suppressWarning: true}
+	info := cteColumnInfo{goType: "any", nullable: true, suppressWarning: true}
 
 	goType, nullable, ok := aggregateResultFromOperand(agg.kind, lookup)
 	if !ok {
@@ -900,7 +900,7 @@ func aggregateResultFromOperand(kind aggregateKind, operand scopeColumn) (string
 		}
 		return "", true, false
 	case aggregateKindMin, aggregateKindMax, aggregateKindCoalesce:
-		if operand.goType == "" || operand.goType == "interface{}" {
+		if operand.goType == "" || operand.goType == "any" {
 			return "", operand.nullable, false
 		}
 		return operand.goType, operand.nullable, true
@@ -932,7 +932,7 @@ func expandStar(col parser.Column, scope *queryScope, blk block.Block, hasCatalo
 	if !hasCatalog || scope == nil {
 		return []ResultColumn{{
 			Name:     "*",
-			GoType:   "interface{}",
+			GoType:   "any",
 			Nullable: true,
 		}}, nil
 	}
@@ -1049,7 +1049,7 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 	rc := ResultColumn{
 		Name:     columnDisplayName(col),
 		Table:    col.Table,
-		GoType:   "interface{}",
+		GoType:   "any",
 		Nullable: true,
 	}
 	diags := make([]Diagnostic, 0, 1)
@@ -1108,7 +1108,7 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 					Message:  fmt.Sprintf("unable to infer Go type for aggregate %s; defaulting to interface{}", col.Expr),
 					Severity: SeverityWarning,
 				})
-				rc.GoType = "interface{}"
+				rc.GoType = "any"
 				rc.Nullable = true
 			} else {
 				rc.GoType = goType
@@ -1789,7 +1789,7 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 		found := false
 
 		if scope != nil {
-			if resolved, _, status := scope.lookup(table, column); status == scopeLookupOK && resolved.goType != "interface{}" {
+			if resolved, _, status := scope.lookup(table, column); status == scopeLookupOK && resolved.goType != "any" {
 				typeName = resolved.goType
 				nullable = resolved.nullable
 				found = true
@@ -1797,13 +1797,13 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 		}
 
 		if !found && baseScope != nil {
-			if resolved, _, status := baseScope.lookup(table, column); status == scopeLookupOK && resolved.goType != "interface{}" {
+			if resolved, _, status := baseScope.lookup(table, column); status == scopeLookupOK && resolved.goType != "any" {
 				typeName = resolved.goType
 				nullable = resolved.nullable
 				found = true
 			} else if (status == scopeLookupAliasNotFound || status == scopeLookupAmbiguous) && column != "" {
 				// Final fallback: try global lookup in baseScope if alias not found or ambiguous
-				if fallback, _, fbStatus := baseScope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "interface{}" {
+				if fallback, _, fbStatus := baseScope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "any" {
 					typeName = fallback.goType
 					nullable = fallback.nullable
 					found = true
@@ -2132,7 +2132,7 @@ func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
 	// Use TypeResolver if available (for PostgreSQL, MySQL, etc.)
 	if a.typeResolver != nil {
 		typeInfo := a.typeResolver.ResolveType(sqliteType, false)
-		if typeInfo.GoType != "" && typeInfo.GoType != "interface{}" {
+		if typeInfo.GoType != "" && typeInfo.GoType != "any" {
 			return typeInfo.GoType
 		}
 	}
@@ -2161,7 +2161,7 @@ func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
 	case "NUMERIC":
 		return "string"
 	default:
-		return "interface{}"
+		return "any"
 	}
 }
 
@@ -2186,7 +2186,7 @@ func SQLiteTypeToGo(sqliteType string) string {
 	case "NUMERIC":
 		return "string"
 	default:
-		return "interface{}"
+		return "any"
 	}
 }
 

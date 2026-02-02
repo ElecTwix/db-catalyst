@@ -175,7 +175,7 @@ func (m *GoMapper) Map(semantic SemanticType) LanguageType {
 
 	default:
 		return LanguageType{
-			Name:          "interface{}",
+			Name:          "any",
 			PointerPrefix: "",
 			IsNullable:    true,
 		}

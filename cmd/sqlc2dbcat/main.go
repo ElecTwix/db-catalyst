@@ -132,10 +132,10 @@ type goGenConfig struct {
 }
 
 type Override struct {
-	GoType interface{} `yaml:"go_type"`
-	DBType string      `yaml:"db_type,omitempty"`
-	Column string      `yaml:"column,omitempty"`
-	Table  string      `yaml:"table,omitempty"`
+	GoType any    `yaml:"go_type"`
+	DBType string `yaml:"db_type,omitempty"`
+	Column string `yaml:"column,omitempty"`
+	Table  string `yaml:"table,omitempty"`
 }
 
 func migrate(ctx context.Context, path string, opts options) error {
@@ -364,11 +364,11 @@ func convertOverrides(overrides []Override) customTypesOutput {
 	return customTypesOutput{Mappings: mappings}
 }
 
-func parseGoType(goType interface{}) (string, bool) {
+func parseGoType(goType any) (string, bool) {
 	switch t := goType.(type) {
 	case string:
 		return t, false
-	case map[string]interface{}:
+	case map[string]any:
 		if ptr, ok := t["pointer"].(bool); ok {
 			typ, _ := t["type"].(string)
 			return typ, ptr

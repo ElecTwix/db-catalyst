@@ -7,7 +7,7 @@ import (
 
 const queryGetUser string = `SELECT * FROM users WHERE id = ?;`
 
-func (q *Queries) GetUser(ctx context.Context, id interface{}) (GetUserRow, error) {
+func (q *Queries) GetUser(ctx context.Context, id any) (GetUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetUser, id)
 	if err != nil {
 		return GetUserRow{}, err

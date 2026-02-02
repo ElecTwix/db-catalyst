@@ -147,7 +147,7 @@ func (m *GoPostgresMapper) Map(semantic SemanticType) LanguageType {
 
 	// Custom types
 	default:
-		return LanguageType{Name: "interface{}"}
+		return LanguageType{Name: "any"}
 	}
 }
 

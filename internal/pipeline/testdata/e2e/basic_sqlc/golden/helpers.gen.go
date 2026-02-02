@@ -18,7 +18,7 @@ type GetUserRow struct {
 	Id        int32
 	Username  string
 	Email     string
-	CreatedAt *int32
+	CreatedAt *any
 }
 
 func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {

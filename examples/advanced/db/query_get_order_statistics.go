@@ -11,7 +11,7 @@ const queryGetOrderStatistics string = `SELECT
 FROM orders
 WHERE user_id = ?;`
 
-func (q *Queries) GetOrderStatistics(ctx context.Context, userId interface{}) (GetOrderStatisticsRow, error) {
+func (q *Queries) GetOrderStatistics(ctx context.Context, userId any) (GetOrderStatisticsRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetOrderStatistics, userId)
 	if err != nil {
 		return GetOrderStatisticsRow{}, err
