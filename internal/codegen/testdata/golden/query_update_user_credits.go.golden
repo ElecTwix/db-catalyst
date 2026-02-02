@@ -7,6 +7,6 @@ import (
 
 const queryUpdateUserCredits string = `UPDATE users SET credits = ? WHERE id = ?`
 
-func (q *Queries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int32) (sql.Result, error) {
+func (q *Queries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
 	return q.db.ExecContext(ctx, queryUpdateUserCredits, credits, id)
 }

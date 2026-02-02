@@ -731,10 +731,10 @@ func TestBuildParams_WithCustomTypeResolver(t *testing.T) {
 		t.Errorf("buildParams() returned %d specs, want 1", len(got))
 	}
 
-	// When using a TypeResolver, the GoType "int64" is treated as a SQLite type
-	// and converted to int32 (since INTEGER maps to int32 in sqliteTypeToGo)
-	if got[0].goType != "int32" {
-		t.Errorf("buildParams() goType = %q, want int32", got[0].goType)
+	// When using a TypeResolver, the GoType "int64" is already a Go primitive,
+	// so it should remain as int64
+	if got[0].goType != "int64" {
+		t.Errorf("buildParams() goType = %q, want int64", got[0].goType)
 	}
 }
 
@@ -1973,9 +1973,9 @@ func TestTypeResolver_ResolveType_GoTypes(t *testing.T) {
 func TestTypeResolver_FindCustomMappingBySQLiteType(t *testing.T) {
 	// Test with nil transformer
 	tr := NewTypeResolver(nil)
-	got := tr.findCustomMappingBySQLiteType("INTEGER")
+	got := tr.findCustomMappingBySQLType("INTEGER")
 	if got != nil {
-		t.Errorf("findCustomMappingBySQLiteType() = %v, want nil", got)
+		t.Errorf("findCustomMappingBySQLType() = %v, want nil", got)
 	}
 }
 

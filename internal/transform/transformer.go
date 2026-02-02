@@ -3,6 +3,7 @@ package transform
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -64,9 +65,9 @@ func (t *Transformer) IsCustomType(typeName string) bool {
 
 // GetCustomTypes returns all custom type names.
 func (t *Transformer) GetCustomTypes() []string {
-	types := make([]string, 0, len(t.mappings))
-	for _, mapping := range t.mappings {
-		types = append(types, mapping.CustomType)
+	types := make([]string, len(t.mappings))
+	for i, mapping := range t.mappings {
+		types[i] = mapping.CustomType
 	}
 	slices.Sort(types)
 	return types
@@ -112,10 +113,8 @@ func (t *Transformer) ExtractCustomTypesFromSchema(input []byte) []string {
 		}
 	}
 
-	result := make([]string, 0, len(found))
-	for customType := range found {
-		result = append(result, customType)
-	}
+	// Use maps.Keys to extract keys from the map
+	result := slices.Collect(maps.Keys(found))
 	slices.Sort(result)
 	return result
 }
@@ -138,13 +137,11 @@ func (t *Transformer) ValidateCustomTypes(input []byte) []string {
 		}
 	}
 
-	var missing []string
-	for customType := range usedTypes {
-		if !t.IsCustomType(customType) {
-			missing = append(missing, customType)
-		}
-	}
-
+	// Use maps.Keys + slices.DeleteFunc for filtering
+	missing := slices.Collect(maps.Keys(usedTypes))
+	missing = slices.DeleteFunc(missing, func(customType string) bool {
+		return t.IsCustomType(customType) // Delete if it's a known custom type
+	})
 	slices.Sort(missing)
 	return missing
 }

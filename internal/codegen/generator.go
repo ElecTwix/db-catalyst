@@ -37,6 +37,7 @@ type SQLOptions struct {
 // Options configures the Generator.
 type Options struct {
 	Package             string
+	Database            config.Database
 	EmitJSONTags        bool
 	EmitEmptySlices     bool
 	EmitPointersForNull bool
@@ -126,7 +127,11 @@ func (g *codegen) generateSQL(catalog *model.Catalog) ([]File, error) {
 
 func (g *codegen) generateGo(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
 	transformer := transform.New(g.opts.CustomTypes)
-	typeResolver := astbuilder.NewTypeResolverWithOptions(transformer, g.opts.EmitPointersForNull)
+	database := g.opts.Database
+	if database == "" {
+		database = config.DatabaseSQLite
+	}
+	typeResolver := astbuilder.NewTypeResolverFull(transformer, database, g.opts.EmitPointersForNull)
 
 	builder := astbuilder.New(astbuilder.Options{
 		Package:             g.opts.Package,

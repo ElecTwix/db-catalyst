@@ -6,7 +6,26 @@
 [![Go Version](https://img.shields.io/badge/go%20version-%3E=1.25-61CFDD.svg)](https://golang.org/doc/go1.25)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`db-catalyst` turns SQLite schemas and query files into deterministic, idiomatic Go 1.25+ persistence packages. The CLI keeps configuration lightweight while producing code that looks hand-written: context-first signatures, descriptive names, and zero hidden globals.
+`db-catalyst` turns SQL schemas and query files into deterministic, idiomatic Go 1.25+ persistence packages. The CLI keeps configuration lightweight while producing code that looks hand-written: context-first signatures, descriptive names, and zero hidden globals.
+
+## Supported Databases
+
+- **SQLite** (default) - Full support with modernc.org/sqlite or mattn/go-sqlite3
+- **PostgreSQL** - Type mapping and code generation using pgx/v5
+- **MySQL** - Basic support (proof of concept)
+
+Configure the database in your `db-catalyst.toml`:
+
+```toml
+# For SQLite (default)
+database = "sqlite"
+
+# For PostgreSQL
+database = "postgresql"
+
+# For MySQL
+database = "mysql"
+```
 
 ## Requirements
 
@@ -34,6 +53,37 @@ go test ./internal/config -run TestLoadConfig
 ```
 
 Project planning lives in [`db-catalyst-spec.md`](db-catalyst-spec.md) and `docs/`.
+
+## PostgreSQL Support
+
+db-catalyst now supports PostgreSQL with the pgx/v5 driver:
+
+```toml
+# db-catalyst.toml
+package = "mydb"
+out = "db"
+database = "postgresql"
+schemas = ["schema/*.sql"]
+queries = ["queries/*.sql"]
+```
+
+### PostgreSQL Types
+
+The following PostgreSQL types are mapped to Go types:
+
+| PostgreSQL Type | Go Type | Package |
+|----------------|---------|---------|
+| `UUID` | `uuid.UUID` | github.com/google/uuid |
+| `TEXT`, `VARCHAR` | `pgtype.Text` | github.com/jackc/pgx/v5/pgtype |
+| `INTEGER`, `INT` | `pgtype.Int4` | github.com/jackc/pgx/v5/pgtype |
+| `BIGINT` | `pgtype.Int8` | github.com/jackc/pgx/v5/pgtype |
+| `BOOLEAN` | `pgtype.Bool` | github.com/jackc/pgx/v5/pgtype |
+| `TIMESTAMPTZ` | `pgtype.Timestamptz` | github.com/jackc/pgx/v5/pgtype |
+| `NUMERIC`, `DECIMAL` | `*decimal.Decimal` | github.com/shopspring/decimal |
+| `JSONB` | `[]byte` | - |
+| Arrays (e.g., `TEXT[]`) | `pgtype.Text` | github.com/jackc/pgx/v5/pgtype |
+
+See the [PostgreSQL example](examples/postgresql/) for a complete working example with UUIDs, JSONB, arrays, and more.
 
 ## Migrating from sqlc
 

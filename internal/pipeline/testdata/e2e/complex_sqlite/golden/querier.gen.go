@@ -6,7 +6,7 @@ import (
 )
 
 type Querier interface {
-	DeleteTag(ctx context.Context, tag interface{}) (sql.Result, error)
+	DeleteTag(ctx context.Context, tag string) (sql.Result, error)
 	GetItemWithTags(ctx context.Context, id *int32) (GetItemWithTagsRow, error)
 }
 type DBTX interface {

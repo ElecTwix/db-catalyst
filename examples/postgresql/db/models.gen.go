@@ -1,0 +1,45 @@
+package postgresqldb
+
+import (
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
+)
+
+type Comments struct {
+	Id          uuid.UUID
+	PostId      *uuid.UUID
+	UserId      *uuid.UUID
+	Commentbody pgtype.Text
+	Likes       pgtype.Int4
+	CreatedAt   pgtype.Timestamptz
+}
+type Posts struct {
+	Id          uuid.UUID
+	UserId      *uuid.UUID
+	Title       pgtype.Text
+	Postbody    pgtype.Text
+	Categories  pgtype.Text
+	ViewCount   pgtype.Int4
+	Rating      *decimal.Decimal
+	IsPublished pgtype.Bool
+	PublishedAt pgtype.Timestamptz
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+type Tags struct {
+	Id             uuid.UUID
+	Tagname        pgtype.Text
+	Tagdescription pgtype.Text
+	CreatedAt      pgtype.Timestamptz
+}
+type Users struct {
+	Id        uuid.UUID
+	Username  pgtype.Text
+	Useremail pgtype.Text
+	Metadata  *[]byte
+	Tags      pgtype.Text
+	IsActive  pgtype.Bool
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}

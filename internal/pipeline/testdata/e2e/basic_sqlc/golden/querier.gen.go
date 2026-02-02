@@ -6,7 +6,7 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, arg1 interface{}, arg2 interface{}) (CreateUserRow, error)
+	CreateUser(ctx context.Context, arg1 string, arg2 string) (CreateUserRow, error)
 	GetUser(ctx context.Context, id int32) (GetUserRow, error)
 	ListPostsByAuthor(ctx context.Context, authorId int32) ([]ListPostsByAuthorRow, error)
 }

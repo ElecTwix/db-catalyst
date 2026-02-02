@@ -1,6 +1,25 @@
 # Examples Summary
 
-All three examples have been created and successfully generate code.
+All examples have been created and successfully generate code.
+
+## ✅ PostgreSQL Example
+**Status:** Working with PostgreSQL-specific types
+
+Full-featured blog system with PostgreSQL types. Demonstrates:
+- UUID primary keys with gen_random_uuid()
+- JSONB columns for flexible metadata
+- TEXT[] arrays for tags and categories
+- TIMESTAMPTZ for timezone-aware timestamps
+- DECIMAL for precise numeric values
+- PostgreSQL $N parameter syntax ($1, $2, etc.)
+- RETURNING clauses for INSERT/UPDATE
+
+**Files Generated:** 40+ files including models with proper imports
+
+**Generated Types:**
+- `uuid.UUID` from github.com/google/uuid
+- `pgtype.Text`, `pgtype.Int4`, `pgtype.Bool`, `pgtype.Timestamptz` from pgx/v5
+- `*decimal.Decimal` from shopspring/decimal for NUMERIC
 
 ## ✅ Simple Example
 **Status:** Working perfectly

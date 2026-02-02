@@ -238,7 +238,7 @@ func (p *PreparedQueries) prepareUpdateUserCredits(ctx context.Context) (*sql.St
 	return stmt, nil
 }
 
-func (p *PreparedQueries) CreateUser(ctx context.Context, email *interface{}, credits sql.NullFloat64) (sql.Result, error) {
+func (p *PreparedQueries) CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error) {
 	stmt, err := p.prepareCreateUser(ctx)
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (p *PreparedQueries) CreateUser(ctx context.Context, email *interface{}, cr
 	return res, err
 }
 
-func (p *PreparedQueries) DeleteUser(ctx context.Context, id int32) (QueryResult, error) {
+func (p *PreparedQueries) DeleteUser(ctx context.Context, id int64) (QueryResult, error) {
 	stmt, err := p.prepareDeleteUser(ctx)
 	if err != nil {
 		return QueryResult{}, err
@@ -283,7 +283,7 @@ func (p *PreparedQueries) DeleteUser(ctx context.Context, id int32) (QueryResult
 }
 
 // GetUser fetches a single user by identifier.
-func (p *PreparedQueries) GetUser(ctx context.Context, id int32) (GetUserRow, error) {
+func (p *PreparedQueries) GetUser(ctx context.Context, id int64) (GetUserRow, error) {
 	stmt, err := p.prepareGetUser(ctx)
 	if err != nil {
 		return GetUserRow{}, err
@@ -349,7 +349,7 @@ func (p *PreparedQueries) ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	return items, nil
 }
 
-func (p *PreparedQueries) ListUsersByIDs(ctx context.Context, ids ...int32) ([]ListUsersByIDsRow, error) {
+func (p *PreparedQueries) ListUsersByIDs(ctx context.Context, ids ...int64) ([]ListUsersByIDsRow, error) {
 	stmt, err := p.prepareListUsersByIDs(ctx)
 	if err != nil {
 		return nil, err
@@ -420,7 +420,7 @@ func (p *PreparedQueries) SummarizeCredits(ctx context.Context) (SummarizeCredit
 	return item, nil
 }
 
-func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int32) (sql.Result, error) {
+func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
 	stmt, err := p.prepareUpdateUserCredits(ctx)
 	if err != nil {
 		return nil, err

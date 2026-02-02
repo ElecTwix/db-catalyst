@@ -8,6 +8,7 @@ import (
 	goast "go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -142,10 +143,12 @@ type tableModel struct {
 }
 
 type modelField struct {
-	columnName string
-	fieldName  string
-	goType     string
-	jsonTag    string
+	columnName  string
+	fieldName   string
+	goType      string
+	jsonTag     string
+	importPath  string
+	packageName string
 }
 
 type queryInfo struct {
@@ -175,6 +178,7 @@ type paramSpec struct {
 	argExpr        string
 	isDynamicSlice bool
 	marker         string
+	importPath     string
 }
 
 type helperSpec struct {
@@ -184,8 +188,10 @@ type helperSpec struct {
 }
 
 type helperField struct {
-	name   string
-	goType string
+	name        string
+	goType      string
+	importPath  string
+	packageName string
 }
 
 func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer.Result) ([]*tableModel, error) {
@@ -213,10 +219,8 @@ func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer
 	if len(referenced) == 0 {
 		return nil, nil
 	}
-	names := make([]string, 0, len(referenced))
-	for name := range referenced {
-		names = append(names, name)
-	}
+	// Use maps.Keys for cleaner extraction
+	names := slices.Collect(maps.Keys(referenced))
 	slices.Sort(names)
 	models := make([]*tableModel, 0, len(names))
 	for _, name := range names {
@@ -258,9 +262,11 @@ func (b *Builder) buildTableModel(tbl *model.Table) (*tableModel, error) {
 			needsSQL = true
 		}
 		field := modelField{
-			columnName: col.Name,
-			fieldName:  goName,
-			goType:     typeInfo.GoType,
+			columnName:  col.Name,
+			fieldName:   goName,
+			goType:      typeInfo.GoType,
+			importPath:  typeInfo.Import,
+			packageName: typeInfo.Package,
 		}
 		if b.opts.EmitJSONTags {
 			field.jsonTag = fmt.Sprintf("`json:\"%s\"`", col.Name)
@@ -396,6 +402,7 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error
 			variadicCount:  p.VariadicCount,
 			argExpr:        name,
 			isDynamicSlice: isDynamicSlice,
+			importPath:     typeInfo.Import,
 		}
 
 		if isDynamicSlice {
@@ -475,7 +482,12 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 		} else {
 			typeInfo = resolveType(col.GoType, col.Nullable)
 		}
-		fields = append(fields, helperField{name: fieldName, goType: typeInfo.GoType})
+		fields = append(fields, helperField{
+			name:        fieldName,
+			goType:      typeInfo.GoType,
+			importPath:  typeInfo.Import,
+			packageName: typeInfo.Package,
+		})
 	}
 	return &helperSpec{rowTypeName: rowTypeName, funcName: funcName, fields: fields}, nil
 }
@@ -483,12 +495,24 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 func (b *Builder) buildModelsFile(pkg string, models []*tableModel) (*goast.File, error) {
 	file := &goast.File{Name: goast.NewIdent(pkg)}
 
-	// Collect imports needed for custom types
+	// Collect imports needed for custom types and PostgreSQL types
 	importSet := make(map[string]struct{})
-	if b.opts.TypeResolver != nil && b.opts.TypeResolver.transformer != nil {
-		for _, mapping := range b.opts.TypeResolver.transformer.GetCustomTypes() {
-			if importPath, _, err := b.opts.TypeResolver.transformer.GetImportsForCustomType(mapping); err == nil {
-				importSet[importPath] = struct{}{}
+
+	// Collect from TypeResolver if available
+	if b.opts.TypeResolver != nil {
+		if b.opts.TypeResolver.transformer != nil {
+			for _, mapping := range b.opts.TypeResolver.transformer.GetCustomTypes() {
+				if importPath, _, err := b.opts.TypeResolver.transformer.GetImportsForCustomType(mapping); err == nil {
+					importSet[importPath] = struct{}{}
+				}
+			}
+		}
+		// Collect imports from model fields
+		for _, mdl := range models {
+			for _, fld := range mdl.fields {
+				if fld.importPath != "" {
+					importSet[fld.importPath] = struct{}{}
+				}
 			}
 		}
 	}
@@ -619,6 +643,29 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 
 func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.File, error) {
 	file := &goast.File{Name: goast.NewIdent(pkg)}
+
+	// Collect imports needed for helper fields
+	importSet := make(map[string]struct{})
+	for _, helper := range helpers {
+		for _, fld := range helper.fields {
+			if fld.importPath != "" {
+				importSet[fld.importPath] = struct{}{}
+			}
+		}
+	}
+
+	// Add imports if needed
+	if len(importSet) > 0 {
+		importDecls := make([]goast.Spec, 0, len(importSet))
+		for importPath := range importSet {
+			importDecls = append(importDecls, &goast.ImportSpec{
+				Path: &goast.BasicLit{Kind: token.STRING, Value: strconv.Quote(importPath)},
+			})
+		}
+		importDecl := &goast.GenDecl{Tok: token.IMPORT, Specs: importDecls}
+		file.Decls = append(file.Decls, importDecl)
+	}
+
 	decls := make([]goast.Decl, 0, len(helpers)*2)
 	for _, helper := range helpers {
 		fields := make([]*goast.Field, 0, len(helper.fields))
@@ -665,7 +712,7 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		}
 		decls = append(decls, funcDecl)
 	}
-	file.Decls = decls
+	file.Decls = append(file.Decls, decls...)
 	return file, nil
 }
 
@@ -673,6 +720,26 @@ func (b *Builder) buildQueryFiles(pkg string, queries []queryInfo) ([]File, erro
 	files := make([]File, 0, len(queries))
 	for _, q := range queries {
 		file := &goast.File{Name: goast.NewIdent(pkg)}
+
+		// Collect imports needed for query parameters
+		importSet := make(map[string]struct{})
+		for _, p := range q.params {
+			if p.importPath != "" {
+				importSet[p.importPath] = struct{}{}
+			}
+		}
+
+		// Add imports if needed
+		if len(importSet) > 0 {
+			importDecls := make([]goast.Spec, 0, len(importSet))
+			for importPath := range importSet {
+				importDecls = append(importDecls, &goast.ImportSpec{
+					Path: &goast.BasicLit{Kind: token.STRING, Value: strconv.Quote(importPath)},
+				})
+			}
+			importDecl := &goast.GenDecl{Tok: token.IMPORT, Specs: importDecls}
+			file.Decls = append(file.Decls, importDecl)
+		}
 
 		constSpec := &goast.ValueSpec{
 			Names:  []*goast.Ident{goast.NewIdent(q.constName)},
@@ -686,7 +753,7 @@ func (b *Builder) buildQueryFiles(pkg string, queries []queryInfo) ([]File, erro
 			return nil, err
 		}
 
-		file.Decls = []goast.Decl{constDecl, funcDecl}
+		file.Decls = append(file.Decls, constDecl, funcDecl)
 		files = append(files, File{Path: q.fileName, Node: file})
 	}
 	return files, nil
@@ -704,10 +771,8 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 		importSet["time"] = struct{}{}
 	}
 
-	keys := make([]string, 0, len(importSet))
-	for key := range importSet {
-		keys = append(keys, key)
-	}
+	// Use maps.Keys for cleaner extraction
+	keys := slices.Collect(maps.Keys(importSet))
 	slices.Sort(keys)
 
 	var buf strings.Builder

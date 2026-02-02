@@ -4,7 +4,7 @@ import "database/sql"
 
 type GetItemWithTagsRow struct {
 	Id       int32
-	Name     interface{}
+	Name     string
 	Metadata *int32
 	Tags     *int32
 }

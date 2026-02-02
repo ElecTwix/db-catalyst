@@ -1,0 +1,32 @@
+package postgresqldb
+
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const queryGetPopularPosts string = `SELECT * FROM posts 
+WHERE is_published = true 
+ORDER BY view_count DESC, published_at DESC
+LIMIT $1;`
+
+func (q *Queries) GetPopularPosts(ctx context.Context, arg1 pgtype.Int4) ([]GetPopularPostsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetPopularPosts, arg1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPopularPostsRow
+	for rows.Next() {
+		item, err := scanGetPopularPostsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

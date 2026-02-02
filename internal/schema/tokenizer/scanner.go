@@ -75,6 +75,8 @@ func (s *Scanner) scan() error {
 			if err := s.consumeQuotedIdentifier(); err != nil {
 				return err
 			}
+		case r == '$' && isDigit(s.peekNext()):
+			s.consumePostgresParam()
 		case isIdentifierStart(r):
 			s.consumeIdentifier()
 		case isDigit(r):
@@ -225,6 +227,15 @@ func (s *Scanner) consumeNumber() {
 	}
 	text := s.src[startIdx:s.index]
 	s.emitToken(KindNumber, text, startLine, startCol)
+}
+
+func (s *Scanner) consumePostgresParam() {
+	startIdx := s.index
+	startLine, startCol := s.line, s.column
+	s.advance() // consume '$'
+	s.advanceDigits()
+	text := s.src[startIdx:s.index]
+	s.emitToken(KindParam, text, startLine, startCol)
 }
 
 func (s *Scanner) consumeIdentifier() {

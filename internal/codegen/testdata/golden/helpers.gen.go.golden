@@ -3,8 +3,8 @@ package store
 import "database/sql"
 
 type GetUserRow struct {
-	Id      int32
-	Email   *interface{}
+	Id      int64
+	Email   sql.NullString
 	Credits sql.NullFloat64
 }
 
@@ -17,8 +17,8 @@ func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
 }
 
 type ListUsersByIDsRow struct {
-	Id    int32
-	Email *interface{}
+	Id    int64
+	Email sql.NullString
 }
 
 func scanListUsersByIDsRow(rows sql.Rows) (ListUsersByIDsRow, error) {
@@ -30,8 +30,8 @@ func scanListUsersByIDsRow(rows sql.Rows) (ListUsersByIDsRow, error) {
 }
 
 type ListUsersRow struct {
-	Id    int32
-	Email *interface{}
+	Id    int64
+	Email sql.NullString
 }
 
 func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
@@ -43,7 +43,7 @@ func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
 }
 
 type SummarizeCreditsRow struct {
-	TotalUsers int32
+	TotalUsers int64
 	SumCredits sql.NullFloat64
 	AvgCredit  sql.NullFloat64
 }

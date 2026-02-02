@@ -7,54 +7,36 @@ Repository for db-catalyst - language-agnostic SQL code generator. Clarity over 
 - **Go**: 1.25.3+
 - **Task Runner**: `go install github.com/go-task/task/v3/cmd/task@latest`
 - **Linter**: golangci-lint (configured in .golangci.yml)
-- **Formatter**: gofmt + goimports (`go install golang.org/x/tools/cmd/goimports@latest`)
+- **Formatter**: gofmt + goimports
 
 ## Build Commands
 
 ```bash
-# Quick build + test
-task quick
-
-# Build CLI binary
-go build -o db-catalyst ./cmd/db-catalyst
-
-# Build optimized release
-go build -ldflags="-s -w -trimpath" -o db-catalyst ./cmd/db-catalyst
-
-# Install to $GOPATH/bin
-go install ./cmd/db-catalyst
+task quick                                          # Quick build + test
+go build -o db-catalyst ./cmd/db-catalyst           # Build CLI
+go build -ldflags="-s -w -trimpath" -o db-catalyst ./cmd/db-catalyst  # Release
+go install ./cmd/db-catalyst                        # Install to $GOPATH/bin
 ```
 
 ## Test Commands
 
 ```bash
-# Run all tests
-go test ./...
-
-# Run single test (example)
-go test ./internal/config -run TestLoadConfig -v
-
-# Run with race detector
-go test -race ./...
-
-# Generate coverage
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
-
-# Run benchmarks
-go test -bench=. -benchmem ./...
+go test ./...                                       # Run all tests
+go test ./internal/config -run TestLoadConfig -v    # Run single test
+go test -race ./...                                 # Race detector
+go test -coverprofile=coverage.out ./...            # Coverage
+go test -bench=. -benchmem ./...                    # Benchmarks
+UPDATE_GOLDEN=1 go test ./internal/pipeline -v      # Update goldens
 ```
 
 ## Lint Commands
 
 ```bash
-# Run all linters
-task lint-all
-
-# Or individually:
-golangci-lint run ./...      # Main linter
-go vet ./...                  # Go vet
-staticcheck ./...             # Static analysis
+task lint-all                   # All linters
+golangci-lint run ./...         # Main linter
+go vet ./...                    # Go vet
+staticcheck ./...               # Static analysis
+task security                   # gosec checks
 ```
 
 ## Code Style Guidelines
@@ -62,24 +44,23 @@ staticcheck ./...             # Static analysis
 ### Imports
 - Group: stdlib / internal / external (enforced by goimports)
 - Never use relative imports (e.g., `../pkg`)
-- No blank lines between import groups manually (goimports handles it)
+- No blank lines between import groups manually
 
 ### Formatting
 - Always run `gofmt` and `goimports` before committing
-- No manual spacing or tab tweaks
 - Use `-trimpath` for release builds
 
 ### Naming Conventions
-- **Packages**: lowercase, single word (e.g., `config`, `parser`, `codegen`)
-- **Exported**: PascalCase (e.g., `ParseSchema`, `GenerateCode`)
-- **Unexported**: camelCase (e.g., `parseImpl`, `validateInput`)
-- **Acronyms**: Only first letter capitalized (e.g., `HTTPClient`, `JSONDecoder`)
-- **Constants**: PascalCase (e.g., `DefaultTimeout`, `MaxRetries`)
+- **Packages**: lowercase, single word (`config`, `parser`, `codegen`)
+- **Exported**: PascalCase (`ParseSchema`, `GenerateCode`)
+- **Unexported**: camelCase (`parseImpl`, `validateInput`)
+- **Acronyms**: Only first letter capitalized (`HTTPClient`, `JSONDecoder`)
+- **Constants**: PascalCase (`DefaultTimeout`, `MaxRetries`)
 
 ### Function Signatures
 - Context-first: `func (ctx context.Context, arg string) error`
 - Error-last: `func DoSomething() (Result, error)`
-- No named result parameters (avoid panic recovery)
+- No named result parameters
 - Options pattern for configuration:
   ```go
   func NewParser(opts ...ParserOption) *Parser
@@ -135,37 +116,27 @@ func TestParser(t *testing.T) {
 - Mark with `t.Helper()`
 - Use `cmp.Diff` for comparisons
 - Target 80%+ coverage for new code
-- Update golden fixtures intentionally
 
 ## Multi-Database & Multi-Language Support
 
-**One Schema → Multiple Languages:**
-```toml
-# db-catalyst.toml
-language = "rust"  # or "go" (default), "typescript"
-```
-
 **Supported Databases:**
 - **SQLite** (fully supported) - Primary dialect
-- **PostgreSQL** (proof-of-concept parser)
-- **MySQL** (proof-of-concept parser)
+- **PostgreSQL** - Type mapping and code generation using pgx/v5
+- **MySQL** - Basic support
 
 **Supported Languages:**
 - **Go** (AST-based generation) - Default
 - **Rust** (template-based with sqlx)
 - **TypeScript** (template-based with pg)
 
-**Architecture:** Grammar-driven parsers → Semantic types → Language-specific generators
+Configure in `db-catalyst.toml`:
+```toml
+database = "postgresql"  # or "sqlite" (default), "mysql"
+language = "rust"        # or "go" (default), "typescript"
+```
 
 ## Project Architecture
 
-- **Grammar-driven**: SQL dialects defined in `.grammar` files (EBNF-style)
-- **Parser library**: Participle for LL(k) parsing
-- **Semantic type system**: Language-agnostic type representation
-- **Multi-language**: Go (AST), Rust/TypeScript (templates)
-- **No global state**: Pipeline stages are immutable
-
-### Key Directories
 ```
 cmd/              CLI entry points
 internal/         Private packages
@@ -183,15 +154,13 @@ examples/         Example projects
 ## Resource Management
 
 - Always use `defer` for cleanup
-- Check context at long operation starts: `if err := ctx.Err(); err != nil { return err }`
-- Don't create new contexts unless necessary
+- Check context at operation starts: `if err := ctx.Err(); err != nil { return err }`
 - Pass context as first parameter, propagate through all layers
 
 ## Determinism
 
 - Sort maps/slices before writing files or comparing goldens
 - Tests use `cmp.Diff` and golden fixtures
-- Prepared queries are opt-in via config (`[prepared_queries]`)
 
 ## Commit Style
 
@@ -217,4 +186,3 @@ Follow Conventional Commits:
 - [Effective Go](https://go.dev/doc/effective_go)
 - [Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - `docs/idiomatic-go-guidelines.md` - Detailed style guide
-- `docs/grammar-parser-poc.md` - Architecture details

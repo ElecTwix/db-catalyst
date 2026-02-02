@@ -16,8 +16,8 @@ func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
 
 type GetUserRow struct {
 	Id        int32
-	Username  interface{}
-	Email     interface{}
+	Username  string
+	Email     string
 	CreatedAt *int32
 }
 
@@ -32,9 +32,9 @@ func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
 type ListPostsByAuthorRow struct {
 	Id       int32
 	AuthorId int32
-	Title    interface{}
-	Body     interface{}
-	Status   interface{}
+	Title    string
+	Body     string
+	Status   string
 }
 
 func scanListPostsByAuthorRow(rows sql.Rows) (ListPostsByAuthorRow, error) {

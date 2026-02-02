@@ -1,0 +1,42 @@
+package postgresqldb
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/google/uuid"
+)
+
+const queryGetUserStats string = `SELECT 
+    u.id,
+    u.username,
+    COUNT(DISTINCT p.id) as post_count,
+    COUNT(DISTINCT c.id) as comment_count,
+    COALESCE(SUM(p.view_count), 0) as total_views
+FROM users u
+LEFT JOIN posts p ON u.id = p.user_id
+LEFT JOIN comments c ON u.id = c.user_id
+WHERE u.id = $1
+GROUP BY u.id, u.username;`
+
+func (q *Queries) GetUserStats(ctx context.Context, arg1 uuid.UUID) (GetUserStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetUserStats, arg1)
+	if err != nil {
+		return GetUserStatsRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return GetUserStatsRow{}, err
+		}
+		return GetUserStatsRow{}, sql.ErrNoRows
+	}
+	item, err := scanGetUserStatsRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
+}

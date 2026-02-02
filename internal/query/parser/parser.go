@@ -668,6 +668,18 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 		}
 
 		tok := tokens[i]
+
+		// Handle PostgreSQL-style positional parameters ($1, $2, etc.)
+		if tok.Kind == tokenizer.KindParam {
+			newParams, newDiags, consumed := handlePostgresParam(tokens, i, blk, pos, numbered, params)
+			params = newParams
+			diags = append(diags, newDiags...)
+			i += consumed
+			if consumed > 0 {
+				continue
+			}
+		}
+
 		if tok.Kind != tokenizer.KindSymbol {
 			i++
 			continue
@@ -878,6 +890,55 @@ func processSimplePositionalParam(
 		EndOffset:   endOffset,
 	})
 	numbered[order] = len(params) - 1
+	return params, nil, 1
+}
+
+// handlePostgresParam processes a PostgreSQL-style positional parameter ($1, $2, etc.)
+// Returns the updated params slice, diagnostics, and the number of tokens consumed.
+func handlePostgresParam(
+	tokens []tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	numbered map[int]int,
+	params []Param,
+) ([]Param, []Diagnostic, int) {
+	tok := tokens[idx]
+
+	// Extract the parameter number from $N
+	paramText := tok.Text
+	if len(paramText) < 2 || paramText[0] != '$' {
+		return params, nil, 0
+	}
+
+	paramNum, err := strconv.Atoi(paramText[1:])
+	if err != nil || paramNum <= 0 {
+		return params, []Diagnostic{{
+			Line:    tok.Line,
+			Column:  tok.Column,
+			Message: fmt.Sprintf("invalid PostgreSQL parameter: %s", paramText),
+		}}, 1
+	}
+
+	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+	startOffset := pos.offset(tok)
+	endOffset := startOffset + len(tok.Text)
+
+	paramName := inferParamName(tokens, idx, numbered)
+	if paramName == "" {
+		paramName = fmt.Sprintf("arg%d", paramNum)
+	}
+
+	params = append(params, Param{
+		Name:        paramName,
+		Style:       ParamStylePositional,
+		Order:       paramNum,
+		Line:        actualLine,
+		Column:      actualColumn,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+	})
+	numbered[paramNum] = len(params) - 1
 	return params, nil, 1
 }
 

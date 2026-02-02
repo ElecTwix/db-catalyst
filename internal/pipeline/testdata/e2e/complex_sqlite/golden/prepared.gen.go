@@ -72,7 +72,7 @@ func (p *PreparedQueries) Close() error {
 	return err
 }
 
-func (p *PreparedQueries) DeleteTag(ctx context.Context, tag interface{}) (sql.Result, error) {
+func (p *PreparedQueries) DeleteTag(ctx context.Context, tag string) (sql.Result, error) {
 	stmt := p.stmtDeleteTag
 	res, err := stmt.ExecContext(ctx, tag)
 	return res, err

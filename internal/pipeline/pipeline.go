@@ -13,6 +13,7 @@ import (
 
 	"github.com/electwix/db-catalyst/internal/cache"
 	"github.com/electwix/db-catalyst/internal/codegen"
+	"github.com/electwix/db-catalyst/internal/codegen/ast"
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/fileset"
 	"github.com/electwix/db-catalyst/internal/logging"
@@ -310,6 +311,7 @@ func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalo
 	} else {
 		factory := codegen.NewGeneratorFactory(codegen.Options{
 			Package:             plan.Package,
+			Database:            plan.Database,
 			EmitJSONTags:        plan.EmitJSONTags,
 			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
 			EmitPointersForNull: plan.EmitPointersForNull,
@@ -624,6 +626,11 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 	}
 
 	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
+
+	// Set up type resolver for database-specific type mapping
+	transformer := transform.New(nil) // No overrides for now
+	typeResolver := ast.NewTypeResolverWithDatabase(transformer, plan.Database)
+	analyzer.SetTypeResolver(&analyzerTypeResolver{resolver: typeResolver})
 	analyses := make([]queryanalyzer.Result, 0, len(queries))
 	for _, q := range queries {
 		result := analyzer.Analyze(q)
@@ -634,4 +641,20 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 	}
 
 	return analyses, nil
+}
+
+// analyzerTypeResolver wraps the codegen TypeResolver to implement the analyzer TypeResolver interface.
+type analyzerTypeResolver struct {
+	resolver *ast.TypeResolver
+}
+
+// ResolveType implements the analyzer.TypeResolver interface.
+func (a *analyzerTypeResolver) ResolveType(sqlType string, nullable bool) queryanalyzer.TypeInfo {
+	info := a.resolver.ResolveType(sqlType, nullable)
+	return queryanalyzer.TypeInfo{
+		GoType:      info.GoType,
+		UsesSQLNull: info.UsesSQLNull,
+		Import:      info.Import,
+		Package:     info.Package,
+	}
 }

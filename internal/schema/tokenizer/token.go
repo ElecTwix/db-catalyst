@@ -25,6 +25,8 @@ const (
 	KindBlob
 	// KindSymbol represents punctuation or operator symbols.
 	KindSymbol
+	// KindParam represents PostgreSQL-style positional parameters ($1, $2, etc.)
+	KindParam
 	// KindDocComment represents a documentation comment captured for a following statement.
 	KindDocComment
 	// KindEOF marks the logical end of the input.
@@ -260,6 +262,8 @@ func (k Kind) String() string {
 		return "Blob"
 	case KindSymbol:
 		return "Symbol"
+	case KindParam:
+		return "Param"
 	case KindDocComment:
 		return "DocComment"
 	case KindEOF:

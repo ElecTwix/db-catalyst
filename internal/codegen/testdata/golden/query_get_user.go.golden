@@ -8,7 +8,7 @@ import (
 const queryGetUser string = `SELECT id, email, credits FROM users WHERE id = ?`
 
 // GetUser fetches a single user by identifier.
-func (q *Queries) GetUser(ctx context.Context, id int32) (GetUserRow, error) {
+func (q *Queries) GetUser(ctx context.Context, id int64) (GetUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetUser, id)
 	if err != nil {
 		return GetUserRow{}, err

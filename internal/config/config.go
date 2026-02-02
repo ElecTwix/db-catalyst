@@ -49,6 +49,24 @@ var validLanguages = map[Language]struct{}{
 	LanguageTypeScript: {},
 }
 
+// Database identifies the target database dialect.
+type Database string
+
+const (
+	// DatabaseSQLite targets SQLite.
+	DatabaseSQLite Database = "sqlite"
+	// DatabasePostgreSQL targets PostgreSQL.
+	DatabasePostgreSQL Database = "postgresql"
+	// DatabaseMySQL targets MySQL.
+	DatabaseMySQL Database = "mysql"
+)
+
+var validDatabases = map[Database]struct{}{
+	DatabaseSQLite:     {},
+	DatabasePostgreSQL: {},
+	DatabaseMySQL:      {},
+}
+
 // CustomTypeMapping defines how a custom type maps to SQLite and Go types.
 type CustomTypeMapping struct {
 	CustomType string `toml:"custom_type"`
@@ -104,6 +122,7 @@ type JobPlan struct {
 	Package             string
 	Out                 string
 	Language            Language
+	Database            Database
 	SQLiteDriver        Driver
 	Schemas             []string
 	Queries             []string
@@ -135,6 +154,7 @@ type Config struct {
 	Package         string                `toml:"package"`
 	Out             string                `toml:"out"`
 	Language        Language              `toml:"language"`
+	Database        Database              `toml:"database"`
 	SQLiteDriver    Driver                `toml:"sqlite_driver"`
 	Schemas         []string              `toml:"schemas"`
 	Queries         []string              `toml:"queries"`
@@ -222,6 +242,11 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		return res, err
 	}
 
+	db, err := resolveDatabase(path, cfg.Database)
+	if err != nil {
+		return res, err
+	}
+
 	baseDir := filepath.Dir(path)
 
 	var resolver fileset.Resolver
@@ -258,6 +283,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		Package:             cfg.Package,
 		Out:                 out,
 		Language:            lang,
+		Database:            db,
 		SQLiteDriver:        driver,
 		Schemas:             schemas,
 		Queries:             queries,
@@ -281,6 +307,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		"package":          {},
 		"out":              {},
 		"language":         {},
+		"database":         {},
 		"sqlite_driver":    {},
 		"schemas":          {},
 		"queries":          {},
@@ -372,6 +399,16 @@ func resolveLanguage(path string, lang Language) (Language, error) {
 		return "", fmt.Errorf("%s: unsupported language %q", path, lang)
 	}
 	return lang, nil
+}
+
+func resolveDatabase(path string, db Database) (Database, error) {
+	if db == "" {
+		return DatabaseSQLite, nil
+	}
+	if _, ok := validDatabases[db]; !ok {
+		return "", fmt.Errorf("%s: unsupported database %q", path, db)
+	}
+	return db, nil
 }
 
 func resolvePatterns(resolver fileset.Resolver, field string, patterns []string) ([]string, error) {

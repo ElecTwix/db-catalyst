@@ -88,7 +88,7 @@ func (p *PreparedQueries) Close() error {
 	return err
 }
 
-func (p *PreparedQueries) CreateUser(ctx context.Context, arg1 interface{}, arg2 interface{}) (CreateUserRow, error) {
+func (p *PreparedQueries) CreateUser(ctx context.Context, arg1 string, arg2 string) (CreateUserRow, error) {
 	stmt := p.stmtCreateUser
 	rows, err := stmt.QueryContext(ctx, arg1, arg2)
 	if err != nil {

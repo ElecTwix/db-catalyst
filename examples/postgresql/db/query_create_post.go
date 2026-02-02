@@ -1,0 +1,36 @@
+package postgresqldb
+
+import (
+	"context"
+	"database/sql"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const queryCreatePost string = `INSERT INTO posts (user_id, title, postbody, categories, is_published, published_at)
+VALUES ($1, $2, $3, $4, $5, CASE WHEN $5 THEN NOW() ELSE NULL END)
+RETURNING *;`
+
+func (q *Queries) CreatePost(ctx context.Context, arg1 *uuid.UUID, arg2 pgtype.Text, arg3 pgtype.Text, arg4 pgtype.Text, arg5 pgtype.Bool, arg52 *time.Time) (CreatePostRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreatePost, arg1, arg2, arg3, arg4, arg5, arg52)
+	if err != nil {
+		return CreatePostRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return CreatePostRow{}, err
+		}
+		return CreatePostRow{}, sql.ErrNoRows
+	}
+	item, err := scanCreatePostRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
+}

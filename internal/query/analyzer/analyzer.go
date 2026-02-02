@@ -17,8 +17,22 @@ import (
 
 // Analyzer validates queries against the schema catalog.
 type Analyzer struct {
-	Catalog     *model.Catalog
-	CustomTypes map[string]config.CustomTypeMapping
+	Catalog      *model.Catalog
+	CustomTypes  map[string]config.CustomTypeMapping
+	typeResolver TypeResolver
+}
+
+// TypeResolver interface for database-specific type mapping.
+type TypeResolver interface {
+	ResolveType(sqlType string, nullable bool) TypeInfo
+}
+
+// TypeInfo describes a resolved Go type.
+type TypeInfo struct {
+	GoType      string
+	UsesSQLNull bool
+	Import      string
+	Package     string
 }
 
 // Result contains the analysis result for a single query.
@@ -1987,8 +2001,9 @@ func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Toke
 		if schemaCol == nil {
 			continue
 		}
+		goType := a.SQLiteTypeToGo(schemaCol.Type)
 		infos[paramIdx] = paramInfo{
-			GoType:   a.SQLiteTypeToGo(schemaCol.Type),
+			GoType:   goType,
 			Nullable: !schemaCol.NotNull,
 		}
 	}
@@ -2062,12 +2077,18 @@ func collectInsertParams(tokens []tokenizer.Token, start int, paramIndexByToken 
 	i := start
 	for i < len(tokens) && depth > 0 {
 		tok := tokens[i]
-		if tok.Kind != tokenizer.KindSymbol {
-			i++
-			continue
+		// Handle both symbol tokens (parentheses) and param tokens ($N)
+		if tok.Kind == tokenizer.KindSymbol {
+			depth = updateDepth(tok.Text, depth)
+			params = maybeCollectParam(tok.Text, depth, i, paramIndexByToken, params)
+		} else if tok.Kind == tokenizer.KindParam {
+			// PostgreSQL-style parameter at depth 1 (inside VALUES but not nested)
+			if depth == 1 {
+				if paramIdx, ok := paramIndexByToken[i]; ok {
+					params = append(params, paramIdx)
+				}
+			}
 		}
-		depth = updateDepth(tok.Text, depth)
-		params = maybeCollectParam(tok.Text, depth, i, paramIndexByToken, params)
 		i++
 	}
 	return params
@@ -2106,7 +2127,16 @@ func actualTokenLine(q parser.Query, tok tokenizer.Token) int {
 }
 
 // SQLiteTypeToGo converts a SQLite type to a Go type.
+// If a TypeResolver is set, it will be used for database-specific type mapping.
 func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
+	// Use TypeResolver if available (for PostgreSQL, MySQL, etc.)
+	if a.typeResolver != nil {
+		typeInfo := a.typeResolver.ResolveType(sqliteType, false)
+		if typeInfo.GoType != "" && typeInfo.GoType != "interface{}" {
+			return typeInfo.GoType
+		}
+	}
+
 	// First check if the SQLite type has a custom type mapping
 	if a.CustomTypes != nil {
 		normalizedType := normalizeSQLiteType(sqliteType)
@@ -2133,6 +2163,11 @@ func (a *Analyzer) SQLiteTypeToGo(sqliteType string) string {
 	default:
 		return "interface{}"
 	}
+}
+
+// SetTypeResolver sets the type resolver for database-specific type mapping.
+func (a *Analyzer) SetTypeResolver(resolver TypeResolver) {
+	a.typeResolver = resolver
 }
 
 // SQLiteTypeToGo is a convenience function that uses default type mapping

@@ -1,0 +1,25 @@
+package postgresqldb
+
+import "context"
+
+const queryListPublishedPosts string = `SELECT * FROM posts WHERE is_published = true ORDER BY published_at DESC;`
+
+func (q *Queries) ListPublishedPosts(ctx context.Context) ([]ListPublishedPostsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListPublishedPosts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPublishedPostsRow
+	for rows.Next() {
+		item, err := scanListPublishedPostsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -112,10 +112,10 @@ func TestPipelineDryRun(t *testing.T) {
 		t.Fatalf("query_summarize_credits.go not emitted; files = %+v", summary.Files)
 	}
 	if !strings.Contains(helperContent, "type SummarizeCreditsRow struct") ||
-		!strings.Contains(helperContent, "TotalUsers int32") ||
+		!strings.Contains(helperContent, "TotalUsers int64") ||
 		!strings.Contains(helperContent, "SumCredits sql.NullFloat64") ||
 		!strings.Contains(helperContent, "AvgCredit  sql.NullFloat64") && !strings.Contains(helperContent, "AvgCredit sql.NullFloat64") {
-		t.Fatalf("helpers.gen.go missing expected SummarizeCreditsRow fields")
+		t.Fatalf("helpers.gen.go missing expected SummarizeCreditsRow fields. Content:\n%s", helperContent)
 	}
 }
 

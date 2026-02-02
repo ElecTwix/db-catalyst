@@ -1,0 +1,29 @@
+package postgresqldb
+
+import (
+	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const querySearchUsersByTag string = `SELECT * FROM users WHERE $1 = ANY(tags);`
+
+func (q *Queries) SearchUsersByTag(ctx context.Context, arg1 pgtype.Int4) ([]SearchUsersByTagRow, error) {
+	rows, err := q.db.QueryContext(ctx, querySearchUsersByTag, arg1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchUsersByTagRow
+	for rows.Next() {
+		item, err := scanSearchUsersByTagRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -4,7 +4,7 @@ import "context"
 
 const queryDeleteUser string = `DELETE FROM users WHERE id = ?`
 
-func (q *Queries) DeleteUser(ctx context.Context, id int32) (QueryResult, error) {
+func (q *Queries) DeleteUser(ctx context.Context, id int64) (QueryResult, error) {
 	res, err := q.db.ExecContext(ctx, queryDeleteUser, id)
 	if err != nil {
 		return QueryResult{}, err

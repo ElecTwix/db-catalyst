@@ -4,6 +4,7 @@ package parser
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -899,19 +900,14 @@ var clauseBoundaryKeywords = map[string]struct{}{
 }
 
 func (p *Parser) validate() {
-	tableKeys := make([]string, 0, len(p.catalog.Tables))
-	for key := range p.catalog.Tables {
-		tableKeys = append(tableKeys, key)
-	}
+	// Use maps.Keys + slices.Collect for cleaner extraction
+	tableKeys := slices.Collect(maps.Keys(p.catalog.Tables))
 	slices.Sort(tableKeys)
 	for _, key := range tableKeys {
 		table := p.catalog.Tables[key]
 		p.validateTable(table)
 	}
-	viewKeys := make([]string, 0, len(p.catalog.Views))
-	for key := range p.catalog.Views {
-		viewKeys = append(viewKeys, key)
-	}
+	viewKeys := slices.Collect(maps.Keys(p.catalog.Views))
 	slices.Sort(viewKeys)
 }
 

@@ -1,0 +1,32 @@
+package postgresqldb
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/google/uuid"
+)
+
+const queryGetUserById string = `SELECT * FROM users WHERE id = $1;`
+
+func (q *Queries) GetUserById(ctx context.Context, arg1 uuid.UUID) (GetUserByIdRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetUserById, arg1)
+	if err != nil {
+		return GetUserByIdRow{}, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return GetUserByIdRow{}, err
+		}
+		return GetUserByIdRow{}, sql.ErrNoRows
+	}
+	item, err := scanGetUserByIdRow(rows)
+	if err != nil {
+		return item, err
+	}
+	if err := rows.Err(); err != nil {
+		return item, err
+	}
+	return item, nil
+}
