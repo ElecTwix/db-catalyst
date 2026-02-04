@@ -82,8 +82,8 @@ func (g *Generator) GenerateModels(tables []*model.Table) ([]File, error) {
 }
 
 // convertTable converts internal table model to Rust template data
-func (g *Generator) convertTable(table *model.Table) map[string]interface{} {
-	fields := make([]map[string]interface{}, len(table.Columns))
+func (g *Generator) convertTable(table *model.Table) map[string]any {
+	fields := make([]map[string]any, len(table.Columns))
 
 	mapper := &rustMapper{}
 
@@ -97,14 +97,14 @@ func (g *Generator) convertTable(table *model.Table) map[string]interface{} {
 			typeName = fmt.Sprintf("Option<%s>", typeName)
 		}
 
-		fields[i] = map[string]interface{}{
+		fields[i] = map[string]any{
 			"Name":     toSnakeCase(col.Name),
 			"Type":     typeName,
 			"Nullable": semantic.Nullable,
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"Name":   toPascalCase(table.Name),
 		"Fields": fields,
 	}

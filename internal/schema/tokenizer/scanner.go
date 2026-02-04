@@ -98,7 +98,6 @@ type scannerIter struct {
 	index       int
 	line        int
 	column      int
-	pendingDoc  *docBuffer
 }
 
 // nextToken returns the next token from the source.

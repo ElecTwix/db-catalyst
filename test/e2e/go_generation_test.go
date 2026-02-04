@@ -142,7 +142,7 @@ queries = ["queries.sql"]
 	t.Log("✅ Generated files successfully")
 
 	// Verify the generated code compiles
-	cmd := exec.Command("go", "build", "./...")
+	cmd := exec.CommandContext(ctx, "go", "build", "./...")
 	cmd.Dir = tmpDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("generated code failed to compile:\n%s", output)

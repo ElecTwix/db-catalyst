@@ -13,11 +13,16 @@ type OrderID int64
 type Status string
 
 const (
-	StatusPending    Status = "pending"
+	// StatusPending is the pending order status.
+	StatusPending Status = "pending"
+	// StatusProcessing is the processing order status.
 	StatusProcessing Status = "processing"
-	StatusShipped    Status = "shipped"
-	StatusDelivered  Status = "delivered"
-	StatusCancelled  Status = "cancelled"
+	// StatusShipped is the shipped order status.
+	StatusShipped Status = "shipped"
+	// StatusDelivered is the delivered order status.
+	StatusDelivered Status = "delivered"
+	// StatusCancelled is the cancelled order status.
+	StatusCancelled Status = "cancelled"
 )
 
 // Money represents monetary values in cents (INTEGER in SQLite)

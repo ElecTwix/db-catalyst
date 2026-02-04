@@ -108,8 +108,9 @@ func CollectionFromQueryAnalyzer(diags []queryanalyzer.Diagnostic) *Collection {
 
 // CollectionToQueryAnalyzer converts a collection to a slice of query analyzer diagnostics.
 func CollectionToQueryAnalyzer(c *Collection) []queryanalyzer.Diagnostic {
-	var result []queryanalyzer.Diagnostic
-	for _, d := range c.All() {
+	all := c.All()
+	result := make([]queryanalyzer.Diagnostic, 0, len(all))
+	for _, d := range all {
 		result = append(result, ToQueryAnalyzer(d))
 	}
 	return result

@@ -1,3 +1,4 @@
+//nolint:gocritic // Example code uses log.Fatal after defer for simplicity.
 package main
 
 import (
@@ -21,8 +22,10 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	// Initialize schema
-	if _, err := sqlDB.Exec(schema); err != nil {
-		log.Fatal(err)
+	if _, err := sqlDB.ExecContext(ctx, schema); err != nil {
+		_ = sqlDB.Close()
+		log.Print(err)
+		return
 	}
 
 	queries := complexdb.New(sqlDB)
@@ -100,12 +103,12 @@ func main() {
 	}
 
 	// Simulate views
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		if _, err := queries.IncrementViewCount(ctx, post1.Id); err != nil {
 			log.Fatal(err)
 		}
 	}
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		if _, err := queries.IncrementViewCount(ctx, post2.Id); err != nil {
 			log.Fatal(err)
 		}

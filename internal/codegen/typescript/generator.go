@@ -70,8 +70,8 @@ func (g *Generator) GenerateModels(tables []*model.Table) ([]File, error) {
 }
 
 // convertTable converts internal table model to TypeScript template data
-func (g *Generator) convertTable(table *model.Table) map[string]interface{} {
-	fields := make([]map[string]interface{}, len(table.Columns))
+func (g *Generator) convertTable(table *model.Table) map[string]any {
+	fields := make([]map[string]any, len(table.Columns))
 
 	mapper := &typescriptMapper{}
 
@@ -82,17 +82,17 @@ func (g *Generator) convertTable(table *model.Table) map[string]interface{} {
 		// Handle nullable types
 		typeName := langType.Name
 		if semantic.Nullable && !langType.IsNullable {
-			typeName = fmt.Sprintf("%s | null", typeName)
+			typeName = typeName + " | null"
 		}
 
-		fields[i] = map[string]interface{}{
+		fields[i] = map[string]any{
 			"Name":     toCamelCase(col.Name),
 			"Type":     typeName,
 			"Nullable": semantic.Nullable,
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"Name":   toPascalCase(table.Name),
 		"Fields": fields,
 	}
@@ -207,7 +207,7 @@ func getTypescriptType(semantic types.SemanticType) string {
 
 	typeName := langType.Name
 	if semantic.Nullable && !langType.IsNullable {
-		return fmt.Sprintf("%s | null", typeName)
+		return typeName + " | null"
 	}
 	return typeName
 }

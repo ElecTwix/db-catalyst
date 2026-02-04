@@ -250,7 +250,7 @@ func GetPgxScanFunc(semantic SemanticType) string {
 }
 
 // FormatPostgresArray formats a Go slice for PostgreSQL array parameter.
-func FormatPostgresArray(slice interface{}) string {
+func FormatPostgresArray(slice any) string {
 	// This would be generated code to convert Go slice to PostgreSQL array
 	return fmt.Sprintf("pgtype.Array[%T]{}", slice)
 }

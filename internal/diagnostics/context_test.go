@@ -13,7 +13,7 @@ func TestContextExtractor(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.sql")
 	content := "SELECT col1\nFROM users\nWHERE id = ?\nORDER BY name"
-	if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0o600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -65,7 +65,7 @@ func TestContextExtractorCaching(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.sql")
 	content := "SELECT 1"
-	if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0o600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 

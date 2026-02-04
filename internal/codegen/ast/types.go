@@ -419,6 +419,7 @@ func (r *TypeResolver) GetRequiredImports() map[string]string {
 }
 
 // resolveType is a package-level function for backward compatibility.
+//
 // Deprecated: Use TypeResolver.ResolveType instead.
 func resolveType(goType string, nullable bool) TypeInfo {
 	resolver := NewTypeResolver(nil)

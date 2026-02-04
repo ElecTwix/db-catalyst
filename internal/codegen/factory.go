@@ -63,7 +63,7 @@ type rustGeneratorWrapper struct {
 }
 
 // Generate generates Rust code.
-func (w *rustGeneratorWrapper) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+func (w *rustGeneratorWrapper) Generate(_ context.Context, catalog *model.Catalog, _ []analyzer.Result) ([]File, error) {
 	// Convert catalog tables map to slice
 	tables := make([]*model.Table, 0, len(catalog.Tables))
 	for _, table := range catalog.Tables {
@@ -91,7 +91,7 @@ type typescriptGeneratorWrapper struct {
 }
 
 // Generate generates TypeScript code.
-func (w *typescriptGeneratorWrapper) Generate(ctx context.Context, catalog *model.Catalog, analyses []analyzer.Result) ([]File, error) {
+func (w *typescriptGeneratorWrapper) Generate(_ context.Context, catalog *model.Catalog, _ []analyzer.Result) ([]File, error) {
 	// Convert catalog tables map to slice
 	tables := make([]*model.Table, 0, len(catalog.Tables))
 	for _, table := range catalog.Tables {

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,23 +36,17 @@ func (e *ContextExtractor) ExtractContext(path string, line, column int, context
 	}
 
 	// Calculate the range of lines to include
-	startLine := line - contextLines
-	if startLine < 1 {
-		startLine = 1
-	}
-	endLine := line + contextLines
-	if endLine > len(lines) {
-		endLine = len(lines)
-	}
+	startLine := max(line-contextLines, 1)
+	endLine := min(line+contextLines, len(lines))
 
 	// Extract the context lines
-	contextLines_ := make([]string, 0, endLine-startLine+1)
+	ctxLines := make([]string, 0, endLine-startLine+1)
 	for i := startLine; i <= endLine; i++ {
-		contextLines_ = append(contextLines_, lines[i-1]) // lines is 0-indexed
+		ctxLines = append(ctxLines, lines[i-1]) // lines is 0-indexed
 	}
 
 	return Context{
-		Lines:       contextLines_,
+		Lines:       ctxLines,
 		StartLine:   startLine,
 		ErrorLine:   line,
 		ErrorColumn: column,
@@ -72,13 +67,13 @@ func (e *ContextExtractor) ExtractSpan(path string, startLine, endLine, startCol
 		endLine = len(lines)
 	}
 
-	contextLines_ := make([]string, 0, endLine-startLine+1)
+	ctxLines := make([]string, 0, endLine-startLine+1)
 	for i := startLine; i <= endLine; i++ {
-		contextLines_ = append(contextLines_, lines[i-1])
+		ctxLines = append(ctxLines, lines[i-1])
 	}
 
 	return Context{
-		Lines:       contextLines_,
+		Lines:       ctxLines,
 		StartLine:   startLine,
 		ErrorLine:   startLine,
 		ErrorColumn: startCol,
@@ -143,7 +138,7 @@ func (c Context) Format() string {
 
 	var b strings.Builder
 	maxLineNum := c.StartLine + len(c.Lines) - 1
-	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
+	lineNumWidth := len(strconv.Itoa(maxLineNum))
 
 	for i, line := range c.Lines {
 		lineNum := c.StartLine + i
@@ -221,16 +216,10 @@ func (e *SnippetExtractor) Extract(content []byte, offset int) string {
 	}
 
 	// Find the start of the snippet
-	start := offset - e.maxLength/2
-	if start < 0 {
-		start = 0
-	}
+	start := max(offset-e.maxLength/2, 0)
 
 	// Find the end of the snippet
-	end := offset + e.maxLength/2
-	if end > len(content) {
-		end = len(content)
-	}
+	end := min(offset+e.maxLength/2, len(content))
 
 	// Adjust to word boundaries if possible
 	start = e.findWordBoundary(content, start, true)
@@ -243,7 +232,7 @@ func (e *SnippetExtractor) Extract(content []byte, offset int) string {
 		snippet = "..." + snippet
 	}
 	if end < len(content) {
-		snippet = snippet + "..."
+		snippet += "..."
 	}
 
 	return snippet

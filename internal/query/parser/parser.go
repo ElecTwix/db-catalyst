@@ -916,7 +916,7 @@ func handlePostgresParam(
 		return params, []Diagnostic{{
 			Line:    tok.Line,
 			Column:  tok.Column,
-			Message: fmt.Sprintf("invalid PostgreSQL parameter: %s", paramText),
+			Message: "invalid PostgreSQL parameter: " + paramText,
 		}}, 1
 	}
 
@@ -1610,7 +1610,6 @@ func findInsertColumns(tokens []tokenizer.Token, paramIdx int) []string {
 func countParamInValues(tokens []tokenizer.Token, paramIdx int) int {
 	// Find the opening paren of VALUES
 	valuesIdx := -1
-	parenDepth := 0
 	for i := paramIdx; i >= 0; i-- {
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
@@ -1626,7 +1625,7 @@ func countParamInValues(tokens []tokenizer.Token, paramIdx int) int {
 
 	// Count parameters between VALUES and our position
 	count := 0
-	parenDepth = 0
+	parenDepth := 0
 	for i := valuesIdx + 1; i < paramIdx && i < len(tokens); i++ {
 		tok := tokens[i]
 		if tok.Kind == tokenizer.KindSymbol {

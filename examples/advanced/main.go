@@ -1,3 +1,4 @@
+//nolint:gocritic // Example code uses log.Fatal after defer for simplicity.
 package main
 
 import (
@@ -22,13 +23,15 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	// Initialize schema
-	if _, err := sqlDB.Exec(schema); err != nil {
-		log.Fatal(err)
+	if _, err := sqlDB.ExecContext(ctx, schema); err != nil {
+		_ = sqlDB.Close()
+		log.Print(err)
+		return
 	}
 
 	queries := advanceddb.New(sqlDB)
 
-	fmt.Println("=== Advanced Features Demo ===\n")
+	fmt.Println("=== Advanced Features Demo ===")
 
 	// Create users with strongly-typed IDs
 	fmt.Println("1. Creating users with custom types...")

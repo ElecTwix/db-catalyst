@@ -20,8 +20,7 @@ func (m *PostgresMapper) Map(sqlType string, nullable bool) SemanticType {
 	upper := strings.ToUpper(strings.TrimSpace(sqlType))
 
 	// Handle arrays (e.g., TEXT[], INTEGER[])
-	if strings.HasSuffix(upper, "[]") {
-		baseType := strings.TrimSuffix(upper, "[]")
+	if baseType, ok := strings.CutSuffix(upper, "[]"); ok {
 		baseSemantic := m.Map(baseType, false)
 		return SemanticType{
 			Category:    CategoryArray,
@@ -181,9 +180,9 @@ func parsePostgresType(sqlType string) (baseType string, length, precision, scal
 	content := sqlType[openIdx+1 : closeIdx]
 
 	// Check for comma (indicates precision,scale for DECIMAL/NUMERIC)
-	if commaIdx := strings.Index(content, ","); commaIdx != -1 {
-		precision, _ = strconv.Atoi(strings.TrimSpace(content[:commaIdx]))
-		scale, _ = strconv.Atoi(strings.TrimSpace(content[commaIdx+1:]))
+	if before, after, ok := strings.Cut(content, ","); ok {
+		precision, _ = strconv.Atoi(strings.TrimSpace(before))
+		scale, _ = strconv.Atoi(strings.TrimSpace(after))
 	} else {
 		// Single number is length for VARCHAR/CHAR, or precision for NUMERIC
 		val, _ := strconv.Atoi(strings.TrimSpace(content))

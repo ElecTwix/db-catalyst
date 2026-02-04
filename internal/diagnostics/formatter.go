@@ -4,6 +4,7 @@ package diagnostics
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -142,7 +143,7 @@ func (f *Formatter) PrintCategorizedSummary(w io.Writer, c *Collection) {
 		if len(diags) == 0 {
 			return
 		}
-		_, _ = fmt.Fprintf(w, "  %s: %s\n", f.colorize(name, color), f.colorize(fmt.Sprintf("%d", len(diags)), color))
+		_, _ = fmt.Fprintf(w, "  %s: %s\n", f.colorize(name, color), f.colorize(strconv.Itoa(len(diags)), color))
 	}
 
 	printCategory("Schema Errors", cat.SchemaErrors, colorRed)
@@ -210,8 +211,7 @@ func (f *Formatter) formatDiagnostic(b *strings.Builder, d Diagnostic) {
 }
 
 func (f *Formatter) formatContext(b *strings.Builder, d Diagnostic) {
-	lines := strings.Split(d.Context, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(d.Context, "\n") {
 		fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
 	}
 }
@@ -315,7 +315,7 @@ func (f *JSONFormatter) Format(d Diagnostic) string {
 	}
 
 	if len(d.Suggestions) > 0 {
-		var suggParts []string
+		suggParts := make([]string, 0, len(d.Suggestions))
 		for _, sugg := range d.Suggestions {
 			suggParts = append(suggParts, fmt.Sprintf(`{"message":%q,"replacement":%q}`, sugg.Message, sugg.Replacement))
 		}
@@ -323,7 +323,7 @@ func (f *JSONFormatter) Format(d Diagnostic) string {
 	}
 
 	if len(d.Notes) > 0 {
-		var noteParts []string
+		noteParts := make([]string, 0, len(d.Notes))
 		for _, note := range d.Notes {
 			noteParts = append(noteParts, fmt.Sprintf(`%q`, note))
 		}
@@ -335,8 +335,9 @@ func (f *JSONFormatter) Format(d Diagnostic) string {
 
 // FormatCollection formats an entire collection as a JSON array.
 func (f *JSONFormatter) FormatCollection(c *Collection) string {
-	var parts []string
-	for _, d := range c.All() {
+	all := c.All()
+	parts := make([]string, 0, len(all))
+	for _, d := range all {
 		parts = append(parts, f.Format(d))
 	}
 	if f.Indent {

@@ -203,22 +203,24 @@ func (m *GoMapper) GetDefaultValue(semantic SemanticType) string {
 }
 
 // RustMapper (for future use)
-// Placeholder showing how to add new languages
-
+// Placeholder showing how to add new languages.
 type RustMapper struct {
 	customTypes map[string]string // Map custom type names to Rust types
 }
 
+// NewRustMapper creates a new Rust type mapper.
 func NewRustMapper() *RustMapper {
 	return &RustMapper{
 		customTypes: make(map[string]string),
 	}
 }
 
+// Name returns the language identifier.
 func (m *RustMapper) Name() string {
 	return "rust"
 }
 
+// Map converts a semantic type to a Rust type.
 func (m *RustMapper) Map(semantic SemanticType) LanguageType {
 	switch semantic.Category {
 	case CategoryInteger:
@@ -266,21 +268,6 @@ func (m *RustMapper) Map(semantic SemanticType) LanguageType {
 	default:
 		return LanguageType{Name: "serde_json::Value"}
 	}
-}
-
-// Helper function to check if a type is a Go built-in
-func isGoBuiltin(typeName string) bool {
-	builtins := []string{
-		"bool", "string", "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
-		"byte", "rune", "float32", "float64", "complex64", "complex128",
-	}
-	for _, b := range builtins {
-		if typeName == b {
-			return true
-		}
-	}
-	return false
 }
 
 // ExtractPackageName extracts the package name from a Go import path

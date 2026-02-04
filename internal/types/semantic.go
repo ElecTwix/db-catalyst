@@ -7,47 +7,71 @@ package types
 type SemanticTypeCategory int
 
 const (
-	// CategoryUnknown represents an unrecognized or unspecified type
+	// CategoryUnknown represents an unrecognized or unspecified type.
 	CategoryUnknown SemanticTypeCategory = iota
 
-	// Numeric types
-	CategoryInteger      // 32-bit signed integer
-	CategoryBigInteger   // 64-bit signed integer
-	CategorySmallInteger // 16-bit signed integer
-	CategoryTinyInteger  // 8-bit signed integer
-	CategoryDecimal      // Exact decimal with precision/scale
-	CategoryFloat        // 32-bit IEEE 754 float
-	CategoryDouble       // 64-bit IEEE 754 float
-	CategoryNumeric      // Generic numeric (database decides precision)
+	// CategoryInteger represents a 32-bit signed integer.
+	CategoryInteger
+	// CategoryBigInteger represents a 64-bit signed integer.
+	CategoryBigInteger
+	// CategorySmallInteger represents a 16-bit signed integer.
+	CategorySmallInteger
+	// CategoryTinyInteger represents an 8-bit signed integer.
+	CategoryTinyInteger
+	// CategoryDecimal represents an exact decimal with precision/scale.
+	CategoryDecimal
+	// CategoryFloat represents a 32-bit IEEE 754 float.
+	CategoryFloat
+	// CategoryDouble represents a 64-bit IEEE 754 float.
+	CategoryDouble
+	// CategoryNumeric represents a generic numeric (database decides precision).
+	CategoryNumeric
 
-	// String types
-	CategoryText    // Variable-length text
-	CategoryChar    // Fixed-length character
-	CategoryVarchar // Variable-length with max size
-	CategoryBlob    // Binary data
-	CategoryBytea   // PostgreSQL binary type
+	// CategoryText represents a variable-length text.
+	CategoryText
+	// CategoryChar represents a fixed-length character.
+	CategoryChar
+	// CategoryVarchar represents a variable-length string with max size.
+	CategoryVarchar
+	// CategoryBlob represents binary data.
+	CategoryBlob
+	// CategoryBytea represents PostgreSQL binary type.
+	CategoryBytea
 
-	// Temporal types
-	CategoryTimestamp   // Date and time with timezone
-	CategoryTimestampTZ // Timestamp with timezone
-	CategoryDate        // Date only
-	CategoryTime        // Time only
-	CategoryTimeTZ      // Time with timezone
-	CategoryInterval    // Time duration
+	// CategoryTimestamp represents a date and time with timezone.
+	CategoryTimestamp
+	// CategoryTimestampTZ represents a timestamp with timezone.
+	CategoryTimestampTZ
+	// CategoryDate represents a date only.
+	CategoryDate
+	// CategoryTime represents a time only.
+	CategoryTime
+	// CategoryTimeTZ represents a time with timezone.
+	CategoryTimeTZ
+	// CategoryInterval represents a time duration.
+	CategoryInterval
 
-	// Boolean
+	// CategoryBoolean represents a boolean type.
 	CategoryBoolean
 
-	// Special types
+	// CategoryUUID represents a UUID type.
 	CategoryUUID
+	// CategoryJSON represents a JSON type.
 	CategoryJSON
-	CategoryJSONB // Binary JSON (PostgreSQL)
+	// CategoryJSONB represents binary JSON (PostgreSQL).
+	CategoryJSONB
+	// CategoryXML represents an XML type.
 	CategoryXML
-	CategoryEnum      // Enumeration
-	CategoryArray     // Array of another type
-	CategoryComposite // Struct-like composite type
-	CategoryCustom    // User-defined custom type
-	CategorySerial    // Auto-incrementing integer
+	// CategoryEnum represents an enumeration type.
+	CategoryEnum
+	// CategoryArray represents an array of another type.
+	CategoryArray
+	// CategoryComposite represents a struct-like composite type.
+	CategoryComposite
+	// CategoryCustom represents a user-defined custom type.
+	CategoryCustom
+	// CategorySerial represents an auto-incrementing integer.
+	CategorySerial
 	CategoryBigSerial // Auto-incrementing big integer
 )
 

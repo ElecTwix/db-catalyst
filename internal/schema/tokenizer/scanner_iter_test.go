@@ -1,7 +1,9 @@
 package tokenizer
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -59,14 +61,14 @@ func TestScanSeqEarlyTermination(t *testing.T) {
 
 func TestScanSeqLargeFile(t *testing.T) {
 	// Create a large SQL file (1000 CREATE TABLE statements)
-	var sql string
-	for i := 0; i < 1000; i++ {
-		sql += "CREATE TABLE t" + string(rune('0'+i%10)) + " (id INTEGER);\n"
+	var sql strings.Builder
+	for i := range 1000 {
+		fmt.Fprintf(&sql, "CREATE TABLE t%d (id INTEGER);\n", i%10)
 	}
 
 	// ScanSeq should handle this without loading all tokens at once
 	count := 0
-	for range ScanSeq("test.sql", []byte(sql), false) {
+	for range ScanSeq("test.sql", []byte(sql.String()), false) {
 		count++
 	}
 
@@ -108,7 +110,7 @@ func BenchmarkScanSeqIterator(b *testing.B) {
 	);`)
 
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		for range ScanSeq("test.sql", sql, false) {
 			// Just consume
 		}
@@ -124,7 +126,7 @@ func BenchmarkScanSlice(b *testing.B) {
 	);`)
 
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		_, _ = Scan("test.sql", sql, false)
 	}
 }
