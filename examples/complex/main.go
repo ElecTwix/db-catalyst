@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/electwix/db-catalyst/examples/complex/db"
+	complexdb "github.com/electwix/db-catalyst/examples/complex/db"
 	_ "modernc.org/sqlite"
 )
 
@@ -25,24 +25,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	queries := db.New(sqlDB)
+	queries := complexdb.New(sqlDB)
 
 	// Create authors
-	author1, err := queries.CreateAuthor(ctx, db.CreateAuthorParams{
-		Name:  "Alice Smith",
-		Email: "alice@example.com",
-		Bio:   sql.NullString{String: "Go enthusiast", Valid: true},
-	})
+	author1, err := queries.CreateAuthor(ctx, "Alice Smith", "alice@example.com", sql.NullString{String: "Go enthusiast", Valid: true})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Created author: %s\n", author1.Name)
 
-	author2, err := queries.CreateAuthor(ctx, db.CreateAuthorParams{
-		Name:  "Bob Jones",
-		Email: "bob@example.com",
-		Bio:   sql.NullString{String: "SQLite expert", Valid: true},
-	})
+	author2, err := queries.CreateAuthor(ctx, "Bob Jones", "bob@example.com", sql.NullString{String: "SQLite expert", Valid: true})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,119 +51,99 @@ func main() {
 		{"advanced", "Advanced topics"},
 	}
 
-	tagIDs := make(map[string]int64)
+	tagIDs := make(map[string]int32)
 	for _, t := range tags {
-		tag, err := queries.CreateTag(ctx, db.CreateTagParams{
-			Name:        t.name,
-			Description: sql.NullString{String: t.description, Valid: true},
-		})
+		tag, err := queries.CreateTag(ctx, t.name, sql.NullString{String: t.description, Valid: true})
 		if err != nil {
 			log.Fatal(err)
 		}
-		tagIDs[t.name] = tag.ID
+		tagIDs[t.name] = tag.Id
 		fmt.Printf("Created tag: %s\n", tag.Name)
 	}
 
 	// Create posts
-	post1, err := queries.CreatePostWithTags(ctx, db.CreatePostWithTagsParams{
-		AuthorID:  author1.ID,
-		Title:     "Getting Started with SQLite in Go",
-		Content:   "This is a comprehensive guide...",
-		Published: 1,
-	})
+	post1, err := queries.CreatePost(ctx, author1.Id, "Getting Started with SQLite in Go", "This is a comprehensive guide...", 1)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Created post: %s\n", post1.Title)
 
 	// Add tags to post
-	if err := queries.AddTagToPost(ctx, db.AddTagToPostParams{
-		PostID: post1.ID,
-		TagID:  tagIDs["go"],
-	}); err != nil {
+	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["go"]); err != nil {
 		log.Fatal(err)
 	}
-	if err := queries.AddTagToPost(ctx, db.AddTagToPostParams{
-		PostID: post1.ID,
-		TagID:  tagIDs["sqlite"],
-	}); err != nil {
+	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["sqlite"]); err != nil {
 		log.Fatal(err)
 	}
-	if err := queries.AddTagToPost(ctx, db.AddTagToPostParams{
-		PostID: post1.ID,
-		TagID:  tagIDs["tutorial"],
-	}); err != nil {
+	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["tutorial"]); err != nil {
 		log.Fatal(err)
 	}
 
 	// Create more posts
-	post2, err := queries.CreatePostWithTags(ctx, db.CreatePostWithTagsParams{
-		AuthorID:  author2.ID,
-		Title:     "Advanced SQLite Optimization",
-		Content:   "Deep dive into query optimization...",
-		Published: 1,
-	})
+	post2, err := queries.CreatePost(ctx, author2.Id, "Advanced SQLite Optimization", "Deep dive into query optimization...", 1)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Add tags to post2
-	if err := queries.AddTagToPost(ctx, db.AddTagToPostParams{
-		PostID: post2.ID,
-		TagID:  tagIDs["sqlite"],
-	}); err != nil {
+	if _, err := queries.AddTagToPost(ctx, post2.Id, tagIDs["sqlite"]); err != nil {
 		log.Fatal(err)
 	}
-	if err := queries.AddTagToPost(ctx, db.AddTagToPostParams{
-		PostID: post2.ID,
-		TagID:  tagIDs["advanced"],
-	}); err != nil {
+	if _, err := queries.AddTagToPost(ctx, post2.Id, tagIDs["advanced"]); err != nil {
 		log.Fatal(err)
 	}
 
 	// Create unpublished post
-	post3, err := queries.CreatePostWithTags(ctx, db.CreatePostWithTagsParams{
-		AuthorID:  author1.ID,
-		Title:     "Draft: Upcoming Features",
-		Content:   "This is still being written...",
-		Published: 0,
-	})
+	_, err = queries.CreatePost(ctx, author1.Id, "Draft: Upcoming Features", "This is still being written...", 0)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Simulate views
 	for i := 0; i < 100; i++ {
-		if err := queries.IncrementViewCount(ctx, post1.ID); err != nil {
+		if _, err := queries.IncrementViewCount(ctx, post1.Id); err != nil {
 			log.Fatal(err)
 		}
 	}
 	for i := 0; i < 50; i++ {
-		if err := queries.IncrementViewCount(ctx, post2.ID); err != nil {
+		if _, err := queries.IncrementViewCount(ctx, post2.Id); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	fmt.Println("\n--- Published Posts ---")
-	posts, err := queries.ListPostsWithAuthor(ctx)
+	posts, err := queries.ListPosts(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 	for _, p := range posts {
-		fmt.Printf("  %s by %s (views: %d)\n", p.Title, p.AuthorName, p.ViewCount)
+		fmt.Printf("  %s by author %d (views: %d)\n", p.Title, p.AuthorId, p.ViewCount)
 	}
 
 	fmt.Println("\n--- Post with Tags ---")
-	postWithTags, err := queries.GetPostWithTags(ctx, post1.ID)
+	postWithTags, err := queries.GetPost(ctx, post1.Id)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("  Title: %s\n", postWithTags.Title)
-	fmt.Printf("  Author: %s\n", postWithTags.AuthorName)
-	fmt.Printf("  Tags: %s\n", postWithTags.Tags)
+	fmt.Printf("  Author: %d\n", postWithTags.AuthorId)
+
+	postTags, err := queries.GetPostTags(ctx, post1.Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("  Tags: ")
+	for i, t := range postTags {
+		if i > 0 {
+			fmt.Print(", ")
+		}
+		fmt.Print(t.Name)
+	}
+	fmt.Println()
 
 	fmt.Println("\n--- Popular Tags ---")
-	popularTags, err := queries.GetPopularTags(ctx, 5)
+	limit := int32(5)
+	popularTags, err := queries.GetPopularTags(ctx, &limit)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -180,12 +152,11 @@ func main() {
 	}
 
 	fmt.Println("\n--- Author Stats ---")
-	stats, err := queries.GetAuthorStats(ctx, author1.ID)
+	stats, err := queries.GetAuthorStats(ctx, author1.Id)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("  %s: %d total, %d published, %d views\n",
-		stats.Name, stats.TotalPosts, stats.PublishedCount, stats.TotalViews)
+	fmt.Printf("  %s: %d total posts\n", stats.Name, stats.TotalPosts)
 
 	fmt.Println("\n--- Unpublished Posts ---")
 	unpublished, err := queries.ListUnpublishedPosts(ctx)
@@ -193,21 +164,16 @@ func main() {
 		log.Fatal(err)
 	}
 	for _, p := range unpublished {
-		fmt.Printf("  %s by %s\n", p.Title, p.AuthorName)
+		fmt.Printf("  %s by author %d\n", p.Title, p.AuthorId)
 	}
 
 	fmt.Println("\n--- Search Posts ---")
-	searchResults, err := queries.SearchPosts(ctx, db.SearchPostsParams{
-		Column1: "SQLite",
-		Column2: "SQLite",
-		Limit:   10,
-		Offset:  0,
-	})
+	searchResults, err := queries.SearchPosts(ctx, nil, nil, nil, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	for _, p := range searchResults {
-		fmt.Printf("  %s by %s\n", p.Title, p.AuthorName)
+		fmt.Printf("  %s by author %d\n", p.Title, p.AuthorId)
 	}
 
 	fmt.Println("\n--- Posts by Tag 'sqlite' ---")
@@ -216,7 +182,7 @@ func main() {
 		log.Fatal(err)
 	}
 	for _, p := range taggedPosts {
-		fmt.Printf("  %s by %s\n", p.Title, p.AuthorName)
+		fmt.Printf("  %s by author %d\n", p.Title, p.AuthorId)
 	}
 
 	fmt.Println("\nSuccess! All complex queries executed.")

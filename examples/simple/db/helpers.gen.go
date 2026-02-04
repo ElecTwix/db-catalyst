@@ -9,7 +9,7 @@ type CreateUserRow struct {
 	CreatedAt int32
 }
 
-func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
+func scanCreateUserRow(rows *sql.Rows) (CreateUserRow, error) {
 	var item CreateUserRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -24,7 +24,7 @@ type GetUserRow struct {
 	CreatedAt int32
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -39,7 +39,7 @@ type ListUsersRow struct {
 	CreatedAt int32
 }
 
-func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
+func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
 	var item ListUsersRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -54,7 +54,7 @@ type UpdateUserRow struct {
 	CreatedAt int32
 }
 
-func scanUpdateUserRow(rows sql.Rows) (UpdateUserRow, error) {
+func scanUpdateUserRow(rows *sql.Rows) (UpdateUserRow, error) {
 	var item UpdateUserRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.CreatedAt); err != nil {
 		return item, err

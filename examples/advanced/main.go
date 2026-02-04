@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/electwix/db-catalyst/examples/advanced/db"
+	advanceddb "github.com/electwix/db-catalyst/examples/advanced/db"
 	"github.com/electwix/db-catalyst/examples/advanced/types"
 	_ "modernc.org/sqlite"
 )
@@ -26,7 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	queries := db.New(sqlDB)
+	queries := advanceddb.New(sqlDB)
 
 	fmt.Println("=== Advanced Features Demo ===\n")
 
@@ -36,174 +36,98 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created user: ID=%v, Email=%s\n", user1.ID, user1.Email)
+	fmt.Printf("   Created user: ID=%v, Email=%v\n", user1.Id, user1.Email)
 
 	user2, err := queries.CreateUser(ctx, "bob@example.com")
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created user: ID=%v, Email=%s\n", user2.ID, user2.Email)
+	fmt.Printf("   Created user: ID=%v, Email=%v\n", user2.Id, user2.Email)
 
 	// Create products with Money type
 	fmt.Println("\n2. Creating products with Money type...")
-	product1, err := queries.CreateProduct(ctx, db.CreateProductParams{
-		Sku:   "LAPTOP-001",
-		Name:  "Gaming Laptop",
-		Price: types.FromDollars(1299.99),
-	})
+	product1, err := queries.CreateProduct(ctx, types.SKU("LAPTOP-001"), "Gaming Laptop", types.FromDollars(1299.99))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created product: ID=%v, SKU=%s, Price=$%.2f\n",
-		product1.ID, product1.Sku, product1.Price.Dollars())
+	fmt.Printf("   Created product: ID=%v, SKU=%v, Price=$%.2f\n",
+		product1.Id, product1.Sku, types.Money(product1.Price.(int64)).Dollars())
 
-	product2, err := queries.CreateProduct(ctx, db.CreateProductParams{
-		Sku:   "MOUSE-001",
-		Name:  "Wireless Mouse",
-		Price: types.FromDollars(49.99),
-	})
+	product2, err := queries.CreateProduct(ctx, types.SKU("MOUSE-001"), "Wireless Mouse", types.FromDollars(49.99))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created product: ID=%v, SKU=%s, Price=$%.2f\n",
-		product2.ID, product2.Sku, product2.Price.Dollars())
-
-	product3, err := queries.CreateProduct(ctx, db.CreateProductParams{
-		Sku:   "KEYBOARD-001",
-		Name:  "Mechanical Keyboard",
-		Price: types.FromDollars(149.99),
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Created product: ID=%v, SKU=%s, Price=$%.2f\n",
-		product3.ID, product3.Sku, product3.Price.Dollars())
+	fmt.Printf("   Created product: ID=%v, SKU=%v, Price=$%.2f\n",
+		product2.Id, product2.Sku, types.Money(product2.Price.(int64)).Dollars())
 
 	// Create order with custom types
 	fmt.Println("\n3. Creating orders with Status enum...")
-	order1, err := queries.CreateOrder(ctx, db.CreateOrderParams{
-		UserID:      user1.ID,
-		Status:      types.StatusPending,
-		TotalAmount: 0,
-	})
+	order1, err := queries.CreateOrder(ctx, user1.Id, types.StatusPending, types.FromDollars(0))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created order: ID=%v, User=%v, Status=%s\n",
-		order1.ID, order1.UserID, order1.Status)
-
-	// Add items to order
-	fmt.Println("\n4. Adding items to order...")
-	_, err = queries.AddOrderItem(ctx, db.AddOrderItemParams{
-		OrderID:   order1.ID,
-		ProductID: product1.ID,
-		Quantity:  1,
-		UnitPrice: product1.Price,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Added: %s x 1 @ $%.2f\n", product1.Name, product1.Price.Dollars())
-
-	_, err = queries.AddOrderItem(ctx, db.AddOrderItemParams{
-		OrderID:   order1.ID,
-		ProductID: product2.ID,
-		Quantity:  2,
-		UnitPrice: product2.Price,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Added: %s x 2 @ $%.2f each\n", product2.Name, product2.Price.Dollars())
-
-	// Update order total
-	if err := queries.UpdateOrderTotal(ctx, db.UpdateOrderTotalParams{
-		OrderID: order1.ID,
-		ID:      order1.ID,
-	}); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("   Order total updated")
-
-	// Update order status
-	fmt.Println("\n5. Updating order status...")
-	updatedOrder, err := queries.UpdateOrderStatus(ctx, db.UpdateOrderStatusParams{
-		ID:     order1.ID,
-		Status: types.StatusProcessing,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("   Order status: %s -> %s\n", order1.Status, updatedOrder.Status)
+	fmt.Printf("   Created order: ID=%v, User=%v, Status=%v\n",
+		order1.Id, order1.UserId, order1.Status)
 
 	// Query with custom types
-	fmt.Println("\n6. Querying with custom types...")
-	fetchedOrder, err := queries.GetOrder(ctx, order1.ID)
+	fmt.Println("\n4. Querying with custom types...")
+	fetchedOrder, err := queries.GetOrder(ctx, order1.Id)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Fetched order: ID=%v, User=%v, Status=%s, Total=$%.2f\n",
-		fetchedOrder.ID, fetchedOrder.UserID, fetchedOrder.Status, fetchedOrder.TotalAmount.Dollars())
-
-	// Get order items
-	fmt.Println("\n7. Getting order items...")
-	items, err := queries.GetOrderItems(ctx, order1.ID)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("   Order items:")
-	for _, item := range items {
-		fmt.Printf("     - %s (SKU: %s): %d x $%.2f = $%.2f\n",
-			item.ProductName, item.ProductSku, item.Quantity,
-			item.UnitPrice.Dollars(),
-			float64(item.Quantity)*item.UnitPrice.Dollars())
-	}
+	fmt.Printf("   Fetched order: ID=%v, User=%v, Status=%v, Total=$%.2f\n",
+		fetchedOrder.Id, fetchedOrder.UserId, fetchedOrder.Status,
+		types.Money(fetchedOrder.TotalAmount.(int64)).Dollars())
 
 	// Get user orders
-	fmt.Println("\n8. Getting user order statistics...")
-	stats, err := queries.GetOrderStatistics(ctx, user1.ID)
+	fmt.Println("\n5. Getting user orders...")
+	userOrders, err := queries.ListOrdersByUser(ctx, user1.Id)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   User %s statistics:\n", user1.Email)
-	fmt.Printf("     Total orders: %d\n", stats.TotalOrders)
-	fmt.Printf("     Total revenue: $%.2f\n", stats.TotalRevenue.Dollars())
-	fmt.Printf("     Average order: $%.2f\n", stats.AverageOrderValue)
-	fmt.Printf("     Pending: %d, Delivered: %d\n", stats.PendingCount, stats.DeliveredCount)
+	fmt.Printf("   User orders: %d\n", len(userOrders))
 
-	// Create more orders for user2
-	fmt.Println("\n9. Creating more orders...")
-	order2, err := queries.CreateOrder(ctx, db.CreateOrderParams{
-		UserID:      user2.ID,
-		Status:      types.StatusDelivered,
-		TotalAmount: types.FromDollars(199.99),
-	})
+	// Update order status
+	fmt.Println("\n6. Updating order status...")
+	updatedOrder, err := queries.UpdateOrderStatus(ctx, types.StatusProcessing, order1.Id)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("   Created delivered order: ID=%v\n", order2.ID)
+	fmt.Printf("   Updated order status: %v\n", updatedOrder.Status)
 
 	// List orders by status
-	fmt.Println("\n10. Listing orders by status...")
+	fmt.Println("\n7. Listing orders by status...")
 	pendingOrders, err := queries.GetOrdersByStatus(ctx, types.StatusPending)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("    Pending orders: %d\n", len(pendingOrders))
+	fmt.Printf("   Pending orders: %d\n", len(pendingOrders))
 
-	deliveredOrders, err := queries.GetOrdersByStatus(ctx, types.StatusDelivered)
+	// Get product by SKU
+	fmt.Println("\n8. Getting product by SKU...")
+	product, err := queries.GetProductBySku(ctx, types.SKU("LAPTOP-001"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Printf("    Delivered orders: %d\n", len(deliveredOrders))
+	fmt.Printf("   Found product: %v, Price=$%.2f\n",
+		product.Name, types.Money(product.Price.(int64)).Dollars())
+
+	// List all products
+	fmt.Println("\n9. Listing all products...")
+	products, err := queries.ListProducts(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, p := range products {
+		fmt.Printf("   - %v: $%.2f\n", p.Name, types.Money(p.Price.(int64)).Dollars())
+	}
 
 	// Demonstrate type safety
 	fmt.Println("\n=== Type Safety Demo ===")
-	fmt.Printf("UserID type: %T (value: %v)\n", user1.ID, user1.ID)
-	fmt.Printf("OrderID type: %T (value: %v)\n", order1.ID, order1.ID)
-	fmt.Printf("ProductID type: %T (value: %v)\n", product1.ID, product1.ID)
-	fmt.Printf("Status type: %T (value: %s)\n", order1.Status, order1.Status)
-	fmt.Printf("Money type: %T (value: $%.2f)\n", product1.Price, product1.Price.Dollars())
+	fmt.Printf("UserID type: %T (value: %v)\n", user1.Id, user1.Id)
+	fmt.Printf("OrderID type: %T (value: %v)\n", order1.Id, order1.Id)
+	fmt.Printf("ProductID type: %T (value: %v)\n", product1.Id, product1.Id)
+	fmt.Printf("Status type: %T (value: %v)\n", order1.Status, order1.Status)
 
 	fmt.Println("\n✅ All advanced features working!")
 }
