@@ -14,7 +14,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg1 any, arg2 string, arg3
 	if err != nil {
 		return CreateProductRow{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return CreateProductRow{}, err

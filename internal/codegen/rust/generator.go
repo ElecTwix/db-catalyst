@@ -219,6 +219,7 @@ func toPascalCase(s string) string {
 	snake := toSnakeCase(s)
 	parts := strings.Split(snake, "_")
 	for i := range parts {
+		//nolint:staticcheck // strings.Title is deprecated but sufficient for ASCII identifiers
 		parts[i] = strings.Title(parts[i])
 	}
 	return strings.Join(parts, "")

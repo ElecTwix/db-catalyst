@@ -14,7 +14,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg1 any, arg2 any, arg3 any)
 	if err != nil {
 		return CreateOrderRow{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return CreateOrderRow{}, err

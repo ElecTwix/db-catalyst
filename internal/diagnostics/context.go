@@ -95,6 +95,7 @@ func (e *ContextExtractor) getLines(path string) ([]string, error) {
 	}
 
 	// Read file
+	//nolint:gosec // Path is validated by caller
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read file %s: %w", path, err)

@@ -124,7 +124,7 @@ func (f *Formatter) PrintSummary(w io.Writer, c *Collection) {
 	}
 
 	if len(parts) > 0 {
-		fmt.Fprintf(w, "\n%s\n", strings.Join(parts, ", "))
+		_, _ = fmt.Fprintf(w, "\n%s\n", strings.Join(parts, ", "))
 	}
 }
 
@@ -135,14 +135,14 @@ func (f *Formatter) PrintCategorizedSummary(w io.Writer, c *Collection) {
 		return
 	}
 
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, f.colorize("Diagnostic Summary:", colorBold))
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, f.colorize("Diagnostic Summary:", colorBold))
 
 	printCategory := func(name string, diags []Diagnostic, color string) {
 		if len(diags) == 0 {
 			return
 		}
-		fmt.Fprintf(w, "  %s: %s\n", f.colorize(name, color), f.colorize(fmt.Sprintf("%d", len(diags)), color))
+		_, _ = fmt.Fprintf(w, "  %s: %s\n", f.colorize(name, color), f.colorize(fmt.Sprintf("%d", len(diags)), color))
 	}
 
 	printCategory("Schema Errors", cat.SchemaErrors, colorRed)

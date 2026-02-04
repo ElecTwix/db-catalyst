@@ -14,7 +14,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg1 any) (CreateUserRow, erro
 	if err != nil {
 		return CreateUserRow{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return CreateUserRow{}, err

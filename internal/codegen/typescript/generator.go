@@ -173,6 +173,7 @@ func toCamelCase(s string) string {
 		if i == 0 {
 			parts[i] = strings.ToLower(parts[i])
 		} else {
+			//nolint:staticcheck // strings.Title is deprecated but sufficient for ASCII identifiers
 			parts[i] = strings.Title(parts[i])
 		}
 	}
@@ -193,6 +194,7 @@ func toPascalCase(s string) string {
 	// Convert to PascalCase
 	parts := strings.Split(snake, "_")
 	for i := range parts {
+		//nolint:staticcheck // strings.Title is deprecated but sufficient for ASCII identifiers
 		parts[i] = strings.Title(parts[i])
 	}
 	return strings.Join(parts, "")

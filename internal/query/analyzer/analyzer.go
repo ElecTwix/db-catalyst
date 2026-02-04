@@ -2078,10 +2078,11 @@ func collectInsertParams(tokens []tokenizer.Token, start int, paramIndexByToken 
 	for i < len(tokens) && depth > 0 {
 		tok := tokens[i]
 		// Handle both symbol tokens (parentheses) and param tokens ($N)
-		if tok.Kind == tokenizer.KindSymbol {
+		switch tok.Kind {
+		case tokenizer.KindSymbol:
 			depth = updateDepth(tok.Text, depth)
 			params = maybeCollectParam(tok.Text, depth, i, paramIndexByToken, params)
-		} else if tok.Kind == tokenizer.KindParam {
+		case tokenizer.KindParam:
 			// PostgreSQL-style parameter at depth 1 (inside VALUES but not nested)
 			if depth == 1 {
 				if paramIdx, ok := paramIndexByToken[i]; ok {

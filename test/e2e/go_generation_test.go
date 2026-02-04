@@ -21,7 +21,7 @@ func TestGeneratedGoCode_CompilesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create go.mod for the test module
 	goModContent := `module testapp
@@ -30,7 +30,7 @@ go 1.23
 
 require modernc.org/sqlite v1.34.1
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
 		t.Fatalf("failed to write go.mod: %v", err)
 	}
 
@@ -52,7 +52,7 @@ CREATE TABLE posts (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
@@ -75,7 +75,7 @@ SELECT * FROM posts WHERE id = ?;
 -- name: ListPostsByUser :many
 SELECT * FROM posts WHERE user_id = ? ORDER BY id;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
 		t.Fatalf("failed to write queries: %v", err)
 	}
 
@@ -87,7 +87,7 @@ schemas = ["schema.sql"]
 queries = ["queries.sql"]
 `
 	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
-	if err := os.WriteFile(configPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(cfgContent), 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -159,7 +159,7 @@ func TestGeneratedGoCode_WithComplexSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	goModContent := `module testapp
 
@@ -167,7 +167,7 @@ go 1.23
 
 require modernc.org/sqlite v1.34.1
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
 		t.Fatalf("failed to write go.mod: %v", err)
 	}
 
@@ -209,7 +209,7 @@ CREATE TABLE post_tags (
 CREATE INDEX idx_posts_author ON posts(author_id);
 CREATE INDEX idx_posts_published ON posts(published);
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
@@ -238,7 +238,7 @@ RETURNING *;
 -- name: IncrementViewCount :exec
 UPDATE posts SET view_count = view_count + 1 WHERE id = ?;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
 		t.Fatalf("failed to write queries: %v", err)
 	}
 
@@ -249,7 +249,7 @@ schemas = ["schema.sql"]
 queries = ["queries.sql"]
 `
 	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
-	if err := os.WriteFile(configPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(cfgContent), 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
@@ -286,7 +286,7 @@ func TestGeneratedGoCode_WithPreparedQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	goModContent := `module testapp
 
@@ -294,7 +294,7 @@ go 1.23
 
 require modernc.org/sqlite v1.34.1
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
 		t.Fatalf("failed to write go.mod: %v", err)
 	}
 
@@ -306,7 +306,7 @@ CREATE TABLE products (
     price INTEGER NOT NULL
 );
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
 		t.Fatalf("failed to write schema: %v", err)
 	}
 
@@ -317,7 +317,7 @@ SELECT * FROM products WHERE id = ?;
 -- name: ListProducts :many
 SELECT * FROM products ORDER BY name;
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
 		t.Fatalf("failed to write queries: %v", err)
 	}
 
@@ -333,7 +333,7 @@ metrics = true
 thread_safe = true
 `
 	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
-	if err := os.WriteFile(configPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(cfgContent), 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
