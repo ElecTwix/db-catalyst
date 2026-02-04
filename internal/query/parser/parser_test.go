@@ -391,10 +391,10 @@ func TestInferParamName(t *testing.T) {
 			wantName: "name",
 		},
 		{
-			name:          "UPDATE_SET_multiple_second_param",
-			sql:           "UPDATE users SET name = ?, email = ? WHERE id = 1",
-			paramIdx:      1,
-			wantAmbiguous: true, // Second param, not first occurrence
+			name:     "UPDATE_SET_multiple_second_param",
+			sql:      "UPDATE users SET name = ?, email = ? WHERE id = 1",
+			paramIdx: 1,
+			wantName: "email", // UPDATE SET params are now all inferred
 		},
 		// BETWEEN - new
 		{
@@ -417,10 +417,10 @@ func TestInferParamName(t *testing.T) {
 			wantName: "id",
 		},
 		{
-			name:          "multiple WHERE conditions second",
-			sql:           "SELECT * FROM users WHERE id = ? AND name = ?",
-			paramIdx:      1,
-			wantAmbiguous: true, // Second param, not first occurrence
+			name:     "multiple WHERE conditions second",
+			sql:      "SELECT * FROM users WHERE id = ? AND name = ?",
+			paramIdx: 1,
+			wantName: "name",
 		},
 		// Table-qualified columns
 		{
@@ -428,6 +428,82 @@ func TestInferParamName(t *testing.T) {
 			sql:      "SELECT * FROM users u WHERE u.email = ?",
 			paramIdx: 0,
 			wantName: "email",
+		},
+		// INSERT statements
+		{
+			name:     "INSERT with column list first param",
+			sql:      "INSERT INTO users (id, name, email) VALUES (?, ?, ?)",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		{
+			name:     "INSERT with column list second param",
+			sql:      "INSERT INTO users (id, name, email) VALUES (?, ?, ?)",
+			paramIdx: 1,
+			wantName: "name",
+		},
+		{
+			name:     "INSERT with column list third param",
+			sql:      "INSERT INTO users (id, name, email) VALUES (?, ?, ?)",
+			paramIdx: 2,
+			wantName: "email",
+		},
+		{
+			name:     "INSERT single column",
+			sql:      "INSERT INTO users (name) VALUES (?)",
+			paramIdx: 0,
+			wantName: "name",
+		},
+		{
+			name:     "INSERT without column list falls back to argN",
+			sql:      "INSERT INTO users VALUES (?)",
+			paramIdx: 0,
+			wantName: "arg1",
+		},
+		// LIMIT and OFFSET
+		{
+			name:     "LIMIT parameter",
+			sql:      "SELECT * FROM users LIMIT ?",
+			paramIdx: 0,
+			wantName: "limit",
+		},
+		{
+			name:     "LIMIT with OFFSET",
+			sql:      "SELECT * FROM users LIMIT ? OFFSET ?",
+			paramIdx: 0,
+			wantName: "limit",
+		},
+		{
+			name:     "OFFSET parameter",
+			sql:      "SELECT * FROM users LIMIT ? OFFSET ?",
+			paramIdx: 1,
+			wantName: "offset",
+		},
+		// UPDATE WHERE clause
+		{
+			name:     "UPDATE WHERE clause",
+			sql:      "UPDATE users SET name = ? WHERE id = ?",
+			paramIdx: 1,
+			wantName: "id",
+		},
+		{
+			name:     "UPDATE WHERE with multiple SET",
+			sql:      "UPDATE users SET name = ?, email = ? WHERE id = ?",
+			paramIdx: 2,
+			wantName: "id",
+		},
+		// Complex LIKE patterns with OR
+		{
+			name:     "LIKE pattern with OR first param",
+			sql:      "SELECT * FROM posts WHERE title LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'",
+			paramIdx: 0,
+			wantName: "title",
+		},
+		{
+			name:     "LIKE pattern with OR second param",
+			sql:      "SELECT * FROM posts WHERE title LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'",
+			paramIdx: 1,
+			wantName: "content",
 		},
 	}
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/electwix/db-catalyst/internal/cli"
+	"github.com/electwix/db-catalyst/internal/diagnostics"
 	"github.com/electwix/db-catalyst/internal/fileset"
 	"github.com/electwix/db-catalyst/internal/logging"
 	"github.com/electwix/db-catalyst/internal/pipeline"
@@ -56,12 +57,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		EmitIFNotExists: opts.EmitIFNotExists,
 	})
 
-	printDiagnostics(stderr, summary.Diagnostics)
+	printDiagnostics(stderr, summary.Diagnostics, opts.Verbose)
 
 	if runErr != nil {
 		var diagErr *pipeline.DiagnosticsError
 		if !errors.As(runErr, &diagErr) {
-			_, _ = fmt.Fprintln(stderr, runErr.Error())
+			// For non-diagnostic errors, create a rich diagnostic
+			printErrorDiagnostic(stderr, runErr, opts.Verbose)
 		}
 		var writeErr *pipeline.WriteError
 		if errors.As(runErr, &writeErr) {
@@ -85,14 +87,62 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func printDiagnostics(w io.Writer, diags []queryanalyzer.Diagnostic) {
-	for _, diag := range diags {
-		level := "warning"
-		if diag.Severity == queryanalyzer.SeverityError {
-			level = "error"
-		}
-		_, _ = fmt.Fprintf(w, "%s:%d:%d: %s [%s]\n", diag.Path, diag.Line, diag.Column, diag.Message, level)
+func printDiagnostics(w io.Writer, diags []queryanalyzer.Diagnostic, verbose bool) {
+	if len(diags) == 0 {
+		return
 	}
+
+	// Convert to rich diagnostics
+	collection := diagnostics.CollectionFromQueryAnalyzer(diags)
+
+	// Enrich with suggestions
+	diagnostics.EnrichWithSuggestions(collection)
+
+	// In verbose mode, also add context
+	if verbose {
+		extractor := diagnostics.NewContextExtractor()
+		diagnostics.EnrichWithContext(collection, extractor, 2)
+	}
+
+	// Create formatter based on verbosity
+	var formatter *diagnostics.Formatter
+	if verbose {
+		formatter = diagnostics.NewVerboseFormatter()
+	} else {
+		formatter = diagnostics.NewFormatter()
+		formatter.ShowContext = false
+		formatter.ShowSuggestions = true
+		formatter.ShowNotes = false
+		formatter.ShowRelated = false
+	}
+
+	// Print all diagnostics
+	for _, d := range collection.All() {
+		_, _ = fmt.Fprintln(w, formatter.Format(d))
+	}
+
+	// Print summary
+	if collection.Len() > 0 {
+		if verbose {
+			formatter.PrintCategorizedSummary(w, collection)
+		} else {
+			formatter.PrintSummary(w, collection)
+		}
+	}
+}
+
+func printErrorDiagnostic(w io.Writer, err error, verbose bool) {
+	// Create a diagnostic from the error
+	diag := diagnostics.Error(err.Error()).
+		WithCode(diagnostics.ErrCodeGenFailed).
+		WithSource("db-catalyst").
+		Build()
+
+	formatter := diagnostics.NewFormatter()
+	if verbose {
+		formatter = diagnostics.NewVerboseFormatter()
+	}
+	_, _ = fmt.Fprintln(w, formatter.Format(diag))
 }
 
 func printQuerySummary(w io.Writer, analyses []queryanalyzer.Result) {

@@ -25,12 +25,18 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 **Goal:** Improve developer experience and documentation.
 
-### In Progress
+### Completed
 - [x] Emit empty slices option
 - [x] Column ordering determinism
+- [x] Documentation (schema, query, generated-code)
+  - [x] Comprehensive schema reference with examples
+  - [x] Complete query annotation guide
+  - [x] Generated code usage patterns
+  - [x] Best practices and troubleshooting
+
+### In Progress
 - [ ] Better parameter name inference
 - [ ] Detailed diagnostics
-- [ ] Documentation (schema, query, generated-code)
 
 ### Known Issues
 - No explicit parameter type override in queries

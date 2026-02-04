@@ -7,8 +7,8 @@ import (
 
 const queryCreateUser string = `INSERT INTO users (username, email) VALUES (?, ?) RETURNING id;`
 
-func (q *Queries) CreateUser(ctx context.Context, arg1 string, arg2 string) (CreateUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryCreateUser, arg1, arg2)
+func (q *Queries) CreateUser(ctx context.Context, username string, email string) (CreateUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreateUser, username, email)
 	if err != nil {
 		return CreateUserRow{}, err
 	}

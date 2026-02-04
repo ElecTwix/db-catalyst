@@ -93,11 +93,20 @@ Coming from sqlc? Check out our comprehensive [migration guide](docs/migrating-f
 
 - [`docs/feature-flags.md`](docs/feature-flags.md) documents the configuration surface, including the `[prepared_queries]` toggles for metrics and thread-safe statement initialization.
 
-## Documentation Map
+## Documentation
+
+### Core Documentation
+
+- **[Schema Reference](docs/schema.md)**: Complete guide to writing SQL schemas, including data types, constraints, indexes, and foreign keys.
+- **[Query Reference](docs/query.md)**: How to write SQL queries with annotations, parameters, JOINs, CTEs, and advanced features.
+- **[Generated Code Reference](docs/generated-code.md)**: Understanding the generated Go code, interfaces, transactions, and usage patterns.
+
+### Additional Documentation
 
 - [`db-catalyst-spec.md`](db-catalyst-spec.md): high-level architecture, pipeline stages, and roadmap.
 - [`docs/plans/db-catalyst-implementation-plan.md`](docs/plans/db-catalyst-implementation-plan.md): milestone-by-milestone plan and validation matrix.
 - [`docs/feature-flags.md`](docs/feature-flags.md): runtime and codegen switches available in configuration.
+- [`docs/migrating-from-sqlc.md`](docs/migrating-from-sqlc.md): guide for migrating existing sqlc projects.
 
 ## Contributing
 

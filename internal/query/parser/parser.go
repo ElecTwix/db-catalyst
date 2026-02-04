@@ -1284,10 +1284,34 @@ func actualPosition(blk block.Block, relLine, relColumn int) (int, int) {
 
 // inferParamName attempts to infer a meaningful parameter name from the surrounding context.
 // It looks backward from the parameter position for comparison operators and column names.
+// For INSERT statements, it maps parameters to the column list.
+// For UPDATE statements, it maps parameters in the SET clause to column names.
 // Returns empty string if no meaningful name can be inferred or if inference would be ambiguous.
 func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]int) string {
 	if !isValidParamToken(tokens, paramIdx) {
 		return ""
+	}
+
+	// First, try to infer from INSERT statement column list
+	// This is done before the ambiguity check because INSERT has explicit column mapping
+	if name := inferInsertParamName(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// Then, try to infer from SET clause in UPDATE statements
+	// This is also done before the ambiguity check because UPDATE SET has explicit column mapping
+	if name := inferUpdateParamName(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// Check for LIMIT/OFFSET parameters
+	if name := inferLimitOffsetParamName(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// Check for UPDATE WHERE clause parameters
+	if name := inferUpdateWhereParamName(tokens, paramIdx); name != "" {
+		return name
 	}
 
 	order, paramOrder, orderCount := countParameterOrders(tokens)
@@ -1297,17 +1321,30 @@ func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]i
 		return ""
 	}
 
-	// Look backward for column name
-	return findColumnNameForParam(tokens, paramIdx)
+	// Look backward for column name (WHERE clause, etc.)
+	if name := findColumnNameForParam(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// If backward search fails, try forward search for patterns like ? || column
+	return findColumnNameForward(tokens, paramIdx)
 }
 
 // isValidParamToken checks if the token at paramIdx is a valid parameter placeholder.
 func isValidParamToken(tokens []tokenizer.Token, paramIdx int) bool {
-	if paramIdx <= 0 || paramIdx >= len(tokens) {
+	if paramIdx < 0 || paramIdx >= len(tokens) {
 		return false
 	}
 	paramTok := tokens[paramIdx]
-	return paramTok.Kind == tokenizer.KindSymbol && paramTok.Text == "?"
+	// Handle SQLite-style ? parameters
+	if paramTok.Kind == tokenizer.KindSymbol && paramTok.Text == "?" {
+		return true
+	}
+	// Handle PostgreSQL-style $N parameters
+	if paramTok.Kind == tokenizer.KindParam && len(paramTok.Text) >= 2 && paramTok.Text[0] == '$' {
+		return true
+	}
+	return false
 }
 
 // countParameterOrders counts how many times the first encountered order appears.
@@ -1348,12 +1385,16 @@ func updateOrderCount(tokens []tokenizer.Token, idx, order, paramOrder, orderCou
 
 // shouldSkipInference determines if parameter name inference should be skipped.
 func shouldSkipInference(paramIdx, paramOrder, orderCount, order int, usedOrders map[int]int) bool {
-	if orderCount > 1 {
+	// If orderCount > 1, it means a numbered parameter (like ?1) appears multiple times.
+	// In that case, only the first occurrence should get an inferred name.
+	if orderCount > 1 && order > 0 {
 		return true
 	}
-	if paramIdx != paramOrder {
+	// For numbered parameters, only infer for the first occurrence
+	if paramIdx != paramOrder && order > 0 {
 		return true
 	}
+	// If this exact order was already used, skip
 	if usedOrders[order] > 0 && order > 0 {
 		return true
 	}
@@ -1450,4 +1491,389 @@ func shouldStopSearch(tok tokenizer.Token) bool {
 	// we want to find column names (SET col = ?, JOIN ... ON col = ?)
 	stopKeywords := []string{"WHERE", "AND", "OR", "VALUES", "HAVING", "ORDER", "GROUP", "BY", "LIMIT", "OFFSET", "SELECT", "FROM", "INSERT", "UPDATE", "DELETE"}
 	return slices.Contains(stopKeywords, upper)
+}
+
+// inferInsertParamName attempts to infer a parameter name from an INSERT statement.
+// It maps parameters in the VALUES clause to the corresponding column names.
+func inferInsertParamName(tokens []tokenizer.Token, paramIdx int) string {
+	// Check if we're inside a VALUES clause
+	if !isInsideValuesClause(tokens, paramIdx) {
+		return ""
+	}
+
+	// Find the column list and VALUES clause
+	columns := findInsertColumns(tokens, paramIdx)
+	if len(columns) == 0 {
+		return ""
+	}
+
+	// Count which parameter this is within the VALUES clause
+	paramPosition := countParamInValues(tokens, paramIdx)
+	if paramPosition < 0 || paramPosition >= len(columns) {
+		return ""
+	}
+
+	return camelCaseParam(columns[paramPosition])
+}
+
+// isInsideValuesClause checks if the parameter is inside a VALUES clause.
+func isInsideValuesClause(tokens []tokenizer.Token, paramIdx int) bool {
+	// Look backward for VALUES keyword followed by '('
+	// Track parentheses to handle nested structures
+	parenDepth := 0
+
+	for i := paramIdx; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case ")":
+				parenDepth++
+			case "(":
+				if parenDepth > 0 {
+					parenDepth--
+				}
+				// Don't return here - keep searching for VALUES
+			}
+		}
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "VALUES" {
+				// Check if next token (going forward) is '('
+				if i+1 < len(tokens) && tokens[i+1].Kind == tokenizer.KindSymbol && tokens[i+1].Text == "(" {
+					return true
+				}
+				// Otherwise continue searching - might be another VALUES
+			}
+			// Stop at statement boundaries
+			if upper == "SELECT" || upper == "FROM" || upper == "WHERE" {
+				break
+			}
+		}
+	}
+	return false
+}
+
+// findInsertColumns finds the column names specified in an INSERT statement.
+func findInsertColumns(tokens []tokenizer.Token, paramIdx int) []string {
+	// Look backward for INSERT INTO ... (col1, col2, ...)
+	var columns []string
+	foundInto := false
+	parenDepth := 0
+	inColumnList := false
+
+	for i := 0; i < paramIdx && i < len(tokens); i++ {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "INTO" {
+				foundInto = true
+				continue
+			}
+			// If we hit VALUES before finding columns, there's no column list
+			if upper == "VALUES" {
+				break
+			}
+		}
+
+		if !foundInto {
+			continue
+		}
+
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				if parenDepth == 0 && foundInto {
+					inColumnList = true
+				}
+				parenDepth++
+			case ")":
+				parenDepth--
+				if parenDepth == 0 && inColumnList {
+					// End of column list
+					return columns
+				}
+			}
+			continue
+		}
+
+		if inColumnList && parenDepth == 1 && tok.Kind == tokenizer.KindIdentifier {
+			columns = append(columns, tokenizer.NormalizeIdentifier(tok.Text))
+		}
+	}
+
+	return columns
+}
+
+// countParamInValues counts the position of the parameter within the VALUES clause.
+// Returns 0 for the first parameter, 1 for the second, etc.
+func countParamInValues(tokens []tokenizer.Token, paramIdx int) int {
+	// Find the opening paren of VALUES
+	valuesIdx := -1
+	parenDepth := 0
+	for i := paramIdx; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			if strings.ToUpper(tok.Text) == "VALUES" {
+				valuesIdx = i
+				break
+			}
+		}
+	}
+	if valuesIdx == -1 {
+		return -1
+	}
+
+	// Count parameters between VALUES and our position
+	count := 0
+	parenDepth = 0
+	for i := valuesIdx + 1; i < paramIdx && i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				parenDepth++
+			case ")":
+				parenDepth--
+			case "?":
+				if parenDepth > 0 {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
+// inferUpdateParamName attempts to infer a parameter name from an UPDATE SET clause.
+// It handles patterns like "SET col = ?" by looking for the column before the = sign.
+func inferUpdateParamName(tokens []tokenizer.Token, paramIdx int) string {
+	// Look backward for SET keyword and find the column being set
+	foundSet := false
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "SET" {
+				foundSet = true
+				break
+			}
+			// Stop at clause boundaries
+			if upper == "WHERE" || upper == "FROM" || upper == "SELECT" {
+				break
+			}
+		}
+	}
+
+	if !foundSet {
+		return ""
+	}
+
+	// Look for the column name before the = sign
+	// Pattern: col = ? or col=?
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		// Stop if we hit SET or WHERE
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "SET" || upper == "WHERE" {
+				break
+			}
+		}
+
+		// Look for = sign
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == "=" {
+			// Look for the column name before =
+			for j := i - 1; j >= 0; j-- {
+				prevTok := tokens[j]
+				if prevTok.Kind == tokenizer.KindIdentifier {
+					return camelCaseParam(prevTok.Text)
+				}
+				// Skip whitespace-like tokens (we don't have those, but check for non-identifiers)
+				if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text == "," {
+					// Multiple columns: col1 = ?, col2 = ?
+					// Keep looking backward
+					continue
+				}
+				if prevTok.Kind == tokenizer.KindKeyword || prevTok.Kind == tokenizer.KindIdentifier {
+					upper := strings.ToUpper(prevTok.Text)
+					if upper == "SET" {
+						break
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return ""
+}
+
+// inferLimitOffsetParamName checks if the parameter is after LIMIT or OFFSET keyword.
+func inferLimitOffsetParamName(tokens []tokenizer.Token, paramIdx int) string {
+	if paramIdx <= 0 {
+		return ""
+	}
+
+	// Look backward for LIMIT or OFFSET keyword
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			switch upper {
+			case "LIMIT":
+				return "limit"
+			case "OFFSET":
+				return "offset"
+			case "SELECT", "FROM", "WHERE", "ORDER", "GROUP", "HAVING", "INSERT", "UPDATE", "DELETE":
+				// Stop at statement boundaries
+				return ""
+			}
+		}
+
+		// Stop if we hit a closing paren (might be subquery)
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == ")" {
+			return ""
+		}
+	}
+
+	return ""
+}
+
+// inferUpdateWhereParamName attempts to infer a parameter name from the WHERE clause of an UPDATE statement.
+// This handles the case where SET params were already inferred, and we need names for WHERE params.
+func inferUpdateWhereParamName(tokens []tokenizer.Token, paramIdx int) string {
+	// Check if we're in an UPDATE statement and after a WHERE clause
+	foundUpdate := false
+	foundWhere := false
+	foundSet := false
+
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			switch upper {
+			case "UPDATE":
+				foundUpdate = true
+			case "WHERE":
+				foundWhere = true
+			case "SET":
+				foundSet = true
+			case "SELECT", "INSERT", "DELETE", "FROM":
+				// Stop at other statement boundaries
+				return ""
+			}
+		}
+	}
+
+	// Only proceed if we're in UPDATE ... SET ... WHERE pattern
+	if !foundUpdate || !foundWhere || !foundSet {
+		return ""
+	}
+
+	// Look backward for = sign, then find the column name
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		// Stop if we hit WHERE
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			if strings.ToUpper(tok.Text) == "WHERE" {
+				break
+			}
+		}
+
+		// Look for = sign
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == "=" {
+			// Look for the column name before =
+			for j := i - 1; j >= 0; j-- {
+				prevTok := tokens[j]
+				if prevTok.Kind == tokenizer.KindIdentifier {
+					return camelCaseParam(prevTok.Text)
+				}
+				// Skip whitespace-like tokens
+				if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text == "," {
+					continue
+				}
+				// Stop at WHERE or other boundaries
+				if prevTok.Kind == tokenizer.KindKeyword || prevTok.Kind == tokenizer.KindIdentifier {
+					upper := strings.ToUpper(prevTok.Text)
+					if upper == "WHERE" || upper == "SET" || upper == "SELECT" {
+						break
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return ""
+}
+
+// findColumnNameForward searches forward from paramIdx for a column name.
+// This is useful for patterns like '%' || ? || '%' where the column is before the || operator.
+func findColumnNameForward(tokens []tokenizer.Token, paramIdx int) string {
+	// Look forward for OR keyword which might indicate we're in a complex expression
+	// like: column LIKE '%' || ? || '%' OR other_column LIKE '%' || ? || '%'
+	for i := paramIdx + 1; i < len(tokens) && i < paramIdx+10; i++ {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			// If we find OR, look backward from param for the first column reference
+			if upper == "OR" {
+				return findColumnBeforeOr(tokens, paramIdx)
+			}
+			// Stop at statement boundaries
+			if upper == "WHERE" || upper == "AND" || upper == "SELECT" || upper == "FROM" {
+				return ""
+			}
+		}
+	}
+
+	return ""
+}
+
+// findColumnBeforeOr finds the column name in a pattern like:
+// column LIKE '%' || ? || '%' OR ...
+// It looks backward to find the column before the LIKE keyword.
+func findColumnBeforeOr(tokens []tokenizer.Token, paramIdx int) string {
+	// Look backward for LIKE keyword, then find the column before it
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "LIKE" {
+				// Found LIKE, now look for the column before it
+				for j := i - 1; j >= 0; j-- {
+					prevTok := tokens[j]
+					if prevTok.Kind == tokenizer.KindIdentifier {
+						return camelCaseParam(prevTok.Text)
+					}
+					// Stop at certain symbols
+					if prevTok.Kind == tokenizer.KindSymbol {
+						switch prevTok.Text {
+						case ")", ",", "+", "-", "*", "/", "%":
+							return ""
+						}
+					}
+					// Stop at keywords
+					if prevTok.Kind == tokenizer.KindKeyword {
+						return ""
+					}
+				}
+				return ""
+			}
+			// Stop at certain boundaries
+			if upper == "WHERE" || upper == "AND" || upper == "OR" || upper == "SELECT" || upper == "FROM" {
+				return ""
+			}
+		}
+	}
+
+	return ""
 }
