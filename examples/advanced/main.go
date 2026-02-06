@@ -49,6 +49,7 @@ func main() {
 
 	// Create products with Money type
 	fmt.Println("\n2. Creating products with Money type...")
+	//nolint:mnd // Example product prices
 	product1, err := queries.CreateProduct(ctx, types.SKU("LAPTOP-001"), "Gaming Laptop", types.FromDollars(1299.99))
 	if err != nil {
 		log.Fatal(err)
@@ -56,6 +57,7 @@ func main() {
 	fmt.Printf("   Created product: ID=%v, SKU=%v, Price=$%.2f\n",
 		product1.Id, product1.Sku, types.Money(product1.Price.(int64)).Dollars())
 
+	//nolint:mnd // Example product prices
 	product2, err := queries.CreateProduct(ctx, types.SKU("MOUSE-001"), "Wireless Mouse", types.FromDollars(49.99))
 	if err != nil {
 		log.Fatal(err)

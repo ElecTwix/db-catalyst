@@ -1,3 +1,4 @@
+//nolint:goconst // Test data uses repeated string literals for clarity
 package pipeline
 
 import (

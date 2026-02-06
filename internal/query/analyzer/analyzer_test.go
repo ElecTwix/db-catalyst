@@ -1,3 +1,4 @@
+//nolint:goconst // Test assertions use repeated type names
 package analyzer_test
 
 import (

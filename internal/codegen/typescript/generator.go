@@ -82,7 +82,7 @@ func (g *Generator) convertTable(table *model.Table) map[string]any {
 		// Handle nullable types
 		typeName := langType.Name
 		if semantic.Nullable && !langType.IsNullable {
-			typeName = typeName + " | null"
+			typeName += " | null"
 		}
 
 		fields[i] = map[string]any{

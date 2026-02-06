@@ -1,4 +1,6 @@
 // Package parser implements a DDL parser for SQLite schemas.
+//
+//nolint:goconst // SQL keywords and constraint names are naturally repeated
 package parser
 
 import (

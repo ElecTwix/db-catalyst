@@ -42,7 +42,7 @@ func FileName(raw string) string {
 	}
 	runes := []rune(raw)
 	var b strings.Builder
-	b.Grow(len(runes) * 2)
+	b.Grow(len(runes) * 2) //nolint:mnd // worst-case: each char needs '_' + lowercase
 	prevUnderscore := false
 	for i, r := range runes {
 		switch {
@@ -113,7 +113,7 @@ func toIdentifier(raw string, exported bool) string {
 }
 
 func splitSegments(raw string) []string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 4) //nolint:mnd // typical segment count
 	var buf strings.Builder
 	runes := []rune(raw)
 	flush := func() {

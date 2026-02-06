@@ -120,7 +120,7 @@ func run(ctx context.Context, configPath string, dryRun, verbose bool, paths []s
 		totalAliases += aliasCount
 		totalStars += starCount
 
-		segments := make([]string, 0, 2)
+		segments := make([]string, 0, 2) //nolint:mnd // capacity for alias and star messages
 		if aliasCount > 0 {
 			segments = append(segments, fmt.Sprintf("added aliases for %d column(s)", aliasCount))
 		}

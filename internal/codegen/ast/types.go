@@ -1,3 +1,4 @@
+//nolint:goconst // Type names are naturally repeated and don't need constants
 package ast
 
 import (

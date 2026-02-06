@@ -1,4 +1,6 @@
 // Package analyzer validates and resolves SQL queries against a schema catalog.
+//
+//nolint:goconst // SQL keywords and type names are naturally repeated
 package analyzer
 
 import (
@@ -1858,7 +1860,8 @@ func (a *Analyzer) schemaInfoForColumn(cat *model.Catalog, tableName, columnName
 }
 
 func matchInReference(tokens []tokenizer.Token, paramIdx int) (string, string, bool) {
-	if paramIdx < 2 {
+	const minTokensForIN = 2
+	if paramIdx < minTokensForIN {
 		return "", "", false
 	}
 	// Looking for: col IN ( ? )
@@ -1874,7 +1877,7 @@ func matchInReference(tokens []tokenizer.Token, paramIdx int) (string, string, b
 		}
 	}
 	// Check if IN is preceded by NOT
-	idx := paramIdx - 3
+	idx := paramIdx - 3 //nolint:mnd // looking 3 tokens back for column reference
 	if idx >= 0 && tokens[idx].Kind == tokenizer.KindKeyword && strings.ToUpper(tokens[idx].Text) == "NOT" {
 		idx--
 	}
@@ -2011,7 +2014,7 @@ func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Toke
 
 func parseInsertStructure(tokens []tokenizer.Token, paramIndexByToken map[int]int) (string, []string, []int) {
 	var tableName string
-	columns := make([]string, 0, 4)
+	columns := make([]string, 0, 4) //nolint:mnd // typical column count
 
 	i := 0
 	for i < len(tokens) {

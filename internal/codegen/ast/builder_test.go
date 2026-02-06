@@ -1,3 +1,4 @@
+//nolint:goconst // Test string literals don't need to be constants
 package ast
 
 import (

@@ -1,4 +1,4 @@
-//nolint:dupword // SQL test strings intentionally contain repeated type names.
+//nolint:dupword,goconst // SQL test strings contain repeated type names
 package transform
 
 import (

@@ -104,10 +104,10 @@ func Slice(path string, src []byte) ([]Block, error) {
 		if len(fields) == 0 {
 			return nil, fmt.Errorf("%s:%d:%d: missing block name", path, ln.line, column)
 		}
-		if len(fields) < 2 {
+		if len(fields) < 2 { //nolint:mnd // need exactly 2 fields: name and command
 			return nil, fmt.Errorf("%s:%d:%d: missing command for block %q", path, ln.line, column, fields[0])
 		}
-		if len(fields) > 2 {
+		if len(fields) > 2 { //nolint:mnd // need exactly 2 fields: name and command
 			return nil, fmt.Errorf("%s:%d:%d: unexpected tokens after command for block %q", path, ln.line, column, fields[0])
 		}
 		name := fields[0]

@@ -1,3 +1,4 @@
+//nolint:goconst // Test assertions use repeated SQL keywords
 package tokenizer
 
 import (

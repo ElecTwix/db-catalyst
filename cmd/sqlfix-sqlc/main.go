@@ -85,7 +85,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: %v\n", err)
 			return 1
 		}
-		if err := os.WriteFile(outPath, output, 0o600); err != nil {
+		if err := os.WriteFile(outPath, output, 0o600); err != nil { //nolint:mnd // standard file permission
 			_, _ = fmt.Fprintf(stderr, "sqlfix-sqlc: write %s: %v\n", outPath, err)
 			return 1
 		}
@@ -119,5 +119,5 @@ func ensureDir(path string) error {
 	if dir == "." || dir == "" {
 		return nil
 	}
-	return os.MkdirAll(dir, 0o750)
+	return os.MkdirAll(dir, 0o750) //nolint:mnd // standard directory permission
 }

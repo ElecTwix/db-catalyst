@@ -38,7 +38,7 @@ func Format(specs []Spec) ([]File, error) {
 		}
 		fset := token.NewFileSet()
 		var buf bytes.Buffer
-		cfg := &printer.Config{Mode: printer.TabIndent | printer.UseSpaces, Tabwidth: 8}
+		cfg := &printer.Config{Mode: printer.TabIndent | printer.UseSpaces, Tabwidth: 8} //nolint:mnd // standard Go tab width
 		if err := cfg.Fprint(&buf, fset, spec.Node); err != nil {
 			return nil, fmt.Errorf("render %s: %w", spec.Path, err)
 		}

@@ -1,5 +1,7 @@
 // Package sql generates SQL schema definitions from a database catalog.
 // It supports multiple SQL dialects including SQLite, MySQL, and PostgreSQL.
+//
+//nolint:goconst // SQL type names are naturally repeated and don't need constants
 package sql
 
 import (

@@ -1,4 +1,6 @@
 // Package sqlfix implements tools for automated SQL rewrites and migration.
+//
+//nolint:goconst // SQL keywords and column names are naturally repeated
 package sqlfix
 
 import (

@@ -1,4 +1,6 @@
 // Package e2e provides end-to-end tests that verify generated code compiles and runs correctly.
+//
+//nolint:goconst // Test fixtures use repeated content strings
 package e2e
 
 import (

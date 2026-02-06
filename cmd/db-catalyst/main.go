@@ -67,7 +67,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		var writeErr *pipeline.WriteError
 		if errors.As(runErr, &writeErr) {
-			return 2
+			return 2 //nolint:mnd // exit code for write errors
 		}
 		return 1
 	}
@@ -101,7 +101,7 @@ func printDiagnostics(w io.Writer, diags []queryanalyzer.Diagnostic, verbose boo
 	// In verbose mode, also add context
 	if verbose {
 		extractor := diagnostics.NewContextExtractor()
-		diagnostics.EnrichWithContext(collection, extractor, 2)
+		diagnostics.EnrichWithContext(collection, extractor, 2) //nolint:mnd // 2 lines of context
 	}
 
 	// Create formatter based on verbosity

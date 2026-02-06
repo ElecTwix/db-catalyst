@@ -213,7 +213,7 @@ func TestEnrichWithContextNoLocation(t *testing.T) {
 func TestEnrichWithContextExistingContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.sql")
-	if err := os.WriteFile(tmpFile, []byte("SELECT 1"), 0o644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte("SELECT 1"), 0o600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 

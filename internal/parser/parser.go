@@ -20,11 +20,13 @@ type Parser struct {
 	maxErrors int
 }
 
+const defaultMaxErrors = 10
+
 // NewParser creates a new Parser with the provided functional options.
 func NewParser(options ...Option) *Parser {
 	p := &Parser{
 		debug:     false,
-		maxErrors: 10,
+		maxErrors: defaultMaxErrors,
 	}
 
 	for _, opt := range options {

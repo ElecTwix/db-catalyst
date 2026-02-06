@@ -1,4 +1,6 @@
 // Package parser implements a SQL parser for query validation and parameter extraction.
+//
+//nolint:goconst // SQL keywords are naturally repeated
 package parser
 
 import (
@@ -191,8 +193,8 @@ func diagnosticFromError(blk block.Block, err error) Diagnostic {
 }
 
 func determineVerb(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (Verb, int, []CTE, []Diagnostic) {
-	ctes := make([]CTE, 0, 2)
-	diags := make([]Diagnostic, 0, 2)
+	ctes := make([]CTE, 0, 2)         //nolint:mnd // initial capacity for CTEs
+	diags := make([]Diagnostic, 0, 2) //nolint:mnd // initial capacity for diagnostics
 
 	i := 0
 	for i < len(tokens) {
@@ -429,6 +431,7 @@ func isSQLCMacro(tokens []tokenizer.Token, i int) (macroType string, arg string,
 	if tokens[i+5].Kind != tokenizer.KindSymbol || tokens[i+5].Text != ")" {
 		return "", "", 0, false
 	}
+	//nolint:mnd // i+6 is the position after "sqlc.slice(?)"
 	return macro, val, i + 6, true
 }
 
@@ -828,6 +831,7 @@ func tryProcessNumberedParam(
 
 	parsed, err := strconv.Atoi(nextTok.Text)
 	if err != nil || parsed <= 0 {
+		//nolint:mnd // 2 is the position after error
 		return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text)}, 2
 	}
 

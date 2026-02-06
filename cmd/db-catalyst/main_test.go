@@ -1,3 +1,4 @@
+//nolint:goconst // Test data intentionally uses repeated string literals for clarity
 package main
 
 import (

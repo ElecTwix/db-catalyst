@@ -99,7 +99,7 @@ func (e *WriteError) Unwrap() error {
 
 // NewOSWriter returns a Writer that performs atomic writes on the local filesystem.
 func NewOSWriter() Writer {
-	return &osWriter{perm: 0o644}
+	return &osWriter{perm: 0o644} //nolint:mnd // standard file permission
 }
 
 type osWriter struct {
@@ -111,7 +111,7 @@ func (w *osWriter) WriteFile(path string, data []byte) error {
 		return errors.New("pipeline: empty path")
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil { //nolint:mnd // standard directory permission
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".db-catalyst-")
@@ -149,8 +149,8 @@ func (w *osWriter) WriteFile(path string, data []byte) error {
 
 // Run executes the pipeline according to the provided options.
 func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, err error) {
-	diags := make([]queryanalyzer.Diagnostic, 0, 8)
-	analyses := make([]queryanalyzer.Result, 0, 4)
+	diags := make([]queryanalyzer.Diagnostic, 0, 8) //nolint:mnd // initial capacity for diagnostics
+	analyses := make([]queryanalyzer.Result, 0, 4)  //nolint:mnd // initial capacity for analyses
 	firstErrorIndex := -1
 
 	addDiag := func(d queryanalyzer.Diagnostic) {
@@ -493,7 +493,7 @@ func (p *Pipeline) parseSchemas(ctx context.Context, plan config.JobPlan, addDia
 				p.Env.Cache.Set(ctx, cacheKey, &schemaCacheEntry{
 					Catalog:     parsedCatalog,
 					Diagnostics: schemaDiags,
-				}, 5*time.Minute)
+				}, 5*time.Minute) //nolint:mnd // 5 minute cache TTL
 			}
 		}
 
@@ -541,6 +541,7 @@ func checkFileSize(path string) error {
 		return err
 	}
 	if info.Size() > maxFileSize {
+		//nolint:mnd // 1024 is bytes to MB conversion factor
 		return fmt.Errorf("file %s exceeds maximum size of %d bytes (%.2f MB)",
 			path, maxFileSize, float64(maxFileSize)/(1024*1024))
 	}

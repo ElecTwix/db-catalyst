@@ -1,3 +1,4 @@
+//nolint:goconst // Benchmark fixtures use repeated content strings
 package pipeline
 
 import (

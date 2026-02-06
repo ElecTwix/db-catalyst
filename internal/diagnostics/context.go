@@ -200,7 +200,7 @@ type SnippetExtractor struct {
 
 // NewSnippetExtractor creates a new snippet extractor.
 func NewSnippetExtractor() *SnippetExtractor {
-	return &SnippetExtractor{maxLength: 80}
+	return &SnippetExtractor{maxLength: 80} //nolint:mnd // standard terminal width
 }
 
 // WithMaxLength sets the maximum snippet length.

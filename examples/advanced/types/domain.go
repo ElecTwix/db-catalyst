@@ -28,14 +28,16 @@ const (
 // Money represents monetary values in cents (INTEGER in SQLite)
 type Money int64
 
+const centsPerDollar = 100
+
 // Dollars converts Money to dollar amount
 func (m Money) Dollars() float64 {
-	return float64(m) / 100
+	return float64(m) / centsPerDollar
 }
 
 // FromDollars creates Money from dollar amount
 func FromDollars(d float64) Money {
-	return Money(d * 100)
+	return Money(d * centsPerDollar)
 }
 
 // Email is a validated email type

@@ -1,4 +1,6 @@
 // Package graphql implements a GraphQL schema parser.
+//
+//nolint:goconst // SQL type names are naturally repeated
 package graphql
 
 import (

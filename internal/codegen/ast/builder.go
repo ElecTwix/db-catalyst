@@ -1,4 +1,6 @@
 // Package ast provides types and logic for building Go ASTs.
+//
+//nolint:goconst // String literals for "nil" and type names are naturally repeated
 package ast
 
 import (
@@ -666,7 +668,7 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		file.Decls = append(file.Decls, importDecl)
 	}
 
-	decls := make([]goast.Decl, 0, len(helpers)*2)
+	decls := make([]goast.Decl, 0, len(helpers)*2) //nolint:mnd // capacity for type and function declarations
 	for _, helper := range helpers {
 		fields := make([]*goast.Field, 0, len(helper.fields))
 		for _, fld := range helper.fields {
@@ -680,7 +682,7 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		rowSpec := &goast.TypeSpec{Name: goast.NewIdent(helper.rowTypeName), Type: rowType}
 		decls = append(decls, &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{rowSpec}})
 
-		stmts := make([]goast.Stmt, 0, 3)
+		stmts := make([]goast.Stmt, 0, 3) //nolint:mnd // capacity for up to 3 statements
 		stmt, err := parseStmt("var item " + helper.rowTypeName)
 		if err != nil {
 			return nil, err

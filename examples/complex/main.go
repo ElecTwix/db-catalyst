@@ -145,7 +145,7 @@ func main() {
 	fmt.Println()
 
 	fmt.Println("\n--- Popular Tags ---")
-	limit := int32(5)
+	limit := int32(5) //nolint:mnd // Example query limit
 	popularTags, err := queries.GetPopularTags(ctx, &limit)
 	if err != nil {
 		log.Fatal(err)

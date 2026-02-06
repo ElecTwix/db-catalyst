@@ -41,7 +41,7 @@ func NewFormatter() *Formatter {
 		ShowCode:            true,
 		ShowCodeDescription: false,
 		Colorize:            false,
-		ContextLines:        2,
+		ContextLines:        2, //nolint:mnd // standard context lines
 	}
 }
 
@@ -56,7 +56,7 @@ func NewVerboseFormatter() *Formatter {
 		ShowCode:            true,
 		ShowCodeDescription: true,
 		Colorize:            true,
-		ContextLines:        3,
+		ContextLines:        3, //nolint:mnd // verbose formatter uses more context
 	}
 }
 
@@ -113,7 +113,7 @@ func (f *Formatter) PrintSummary(w io.Writer, c *Collection) {
 		return
 	}
 
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 3) //nolint:mnd // capacity for errors, warnings, and info
 	if summary.Errors > 0 {
 		parts = append(parts, f.colorize(fmt.Sprintf("%d error(s)", summary.Errors), colorRed))
 	}

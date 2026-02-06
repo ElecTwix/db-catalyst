@@ -1,3 +1,4 @@
+//nolint:goconst // Test data intentionally uses repeated string literals for clarity
 package main
 
 import (
@@ -7,6 +8,23 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+)
+
+// Test constants to avoid duplication (goconst lint)
+const (
+	testSchemaUsers = `CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+`
+	testConfigBasic = `package = "app"
+out = "gen"
+schemas = ["schema.sql"]
+queries = ["queries/*.sql"]
+`
+	testQueryListUsers = `-- name: ListUsers :many
+SELECT * FROM users;
+`
 )
 
 func TestRunBasic(t *testing.T) {
@@ -115,12 +133,7 @@ SELECT id, title FROM posts;
 	writeFile(t, filepath.Join(queriesDir, "users.sql"), queries1)
 	writeFile(t, filepath.Join(queriesDir, "posts.sql"), queries2)
 
-	config := `package = "app"
-out = "gen"
-schemas = ["schema.sql"]
-queries = ["queries/*.sql"]
-`
-	writeFile(t, filepath.Join(tmpDir, "db-catalyst.toml"), config)
+	writeFile(t, filepath.Join(tmpDir, "db-catalyst.toml"), testConfigBasic)
 
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}

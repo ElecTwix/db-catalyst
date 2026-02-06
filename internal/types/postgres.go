@@ -1,3 +1,4 @@
+//nolint:goconst // PostgreSQL type names are naturally repeated
 package types
 
 import (
