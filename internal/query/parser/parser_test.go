@@ -404,10 +404,48 @@ func TestInferParamName(t *testing.T) {
 			wantName: "age",
 		},
 		{
-			name:          "BETWEEN second param (ambiguous)",
-			sql:           "SELECT * FROM users WHERE age BETWEEN ? AND ?",
-			paramIdx:      1,
-			wantAmbiguous: true,
+			name:     "BETWEEN second param (now gets Upper suffix)",
+			sql:      "SELECT * FROM users WHERE age BETWEEN ? AND ?",
+			paramIdx: 1,
+			wantName: "ageUpper",
+		},
+		// Forward equality pattern (reversed)
+		{
+			name:     "forward equality ? = column",
+			sql:      "SELECT * FROM users WHERE ? = id",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		{
+			name:     "forward equality with table prefix",
+			sql:      "SELECT * FROM users u WHERE ? = u.email",
+			paramIdx: 0,
+			wantName: "email",
+		},
+		{
+			name:     "mixed equality forward then backward",
+			sql:      "SELECT * FROM users WHERE ? = id AND name = ?",
+			paramIdx: 0,
+			wantName: "id",
+		},
+		{
+			name:     "mixed equality backward then forward",
+			sql:      "SELECT * FROM users WHERE email = ? AND ? = user_id",
+			paramIdx: 1,
+			wantName: "userId",
+		},
+		// HAVING clause
+		{
+			name:     "HAVING clause with COUNT",
+			sql:      "SELECT user_id, COUNT(*) as cnt FROM orders GROUP BY user_id HAVING cnt > ?",
+			paramIdx: 0,
+			wantName: "cnt",
+		},
+		{
+			name:     "HAVING clause with SUM",
+			sql:      "SELECT category, SUM(amount) as total FROM sales GROUP BY category HAVING total < ?",
+			paramIdx: 0,
+			wantName: "total",
 		},
 		// Multiple params - different columns
 		{

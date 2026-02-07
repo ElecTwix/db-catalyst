@@ -345,9 +345,9 @@ WHERE users.email = ? AND ? = users.id;`,
 				if res.Params[0].Name != "email" || res.Params[0].GoType != "string" || !res.Params[0].Nullable {
 					t.Errorf("unexpected first param %+v", res.Params[0])
 				}
-				// Second param - reversed pattern ? = users.id is harder to infer
-				// because we need to look ahead, not backward
-				if res.Params[1].Name != "arg2" || res.Params[1].GoType != "int64" || res.Params[1].Nullable {
+				// Second param - reversed pattern ? = users.id is now supported
+				// with forward-looking parameter name inference
+				if res.Params[1].Name != "id" || res.Params[1].GoType != "int64" || res.Params[1].Nullable {
 					t.Errorf("unexpected second param %+v", res.Params[1])
 				}
 			},

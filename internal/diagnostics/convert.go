@@ -44,7 +44,7 @@ func FromQueryParser(d queryparser.Diagnostic) Diagnostic {
 	// Determine error code based on message content
 	code := classifyQueryParserError(d.Message)
 
-	return Diagnostic{
+	diag := Diagnostic{
 		Severity: severity,
 		Message:  d.Message,
 		Code:     code,
@@ -55,6 +55,24 @@ func FromQueryParser(d queryparser.Diagnostic) Diagnostic {
 		},
 		Source: "query-parser",
 	}
+
+	// Add span information if available
+	if d.EndColumn > d.Column {
+		diag.Span = &Span{
+			Start: Location{
+				Path:   d.Path,
+				Line:   d.Line,
+				Column: d.Column,
+			},
+			End: Location{
+				Path:   d.Path,
+				Line:   d.Line,
+				Column: d.EndColumn,
+			},
+		}
+	}
+
+	return diag
 }
 
 // FromSchemaParser converts a schema parser diagnostic to a rich diagnostic.

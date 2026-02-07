@@ -100,11 +100,14 @@ const (
 
 // Diagnostic represents an issue found during parsing.
 type Diagnostic struct {
-	Path     string
-	Line     int
-	Column   int
-	Message  string
-	Severity Severity
+	Path      string
+	Line      int
+	Column    int
+	EndColumn int // End column for multi-character spans
+	Offset    int // Byte offset in file
+	Length    int // Length of the problematic token/region
+	Message   string
+	Severity  Severity
 }
 
 // Parse parses a query block into a structured Query object.
@@ -1278,6 +1281,23 @@ func makeDiag(blk block.Block, relLine, relColumn int, severity Severity, format
 	}
 }
 
+func makeDiagFromToken(blk block.Block, tok tokenizer.Token, severity Severity, format string, args ...any) Diagnostic {
+	line, column := actualPosition(blk, tok.Line, tok.Column)
+	length := len(tok.Text)
+	if length == 0 {
+		length = 1
+	}
+	return Diagnostic{
+		Path:      blk.Path,
+		Line:      line,
+		Column:    column,
+		EndColumn: column + length,
+		Length:    length,
+		Message:   fmt.Sprintf(format, args...),
+		Severity:  severity,
+	}
+}
+
 func actualPosition(blk block.Block, relLine, relColumn int) (int, int) {
 	line := blk.Line + relLine
 	if relLine == 0 {
@@ -1318,6 +1338,17 @@ func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]i
 		return name
 	}
 
+	// Check for HAVING clause parameters
+	if name := inferHavingParamName(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// Check for BETWEEN clause BEFORE the ambiguity check
+	// BETWEEN has explicit semantics for both parameters
+	if name := inferBetweenParamName(tokens, paramIdx, usedOrders); name != "" {
+		return name
+	}
+
 	order, paramOrder, orderCount := countParameterOrders(tokens)
 
 	// Check for ambiguous parameter usage
@@ -1327,6 +1358,11 @@ func inferParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]i
 
 	// Look backward for column name (WHERE clause, etc.)
 	if name := findColumnNameForParam(tokens, paramIdx); name != "" {
+		return name
+	}
+
+	// Check for forward equality pattern: ? = column
+	if name := inferParamNameForward(tokens, paramIdx); name != "" {
 		return name
 	}
 
@@ -1873,6 +1909,194 @@ func findColumnBeforeOr(tokens []tokenizer.Token, paramIdx int) string {
 			}
 			// Stop at certain boundaries
 			if upper == "WHERE" || upper == "AND" || upper == "OR" || upper == "SELECT" || upper == "FROM" {
+				return ""
+			}
+		}
+	}
+
+	return ""
+}
+
+// inferParamNameForward checks for forward-looking patterns like "? = column".
+// This handles reversed equality where the parameter comes before the operator.
+func inferParamNameForward(tokens []tokenizer.Token, paramIdx int) string {
+	// Skip past any numbered parameter suffix (e.g., ?1)
+	startIdx := paramIdx + 1
+	if startIdx < len(tokens) && tokens[startIdx].Kind == tokenizer.KindNumber {
+		startIdx++
+	}
+
+	// Look for = sign after the parameter
+	if startIdx >= len(tokens) {
+		return ""
+	}
+
+	tok := tokens[startIdx]
+	if tok.Kind != tokenizer.KindSymbol || tok.Text != "=" {
+		return ""
+	}
+
+	// Found "? =", now look for the column name after the =
+	// Handle both "column" and "table.column" patterns
+	for i := startIdx + 1; i < len(tokens) && i < startIdx+5; i++ {
+		t := tokens[i]
+		if t.Kind == tokenizer.KindIdentifier {
+			// Check if this is followed by "." and another identifier (table.column pattern)
+			if i+2 < len(tokens) {
+				nextTok := tokens[i+1]
+				afterNextTok := tokens[i+2]
+				if nextTok.Kind == tokenizer.KindSymbol && nextTok.Text == "." &&
+					afterNextTok.Kind == tokenizer.KindIdentifier {
+					// This is table.column, return the column name
+					return camelCaseParam(afterNextTok.Text)
+				}
+			}
+			// Simple column name
+			return camelCaseParam(t.Text)
+		}
+		// Stop at statement boundaries
+		if t.Kind == tokenizer.KindKeyword {
+			return ""
+		}
+	}
+
+	return ""
+}
+
+// inferBetweenParamName infers parameter names for BETWEEN clauses.
+// For BETWEEN ? AND ?, the first param gets the column name, second gets columnName + "End" or "Upper".
+func inferBetweenParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]int) string {
+	// Look backward for BETWEEN keyword
+	foundBetween := false
+	var betweenIdx int
+
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "BETWEEN" {
+				foundBetween = true
+				betweenIdx = i
+				break
+			}
+			// Only stop at WHERE or OR, not AND (since BETWEEN uses AND)
+			if upper == "WHERE" || upper == "OR" {
+				return ""
+			}
+		}
+	}
+
+	if !foundBetween {
+		return ""
+	}
+
+	// Find the column name before BETWEEN
+	columnName := ""
+	for i := betweenIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindIdentifier {
+			columnName = camelCaseParam(tok.Text)
+			break
+		}
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == "." {
+			continue
+		}
+		if tok.Kind == tokenizer.KindKeyword {
+			break
+		}
+	}
+
+	if columnName == "" {
+		return ""
+	}
+
+	// Count which parameter this is in the BETWEEN clause
+	// BETWEEN ? AND ? - first param gets columnName, second gets columnName + "Upper"
+	paramCount := 0
+	for i := betweenIdx + 1; i < paramIdx && i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == "?" {
+			paramCount++
+		}
+		// Stop at AND (start of second param)
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			if strings.ToUpper(tok.Text) == "AND" {
+				break
+			}
+		}
+	}
+
+	if paramCount == 0 {
+		// This is the first parameter
+		return columnName
+	}
+	// This is the second parameter
+	return columnName + "Upper"
+}
+
+// inferHavingParamName attempts to infer parameter names from HAVING clauses.
+// Similar to WHERE clause inference but specifically for HAVING context.
+func inferHavingParamName(tokens []tokenizer.Token, paramIdx int) string {
+	// Check if we're in a HAVING clause
+	foundHaving := false
+	var havingIdx int
+
+	for i := paramIdx - 1; i >= 0; i-- {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			if upper == "HAVING" {
+				foundHaving = true
+				havingIdx = i
+				break
+			}
+			if upper == "GROUP" || upper == "SELECT" || upper == "WHERE" {
+				return ""
+			}
+		}
+	}
+
+	if !foundHaving {
+		return ""
+	}
+
+	// Look backward for comparison operators
+	for i := paramIdx - 1; i > havingIdx && i >= 0; i-- {
+		tok := tokens[i]
+
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "=", "<", ">", "<=", ">=", "!=", "<>":
+				// Found operator, look for column before it
+				for j := i - 1; j > havingIdx && j >= 0; j-- {
+					prevTok := tokens[j]
+					if prevTok.Kind == tokenizer.KindIdentifier {
+						return camelCaseParam(prevTok.Text)
+					}
+					if prevTok.Kind == tokenizer.KindKeyword {
+						return ""
+					}
+				}
+				return ""
+			case ")", ",":
+				return ""
+			}
+		}
+
+		if tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier {
+			upper := strings.ToUpper(tok.Text)
+			switch upper {
+			case "LIKE", "IN":
+				// Found operator keyword, look for column before it
+				for j := i - 1; j > havingIdx && j >= 0; j-- {
+					prevTok := tokens[j]
+					if prevTok.Kind == tokenizer.KindIdentifier {
+						return camelCaseParam(prevTok.Text)
+					}
+					if prevTok.Kind == tokenizer.KindKeyword {
+						return ""
+					}
+				}
 				return ""
 			}
 		}

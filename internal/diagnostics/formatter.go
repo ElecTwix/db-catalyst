@@ -211,8 +211,59 @@ func (f *Formatter) formatDiagnostic(b *strings.Builder, d Diagnostic) {
 }
 
 func (f *Formatter) formatContext(b *strings.Builder, d Diagnostic) {
-	for line := range strings.SplitSeq(d.Context, "\n") {
-		fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
+	lines := strings.Split(d.Context, "\n")
+	hasErrorMarker := false
+
+	// Check if any line has the error marker (>)
+	for _, line := range lines {
+		if strings.HasPrefix(line, ">") {
+			hasErrorMarker = true
+			break
+		}
+	}
+
+	for i, line := range lines {
+		if line == "" && i == len(lines)-1 {
+			continue
+		}
+
+		// Check if this is a line with the error indicator (>)
+		if strings.HasPrefix(line, ">") {
+			// This is the error line, check if we have span info for multi-char underline
+			if d.Span != nil && d.Span.Start.Line == d.Span.End.Line {
+				// Single-line span - create underline
+				f.formatContextWithUnderline(b, line, d.Span.Start.Column, d.Span.End.Column)
+			} else {
+				// Multi-line span or no span - use simple indicator
+				fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
+			}
+		} else if hasErrorMarker {
+			// Regular context line with markers present
+			fmt.Fprintf(b, "  %s %s\n", f.colorize("   ", colorBlue), line)
+		} else {
+			// Plain context without markers - treat all lines as error lines
+			fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
+		}
+	}
+}
+
+func (f *Formatter) formatContextWithUnderline(b *strings.Builder, line string, startCol, endCol int) {
+	// Print the line with error marker
+	fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorRed), line)
+
+	// Create underline
+	if startCol > 0 && endCol > startCol {
+		// Build the underline string
+		prefixSpaces := strings.Repeat(" ", startCol+3) // +3 for "--> "
+		underlineLen := endCol - startCol
+		if underlineLen > 1 {
+			underline := strings.Repeat("~", underlineLen)
+			fmt.Fprintf(b, "  %s%s\n", prefixSpaces, f.colorize(underline, colorRed))
+		} else {
+			// Single character - use caret
+			prefixSpaces := strings.Repeat(" ", startCol+3)
+			fmt.Fprintf(b, "  %s%s\n", prefixSpaces, f.colorize("^", colorRed))
+		}
 	}
 }
 

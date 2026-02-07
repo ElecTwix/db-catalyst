@@ -173,6 +173,7 @@ var keywords = map[string]struct{}{
 	"ASC":           {},
 	"AUTOINCREMENT": {},
 	"BEFORE":        {},
+	"BETWEEN":       {},
 	"BLOB":          {},
 	"BOOLEAN":       {},
 	"CASCADE":       {},
