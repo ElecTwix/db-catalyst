@@ -10,7 +10,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/electwix/db-catalyst/internal/cache"
 	"github.com/electwix/db-catalyst/internal/cli"
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/diagnostics"
 	"github.com/electwix/db-catalyst/internal/fileset"
 	"github.com/electwix/db-catalyst/internal/logging"
@@ -34,15 +36,46 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// Handle cache clear command
+	if opts.ClearCache {
+		return clearCache(stdout, stderr, opts.ConfigPath)
+	}
+
 	slogLogger := logging.New(logging.Options{
 		Verbose: opts.Verbose,
 		Writer:  stderr,
 	})
 
+	// Load config to check if caching is enabled
+	loadResult, err := config.Load(opts.ConfigPath, config.LoadOptions{
+		Strict: opts.StrictConfig,
+		Logger: logging.NewSlogAdapter(slogLogger),
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "Error loading config: %v\n", err)
+		return 1
+	}
+
+	// Initialize file cache if enabled
+	var cacheImpl cache.Cache
+	if loadResult.Plan.Cache.Enabled {
+		cacheDir := loadResult.Plan.Cache.Dir
+		if cacheDir == "" {
+			cacheDir = ".db-catalyst-cache"
+		}
+		fileCache, err := cache.NewFileCache(cacheDir)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "Warning: failed to initialize cache: %v\n", err)
+		} else {
+			cacheImpl = fileCache
+		}
+	}
+
 	env := pipeline.Environment{
 		Logger:     logging.NewSlogAdapter(slogLogger),
 		FSResolver: fileset.NewOSResolver,
 		Writer:     pipeline.NewOSWriter(),
+		Cache:      cacheImpl,
 	}
 
 	pipe := pipeline.Pipeline{Env: env}
@@ -173,4 +206,50 @@ func formatParams(params []queryanalyzer.ResultParam) string {
 		parts = append(parts, segment)
 	}
 	return "params: " + strings.Join(parts, ", ")
+}
+
+// clearCache clears the build cache directory.
+func clearCache(stdout, stderr io.Writer, configPath string) int {
+	// Load config to get cache directory
+	loadResult, err := config.Load(configPath, config.LoadOptions{})
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "Error loading config: %v\n", err)
+		return 1
+	}
+
+	// Check if caching is enabled
+	if !loadResult.Plan.Cache.Enabled {
+		_, _ = fmt.Fprintln(stdout, "Cache is not enabled in configuration.")
+		return 0
+	}
+
+	cacheDir := loadResult.Plan.Cache.Dir
+	if cacheDir == "" {
+		cacheDir = ".db-catalyst-cache"
+	}
+
+	// Check if cache directory exists
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		_, _ = fmt.Fprintln(stdout, "Cache directory does not exist.")
+		return 0
+	}
+
+	// Clear the cache
+	fileCache, err := cache.NewFileCache(cacheDir)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "Error initializing cache: %v\n", err)
+		return 1
+	}
+
+	fileCache.Clear(context.Background())
+
+	// Get stats after clearing
+	total, expired, size := fileCache.Stats()
+	if total == 0 && expired == 0 && size == 0 {
+		_, _ = fmt.Fprintf(stdout, "Cache cleared: %s\n", cacheDir)
+	} else {
+		_, _ = fmt.Fprintf(stdout, "Cache partially cleared. Remaining: %d entries (%d expired), %d bytes\n", total, expired, size)
+	}
+
+	return 0
 }

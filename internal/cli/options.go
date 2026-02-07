@@ -23,6 +23,7 @@ type Options struct {
 	SQLDialect          string
 	SQLOutput           bool
 	EmitIFNotExists     bool
+	ClearCache          bool
 	Args                []string
 }
 
@@ -50,6 +51,7 @@ func Parse(args []string) (Options, error) {
 	fs.StringVar(&opts.SQLDialect, "sql-dialect", "", "Generate SQL schema output (sqlite, mysql, postgres)")
 	fs.BoolVar(&opts.SQLOutput, "sql-output", false, "Enable SQL schema generation")
 	fs.BoolVar(&opts.EmitIFNotExists, "if-not-exists", true, "Use IF NOT EXISTS in SQL output")
+	fs.BoolVar(&opts.ClearCache, "clear-cache", false, "Clear the build cache and exit")
 
 	if len(args) == 0 {
 		usage := Usage(fs)

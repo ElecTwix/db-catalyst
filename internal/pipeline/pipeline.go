@@ -591,9 +591,16 @@ type schemaCacheEntry struct {
 	Diagnostics []schemaparser.Diagnostic
 }
 
+// queryCacheEntry stores cached query parsing results.
+type queryCacheEntry struct {
+	Query       queryparser.Query
+	Diagnostics []queryparser.Diagnostic
+}
+
 // analyzeQueries parses and analyzes all queries from the plan.
 // It reads query files, slices them into blocks, parses each block,
 // and analyzes them against the provided catalog.
+// Caching is supported at the query block level.
 func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, catalog *model.Catalog, addDiag func(queryanalyzer.Diagnostic)) ([]queryanalyzer.Result, error) {
 	queries := make([]queryparser.Query, 0, len(plan.Queries))
 	for _, queryPath := range plan.Queries {
@@ -615,7 +622,35 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 			return nil, sliceErr
 		}
 		for _, blk := range blocks {
-			query, queryDiags := queryparser.Parse(blk)
+			// Check cache first
+			var query queryparser.Query
+			var queryDiags []queryparser.Diagnostic
+
+			if p.Env.Cache != nil {
+				// Include block content hash in cache key for proper invalidation
+				blockKey := cache.ComputeKeyWithPrefix("query", []byte(blk.SQL))
+				if cached, ok := p.Env.Cache.Get(ctx, blockKey); ok {
+					if entry, ok := cached.(*queryCacheEntry); ok {
+						query = entry.Query
+						queryDiags = entry.Diagnostics
+					}
+				}
+			}
+
+			// Parse if not in cache (check if Verb is set)
+			if query.Verb == 0 {
+				query, queryDiags = queryparser.Parse(blk)
+
+				// Store in cache
+				if p.Env.Cache != nil {
+					blockKey := cache.ComputeKeyWithPrefix("query", []byte(blk.SQL))
+					p.Env.Cache.Set(ctx, blockKey, &queryCacheEntry{
+						Query:       query,
+						Diagnostics: queryDiags,
+					}, 5*time.Minute) //nolint:mnd // 5 minute cache TTL
+				}
+			}
+
 			for _, qd := range queryDiags {
 				addDiag(convertQueryDiagnostic(qd))
 			}

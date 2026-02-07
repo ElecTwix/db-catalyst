@@ -117,6 +117,18 @@ type GenerationOptions struct {
 	SQLDialect          string `toml:"sql_dialect"`
 }
 
+// CacheConfig captures caching configuration for incremental builds.
+type CacheConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Dir     string `toml:"dir"`
+}
+
+// Cache is the normalized cache configuration forwarded to the pipeline.
+type Cache struct {
+	Enabled bool
+	Dir     string
+}
+
 // JobPlan is the fully-resolved configuration used by downstream stages.
 type JobPlan struct {
 	Package             string
@@ -131,6 +143,7 @@ type JobPlan struct {
 	EmitPointersForNull bool
 	PreparedQueries     PreparedQueries
 	SQLDialect          string
+	Cache               Cache
 }
 
 // PreparedQueriesConfig captures optional prepared statement generation settings.
@@ -161,6 +174,7 @@ type Config struct {
 	CustomTypes     CustomTypesConfig     `toml:"custom_types"`
 	Generation      GenerationOptions     `toml:"generation"`
 	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
+	Cache           CacheConfig           `toml:"cache"`
 }
 
 // LoadOptions tunes config loading behavior.
@@ -279,6 +293,12 @@ func Load(path string, opts LoadOptions) (Result, error) {
 	// Process custom types to extract import paths from go_type if needed
 	customTypes := normalizeCustomTypes(cfg.CustomTypes.Mappings)
 
+	// Set default cache directory if enabled but not specified
+	cacheDir := cfg.Cache.Dir
+	if cfg.Cache.Enabled && cacheDir == "" {
+		cacheDir = ".db-catalyst-cache"
+	}
+
 	res.Plan = JobPlan{
 		Package:             cfg.Package,
 		Out:                 out,
@@ -292,6 +312,10 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		EmitPointersForNull: cfg.Generation.EmitPointersForNull,
 		PreparedQueries:     prepared,
 		SQLDialect:          cfg.Generation.SQLDialect,
+		Cache: Cache{
+			Enabled: cfg.Cache.Enabled,
+			Dir:     cacheDir,
+		},
 	}
 
 	return res, nil
@@ -314,6 +338,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		"custom_types":     {},
 		"generation":       {},
 		"prepared_queries": {},
+		"cache":            {},
 	}
 
 	unknown := make([]string, 0)
