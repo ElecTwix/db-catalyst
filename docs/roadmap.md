@@ -8,8 +8,9 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 |---------|------|--------|
 | v0.1.0 | Jan 2026 | Released |
 | v0.2.0 | Feb 2026 | Released |
-| v0.3.0 | TBD | In Progress |
-| v0.4.0 | TBD | Future |
+| v0.3.0 | Feb 2026 | Released |
+| v0.4.0 | TBD | In Progress |
+| v0.5.0 | TBD | Future |
 
 ## v0.1.0 (Released)
 
@@ -43,9 +44,6 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
   - [x] EndColumn and Length fields
   - [x] Multi-character underlines for spans
   - [x] Token-based diagnostic creation
-
-### Known Issues (Remaining)
-- [ ] No explicit parameter type override in queries
 
 ## v0.3.0 - Optional Features
 
@@ -85,15 +83,34 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    - Save/compare with: `benchstat old.txt new.txt`
    - Run before major changes to detect regressions
 
-## v0.4.0 - Extensibility
+## v0.4.0 - Developer Experience
 
-**Goal:** Prepare for potential multi-database support.
+**Goal:** Address known limitations and improve flexibility.
+
+### Planned Features
+
+1. **Parameter Type Override**
+   Allow explicit parameter types in SQL comments:
+   ```sql
+   -- @param userID: uuid
+   SELECT * FROM users WHERE id = $1;
+   ```
+   Useful when automatic type inference fails or for custom types.
+
+2. **Engine Interface Boundaries** (Exploration)
+   - Define abstract database engine interface
+   - Separate dialect-specific logic from core
+   - Prepare for multi-database support (v0.5.0)
+
+## v0.5.0 - Extensibility
+
+**Goal:** Multi-database support (if exploration in v0.4.0 succeeds).
 
 ### Exploration
 
-- Define engine interface boundaries
-- Experiment with PostgreSQL driver
-- No rewrites, just exploration
+- PostgreSQL driver improvements
+- MySQL driver enhancements
+- Database-specific optimizations
 
 ## Non-Goals
 
