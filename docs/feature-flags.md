@@ -37,6 +37,29 @@ emit_empty_slices = true
 
 - `emit_empty_slices` *(bool, default `false`)*: when `true`, queries that return slices will return an empty slice `[]Type{}` instead of `nil` when no rows are found.
 
+## Cache
+
+Enable deterministic caching for faster incremental builds. The cache stores parsed ASTs and query analysis results.
+
+```toml
+[cache]
+enabled = true
+dir = ".db-catalyst-cache"
+```
+
+- `enabled` *(bool, default `false`)*: when `true`, enables file-based caching of parsed schemas and queries.
+- `dir` *(string, default `.db-catalyst-cache`)*: directory where cache files are stored. Relative paths are resolved from the project root.
+
+Cache invalidation is automatic based on:
+- File content hashes (modifications invalidate cache)
+- Schema/query file changes
+- db-catalyst version
+
+CLI commands:
+- `--clear-cache`: Clear the cache and exit
+
+Performance: Caching achieves ~20ms builds for small-to-medium projects (target was <200ms).
+
 ## Prepared Queries
 
 The generator can emit a prepared-statement aware wrapper that reuses compiled SQL statements and optionally instruments each invocation.

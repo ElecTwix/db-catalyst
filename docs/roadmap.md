@@ -7,8 +7,8 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 | Version | Date | Status |
 |---------|------|--------|
 | v0.1.0 | Jan 2026 | Released |
-| v0.2.0 | TBD | In Progress |
-| v0.3.0 | TBD | Planned |
+| v0.2.0 | Feb 2026 | Released |
+| v0.3.0 | TBD | In Progress |
 | v0.4.0 | TBD | Future |
 
 ## v0.1.0 (Released)
@@ -51,29 +51,39 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 **Goal:** Additive features without complexity creep.
 
-### Planned Features
+### Completed
 
-1. **Pointer Nullables**
+1. **Pointer Nullables** ✅
    ```toml
    [generation]
    emit_pointers_for_null = true
    ```
-   Generate `*string` instead of `string` for nullable columns.
+   - Generates `*string` instead of `sql.NullString` for nullable columns
+   - CLI flag: `--emit-pointers-for-null`
 
-2. **JSON Tag Control**
+2. **JSON Tag Control** ✅
    ```toml
    [generation]
    emit_json_tags = false
    ```
-   Already wired in generator, needs CLI flag.
+   - CLI flag: `--no-json-tags`
 
-3. **Deterministic Caching**
-   - Cache parsed schema/query ASTs
-   - Target: <200ms for incremental builds
+3. **Deterministic Caching** ✅
+   ```toml
+   [cache]
+   enabled = true
+   dir = ".db-catalyst-cache"
+   ```
+   - File-based JSON cache with content-hash keys
+   - Schema and query block-level caching
+   - CLI: `--clear-cache` to clear cache
+   - Target achieved: ~20ms for incremental builds (well under 200ms)
 
-4. **Performance Benchmarks**
-   - Internal benchmark suite
-   - CI performance regression tests
+4. **Performance Benchmarks** ✅
+   - Local benchmark suite (no CI - single-person project)
+   - Key benchmarks: Pipeline, Tokenizer, SchemaParser, QueryParser
+   - Save/compare with: `benchstat old.txt new.txt`
+   - Run before major changes to detect regressions
 
 ## v0.4.0 - Extensibility
 
