@@ -25,9 +25,35 @@ go test ./...                                       # Run all tests
 go test ./internal/config -run TestLoadConfig -v    # Run single test
 go test -race ./...                                 # Race detector
 go test -coverprofile=coverage.out ./...            # Coverage
-go test -bench=. -benchmem ./...                    # Benchmarks
 UPDATE_GOLDEN=1 go test ./internal/pipeline -v      # Update goldens
 ```
+
+## Benchmark Commands (Local Only)
+
+Since this is a single-person project, benchmarks run locally rather than in CI.
+
+```bash
+# Run all benchmarks
+go test -bench=. -benchmem ./...
+
+# Run specific benchmark
+go test -bench=BenchmarkTokenizer -benchmem ./internal/schema/tokenizer
+
+# Save benchmark results with date stamp
+go test -bench=. -benchmem -count=5 ./... > bench-$(date +%Y%m%d).txt
+
+# Compare benchmarks (install benchstat first: go install golang.org/x/perf/cmd/benchstat@latest)
+benchstat old.txt new.txt
+```
+
+### Key Benchmarks
+
+- `BenchmarkPipeline` - Full pipeline execution time
+- `BenchmarkTokenizer` - SQL tokenization performance
+- `BenchmarkSchemaParser` - DDL parsing speed
+- `BenchmarkQueryParser` - Query analysis performance
+
+Run benchmarks before major changes to detect performance regressions.
 
 ## Lint Commands
 
@@ -161,6 +187,29 @@ examples/         Example projects
 
 - Sort maps/slices before writing files or comparing goldens
 - Tests use `cmp.Diff` and golden fixtures
+
+## Deterministic Caching
+
+For faster incremental builds, db-catalyst supports caching parsed ASTs. Target: <200ms for small-to-medium projects.
+
+```toml
+[cache]
+enabled = true
+dir = ".db-catalyst-cache"  # Default: .db-catalyst-cache in project root
+```
+
+Cache invalidation is based on:
+- File modification times
+- Schema/query file hashes
+- db-catalyst version
+
+When enabled, the cache stores:
+- Tokenized schema files
+- Parsed schema ASTs
+- Parsed query blocks
+- Analyzed query results
+
+Clear cache manually: `rm -rf .db-catalyst-cache`
 
 ## Commit Style
 
