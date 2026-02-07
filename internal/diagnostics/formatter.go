@@ -228,7 +228,8 @@ func (f *Formatter) formatContext(b *strings.Builder, d Diagnostic) {
 		}
 
 		// Check if this is a line with the error indicator (>)
-		if strings.HasPrefix(line, ">") {
+		switch {
+		case strings.HasPrefix(line, ">"):
 			// This is the error line, check if we have span info for multi-char underline
 			if d.Span != nil && d.Span.Start.Line == d.Span.End.Line {
 				// Single-line span - create underline
@@ -237,10 +238,10 @@ func (f *Formatter) formatContext(b *strings.Builder, d Diagnostic) {
 				// Multi-line span or no span - use simple indicator
 				fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
 			}
-		} else if hasErrorMarker {
+		case hasErrorMarker:
 			// Regular context line with markers present
 			fmt.Fprintf(b, "  %s %s\n", f.colorize("   ", colorBlue), line)
-		} else {
+		default:
 			// Plain context without markers - treat all lines as error lines
 			fmt.Fprintf(b, "  %s %s\n", f.colorize("-->", colorBlue), line)
 		}
@@ -254,14 +255,14 @@ func (f *Formatter) formatContextWithUnderline(b *strings.Builder, line string, 
 	// Create underline
 	if startCol > 0 && endCol > startCol {
 		// Build the underline string
-		prefixSpaces := strings.Repeat(" ", startCol+3) // +3 for "--> "
+		prefixSpaces := strings.Repeat(" ", startCol+3) //nolint:mnd // +3 for "--> " prefix
 		underlineLen := endCol - startCol
 		if underlineLen > 1 {
 			underline := strings.Repeat("~", underlineLen)
 			fmt.Fprintf(b, "  %s%s\n", prefixSpaces, f.colorize(underline, colorRed))
 		} else {
 			// Single character - use caret
-			prefixSpaces := strings.Repeat(" ", startCol+3)
+			prefixSpaces := strings.Repeat(" ", startCol+3) //nolint:mnd // +3 for "--> " prefix
 			fmt.Fprintf(b, "  %s%s\n", prefixSpaces, f.colorize("^", colorRed))
 		}
 	}
