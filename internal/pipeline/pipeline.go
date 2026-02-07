@@ -58,14 +58,15 @@ type Summary struct {
 
 // RunOptions configures a pipeline execution.
 type RunOptions struct {
-	ConfigPath      string
-	OutOverride     string
-	DryRun          bool
-	ListQueries     bool
-	StrictConfig    bool
-	NoJSONTags      bool
-	SQLDialect      string
-	EmitIFNotExists bool
+	ConfigPath          string
+	OutOverride         string
+	DryRun              bool
+	ListQueries         bool
+	StrictConfig        bool
+	NoJSONTags          bool
+	EmitPointersForNull bool
+	SQLDialect          string
+	EmitIFNotExists     bool
 }
 
 // DiagnosticsError indicates that errors were reported via diagnostics.
@@ -211,9 +212,12 @@ func (p *Pipeline) Run(ctx context.Context, opts RunOptions) (summary Summary, e
 	}
 
 	plan := loadResult.Plan
-	// CLI flag overrides config setting
+	// CLI flags override config settings
 	if opts.NoJSONTags {
 		plan.EmitJSONTags = false
+	}
+	if opts.EmitPointersForNull {
+		plan.EmitPointersForNull = true
 	}
 	outDir := plan.Out
 	if opts.OutOverride != "" {

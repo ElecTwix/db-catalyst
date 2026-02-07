@@ -34,13 +34,18 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
   - [x] Generated code usage patterns
   - [x] Best practices and troubleshooting
 
-### In Progress
-- [ ] Better parameter name inference
-- [ ] Detailed diagnostics
+### Completed
+- [x] Better parameter name inference
+  - [x] Forward equality pattern (? = column)
+  - [x] BETWEEN second parameter naming (columnUpper)
+  - [x] HAVING clause parameter inference
+- [x] Detailed diagnostics
+  - [x] EndColumn and Length fields
+  - [x] Multi-character underlines for spans
+  - [x] Token-based diagnostic creation
 
-### Known Issues
-- No explicit parameter type override in queries
-- Limited error context in diagnostics
+### Known Issues (Remaining)
+- [ ] No explicit parameter type override in queries
 
 ## v0.3.0 - Optional Features
 

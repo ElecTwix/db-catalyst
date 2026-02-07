@@ -47,14 +47,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	pipe := pipeline.Pipeline{Env: env}
 	summary, runErr := pipe.Run(ctx, pipeline.RunOptions{
-		ConfigPath:      opts.ConfigPath,
-		OutOverride:     opts.Out,
-		DryRun:          opts.DryRun,
-		ListQueries:     opts.ListQueries,
-		StrictConfig:    opts.StrictConfig,
-		NoJSONTags:      opts.NoJSONTags,
-		SQLDialect:      opts.SQLDialect,
-		EmitIFNotExists: opts.EmitIFNotExists,
+		ConfigPath:          opts.ConfigPath,
+		OutOverride:         opts.Out,
+		DryRun:              opts.DryRun,
+		ListQueries:         opts.ListQueries,
+		StrictConfig:        opts.StrictConfig,
+		NoJSONTags:          opts.NoJSONTags,
+		EmitPointersForNull: opts.EmitPointersForNull,
+		SQLDialect:          opts.SQLDialect,
+		EmitIFNotExists:     opts.EmitIFNotExists,
 	})
 
 	printDiagnostics(stderr, summary.Diagnostics, opts.Verbose)

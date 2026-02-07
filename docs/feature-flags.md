@@ -2,6 +2,41 @@
 
 This document captures configuration toggles that change the db-catalyst code generator or runtime behaviour. All flags live inside `db-catalyst.toml` unless otherwise noted.
 
+## Generation Options
+
+Control the style and format of generated code.
+
+### JSON Tags
+
+```toml
+[generation]
+emit_json_tags = false
+```
+
+- `emit_json_tags` *(bool, default `true`)*: when `true`, generated structs include `json:"column_name"` tags. Disable when you don't need JSON serialization or prefer to handle it separately.
+
+CLI override: `--no-json-tags`
+
+### Pointer Nullables
+
+```toml
+[generation]
+emit_pointers_for_null = true
+```
+
+- `emit_pointers_for_null` *(bool, default `false`)*: when `true`, nullable columns use pointer types (`*string`, `*int64`) instead of `sql.NullString`, `sql.NullInt64`, etc. This produces more idiomatic Go code but requires checking for nil instead of using the `.Valid` field.
+
+CLI override: `--emit-pointers-for-null`
+
+### Empty Slices
+
+```toml
+[generation]
+emit_empty_slices = true
+```
+
+- `emit_empty_slices` *(bool, default `false`)*: when `true`, queries that return slices will return an empty slice `[]Type{}` instead of `nil` when no rows are found.
+
 ## Prepared Queries
 
 The generator can emit a prepared-statement aware wrapper that reuses compiled SQL statements and optionally instruments each invocation.
