@@ -617,6 +617,70 @@ JOIN posts p ON p.user_id = u.id`
 	}
 }
 
+func TestAnalyzer_ParamTypeOverride(t *testing.T) {
+	catalog := buildTestCatalog()
+
+	testCases := []struct {
+		name         string
+		sql          string
+		paramTypes   []block.ParamTypeOverride
+		expectedType string
+		paramIndex   int
+	}{
+		{
+			name: "explicit uuid type",
+			sql:  "SELECT * FROM users WHERE id = :user_id;",
+			paramTypes: []block.ParamTypeOverride{
+				{ParamName: "userId", GoType: "uuid.UUID"},
+			},
+			expectedType: "uuid.UUID",
+			paramIndex:   0,
+		},
+		{
+			name: "explicit custom type",
+			sql:  "SELECT * FROM users WHERE email = :email;",
+			paramTypes: []block.ParamTypeOverride{
+				{ParamName: "email", GoType: "custom.Email"},
+			},
+			expectedType: "custom.Email",
+			paramIndex:   0,
+		},
+		{
+			name:         "no override uses inferred type",
+			sql:          "SELECT * FROM users WHERE id = :id;",
+			paramTypes:   nil,
+			expectedType: "int64",
+			paramIndex:   0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			blk := block.Block{
+				Path:       "query/test.sql",
+				Line:       1,
+				Column:     1,
+				SQL:        tc.sql,
+				ParamTypes: tc.paramTypes,
+			}
+			q, diags := parser.Parse(blk)
+			if len(diags) != 0 {
+				t.Fatalf("unexpected parser diagnostics: %+v", diags)
+			}
+
+			res := analyzer.New(catalog).Analyze(q)
+			if len(res.Params) <= tc.paramIndex {
+				t.Fatalf("expected at least %d params, got %d", tc.paramIndex+1, len(res.Params))
+			}
+
+			param := res.Params[tc.paramIndex]
+			if param.GoType != tc.expectedType {
+				t.Errorf("expected param type %q, got %q", tc.expectedType, param.GoType)
+			}
+		})
+	}
+}
+
 func BenchmarkAnalyzeSelect(b *testing.B) {
 	cat := buildTestCatalog()
 	blk := block.Block{

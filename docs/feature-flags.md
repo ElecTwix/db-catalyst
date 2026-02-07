@@ -60,6 +60,38 @@ CLI commands:
 
 Performance: Caching achieves ~20ms builds for small-to-medium projects (target was <200ms).
 
+## Parameter Type Override
+
+Override automatic type inference with explicit type annotations in SQL comments.
+
+```sql
+-- @param userId: uuid.UUID
+-- @param email: custom.Email
+-- name: GetUser :one
+SELECT * FROM users WHERE id = :user_id AND email = :email;
+```
+
+- Use `-- @param paramName: GoType` syntax in query documentation comments
+- The `paramName` should match the camelCase version of your SQL parameter
+- Supports any valid Go type including custom types from imports
+- Multiple `@param` annotations per query are supported
+- Explicit types take precedence over automatic inference
+
+Examples:
+```sql
+-- Use UUID type from github.com/google/uuid
+-- @param id: uuid.UUID
+SELECT * FROM users WHERE id = :id;
+
+-- Custom type from your project
+-- @param status: myapp.UserStatus
+SELECT * FROM users WHERE status = :status;
+
+-- Slice of custom types
+-- @param ids: []uuid.UUID
+SELECT * FROM users WHERE id IN (sqlc.slice('ids'));
+```
+
 ## Prepared Queries
 
 The generator can emit a prepared-statement aware wrapper that reuses compiled SQL statements and optionally instruments each invocation.

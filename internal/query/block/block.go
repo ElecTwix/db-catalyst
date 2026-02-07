@@ -25,6 +25,12 @@ const (
 	CommandExecResult
 )
 
+// ParamTypeOverride represents an explicit type override for a parameter.
+type ParamTypeOverride struct {
+	ParamName string
+	GoType    string
+}
+
 // Block represents a parsed SQL query block.
 type Block struct {
 	Path        string
@@ -37,6 +43,7 @@ type Block struct {
 	StartOffset int
 	EndOffset   int
 	Suffix      string
+	ParamTypes  []ParamTypeOverride // Explicit type overrides from @param comments
 }
 
 func (c Command) String() string {
@@ -86,6 +93,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 		docStart     int
 		contentStart int
 		lineIndex    int
+		paramTypes   []ParamTypeOverride
 	}
 	markers := make([]markerInfo, 0, len(lines))
 	for idx, ln := range lines {
@@ -119,7 +127,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s:%d:%d: unknown command %s", path, ln.line, column, cmdTag)
 		}
-		docLines, docStart := collectDocLines(lines, idx)
+		docLines, docStart, paramTypes := collectDocLines(lines, idx)
 		markers = append(markers, markerInfo{
 			name:         name,
 			command:      cmd,
@@ -129,6 +137,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 			docStart:     docStart,
 			contentStart: ln.next,
 			lineIndex:    idx,
+			paramTypes:   paramTypes,
 		})
 	}
 	if len(markers) == 0 {
@@ -193,6 +202,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 			StartOffset: sqlStart,
 			EndOffset:   sqlEnd,
 			Suffix:      suffix,
+			ParamTypes:  m.paramTypes,
 		})
 	}
 	return blocks, nil
@@ -244,11 +254,12 @@ func splitLines(text string) []lineInfo {
 	return lines
 }
 
-func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int) {
+func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int, []ParamTypeOverride) {
 	if markerIdx == 0 {
-		return nil, lines[markerIdx].start
+		return nil, lines[markerIdx].start, nil
 	}
 	doc := make([]string, 0)
+	paramTypes := make([]ParamTypeOverride, 0)
 	docStart := lines[markerIdx].start
 	for i := markerIdx - 1; i >= 0; i-- {
 		text := lines[i].text
@@ -265,14 +276,46 @@ func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int) {
 		if strings.HasPrefix(lowerContent, "name:") {
 			break
 		}
-		doc = append(doc, content)
+		// Check for @param annotation
+		if pt := parseParamType(content); pt != nil {
+			paramTypes = append(paramTypes, *pt)
+		} else {
+			doc = append(doc, content)
+		}
 		docStart = lines[i].start
 	}
 	if len(doc) == 0 {
-		return nil, lines[markerIdx].start
+		doc = nil
+	}
+	if len(paramTypes) == 0 {
+		paramTypes = nil
 	}
 	slices.Reverse(doc)
-	return doc, docStart
+	slices.Reverse(paramTypes)
+	return doc, docStart, paramTypes
+}
+
+// parseParamType parses a @param annotation like "@param userID: uuid".
+// Returns nil if the content is not a @param annotation.
+func parseParamType(content string) *ParamTypeOverride {
+	if !strings.HasPrefix(content, "@param ") {
+		return nil
+	}
+	rest := strings.TrimSpace(content[len("@param "):])
+	// Parse "name: type" format
+	colonIdx := strings.Index(rest, ":")
+	if colonIdx == -1 {
+		return nil
+	}
+	paramName := strings.TrimSpace(rest[:colonIdx])
+	goType := strings.TrimSpace(rest[colonIdx+1:])
+	if paramName == "" || goType == "" {
+		return nil
+	}
+	return &ParamTypeOverride{
+		ParamName: paramName,
+		GoType:    goType,
+	}
 }
 
 func trimSQL(sql string) string {

@@ -270,6 +270,13 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 	}
 
 	paramInfos := a.inferParamTypes(q, workingScope, baseScope)
+
+	// Build a map of explicit type overrides from block annotations
+	explicitTypes := make(map[string]paramInfo)
+	for _, pt := range q.Block.ParamTypes {
+		explicitTypes[pt.ParamName] = paramInfo{GoType: pt.GoType, Nullable: false}
+	}
+
 	for idx, param := range q.Params {
 		rp := ResultParam{
 			Name:          param.Name,
@@ -279,7 +286,12 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 			IsVariadic:    param.IsVariadic,
 			VariadicCount: param.VariadicCount,
 		}
-		if info, ok := paramInfos[idx]; ok {
+
+		// Check for explicit type override first
+		if info, ok := explicitTypes[param.Name]; ok {
+			rp.GoType = info.GoType
+			rp.Nullable = info.Nullable
+		} else if info, ok := paramInfos[idx]; ok {
 			rp.GoType = info.GoType
 			rp.Nullable = info.Nullable
 		}

@@ -87,17 +87,21 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 **Goal:** Address known limitations and improve flexibility.
 
-### Planned Features
+### Completed
 
-1. **Parameter Type Override**
+1. **Parameter Type Override** ✅
    Allow explicit parameter types in SQL comments:
    ```sql
-   -- @param userID: uuid
-   SELECT * FROM users WHERE id = $1;
+   -- @param userId: uuid.UUID
+   SELECT * FROM users WHERE id = :user_id;
    ```
-   Useful when automatic type inference fails or for custom types.
+   - Supports any Go type (e.g., `uuid.UUID`, `custom.Email`)
+   - Takes precedence over automatic type inference
+   - Multiple `@param` annotations per query supported
 
-2. **Engine Interface Boundaries** (Exploration)
+### Planned Features
+
+1. **Engine Interface Boundaries** (Exploration)
    - Define abstract database engine interface
    - Separate dialect-specific logic from core
    - Prepare for multi-database support (v0.5.0)
