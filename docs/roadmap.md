@@ -9,8 +9,8 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 | v0.1.0 | Jan 2026 | Released |
 | v0.2.0 | Feb 2026 | Released |
 | v0.3.0 | Feb 2026 | Released |
-| v0.4.0 | TBD | In Progress |
-| v0.5.0 | TBD | Future |
+| v0.4.0 | Feb 2026 | Released |
+| v0.5.0 | TBD | In Progress |
 
 ## v0.1.0 (Released)
 
@@ -118,15 +118,63 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 ### Planned Features
 
-## v0.5.0 - Extensibility
+## v0.5.0 - Multi-Database Support
 
-**Goal:** Multi-database support (if exploration in v0.4.0 succeeds).
+**Goal:** Leverage the new engine interface to provide true multi-database code generation.
 
-### Exploration
+### Planned Features
 
-- PostgreSQL driver improvements
-- MySQL driver enhancements
-- Database-specific optimizations
+1. **PostgreSQL DDL Parser** 🔄
+   - Native PostgreSQL schema parsing (currently uses SQLite parser)
+   - Support for PostgreSQL-specific syntax:
+     - `SERIAL`, `BIGSERIAL` auto-increment
+     - `JSONB` with GIN indexes
+     - Array types (`TEXT[]`, `INTEGER[]`)
+     - `UUID` with `gen_random_uuid()`
+   - Parse `CREATE TYPE` for enums
+   - Parse domain constraints
+
+2. **Engine-Aware Code Generation** 🔄
+   - Update CLI to use engines instead of hardcoded logic
+   - Generate database-specific queries using engine interfaces
+   - Per-engine query validation
+   - Engine-specific prepared statement generation
+
+3. **MySQL Engine** 🔄
+   - Full MySQL type mapper implementation
+   - MySQL DDL parser (CREATE TABLE with MySQL-specific syntax)
+   - Support for MySQL features:
+     - `AUTO_INCREMENT`
+     - `TIMESTAMP` defaults
+     - `ENUM` and `SET` types
+     - Full-text indexes
+
+4. **Database-Specific Optimizations** 🔄
+   - Engine-specific query hints
+   - Connection pool configuration per database
+   - Transaction isolation level recommendations
+
+### Implementation Plan
+
+1. **Week 1-2**: PostgreSQL DDL Parser
+   - Create `internal/schema/parser/postgres` package
+   - Support core PostgreSQL DDL statements
+   - Add tests with real PostgreSQL schemas
+
+2. **Week 3-4**: Engine Integration in CLI
+   - Migrate CLI to use engine interfaces
+   - Remove hardcoded SQLite references
+   - Add database selection validation
+
+3. **Week 5-6**: MySQL Engine
+   - Implement MySQL type mapper
+   - Create MySQL DDL parser
+   - Add MySQL examples
+
+4. **Week 7-8**: Testing & Polish
+   - Integration tests for all three databases
+   - Performance benchmarks per engine
+   - Documentation updates
 
 ## Non-Goals
 
