@@ -122,10 +122,10 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 **Goal:** Leverage the new engine interface to provide true multi-database code generation.
 
-### Planned Features
+### Completed
 
-1. **PostgreSQL DDL Parser** 🔄
-   - Native PostgreSQL schema parsing (currently uses SQLite parser)
+1. **PostgreSQL DDL Parser** ✅
+   - Native PostgreSQL schema parsing implemented
    - Support for PostgreSQL-specific syntax:
      - `SERIAL`, `BIGSERIAL` auto-increment
      - `JSONB` with GIN indexes
@@ -133,6 +133,18 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
      - `UUID` with `gen_random_uuid()`
    - Parse `CREATE TYPE` for enums
    - Parse domain constraints
+   - Full CREATE TABLE with constraints
+   - CREATE INDEX with USING clause
+   - CREATE VIEW support
+   - ALTER TABLE support
+   
+   **New Packages:**
+   - `internal/schema/diagnostic` - Shared diagnostic types (avoids import cycles)
+   - `internal/schema/parser/postgres` - Native PostgreSQL DDL parser
+   
+   All tests pass, integrated with PostgreSQL engine.
+
+### Planned Features
 
 2. **Engine-Aware Code Generation** 🔄
    - Update CLI to use engines instead of hardcoded logic
@@ -156,7 +168,7 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 
 ### Implementation Plan
 
-1. **Week 1-2**: PostgreSQL DDL Parser
+1. **✅ Week 1-2**: PostgreSQL DDL Parser - COMPLETED
    - Create `internal/schema/parser/postgres` package
    - Support core PostgreSQL DDL statements
    - Add tests with real PostgreSQL schemas
