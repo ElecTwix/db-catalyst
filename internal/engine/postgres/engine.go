@@ -3,17 +3,22 @@ package postgres
 
 import (
 	"github.com/electwix/db-catalyst/internal/engine"
-	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
+	"github.com/electwix/db-catalyst/internal/schema/diagnostic"
+	"github.com/electwix/db-catalyst/internal/schema/parser/postgres"
 )
 
 // Engine implements the engine.Engine interface for PostgreSQL.
 type Engine struct {
-	opts engine.Options
+	opts   engine.Options
+	parser diagnostic.SchemaParser
 }
 
 // New creates a new PostgreSQL engine instance.
 func New(opts engine.Options) (engine.Engine, error) {
-	return &Engine{opts: opts}, nil
+	return &Engine{
+		opts:   opts,
+		parser: postgres.New(),
+	}, nil
 }
 
 // Name returns the engine identifier.
@@ -26,12 +31,9 @@ func (e *Engine) TypeMapper() engine.TypeMapper {
 	return &typeMapper{opts: e.opts}
 }
 
-// SchemaParser returns the PostgreSQL schema parser.
-// Note: For now, this returns the SQLite parser as a placeholder.
-// Full PostgreSQL DDL parsing will be implemented in v0.5.0.
-func (e *Engine) SchemaParser() schemaparser.SchemaParser {
-	parser, _ := schemaparser.NewSchemaParser("sqlite")
-	return parser
+// SchemaParser returns the native PostgreSQL schema parser.
+func (e *Engine) SchemaParser() diagnostic.SchemaParser {
+	return e.parser
 }
 
 // SQLGenerator returns the PostgreSQL SQL generator.

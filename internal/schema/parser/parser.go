@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/electwix/db-catalyst/internal/schema/diagnostic"
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
@@ -17,10 +18,20 @@ import (
 // Initial capacity for type parts slice (e.g., "VARCHAR", "(255)").
 const initialTypePartsCap = 2
 
-// SchemaParser parses SQL DDL statements and produces a schema catalog.
-type SchemaParser interface {
-	Parse(ctx context.Context, path string, content []byte) (*model.Catalog, []Diagnostic, error)
-}
+// SchemaParser is an alias for backward compatibility.
+type SchemaParser = diagnostic.SchemaParser
+
+// Diagnostic is an alias for backward compatibility.
+type Diagnostic = diagnostic.Diagnostic
+
+// Severity is an alias for backward compatibility.
+type Severity = diagnostic.Severity
+
+// Severity constants for backward compatibility.
+const (
+	SeverityError   = diagnostic.SeverityError
+	SeverityWarning = diagnostic.SeverityWarning
+)
 
 // sqliteParser implements SchemaParser for SQLite dialect.
 type sqliteParser struct{}
@@ -44,7 +55,7 @@ func (p *sqliteParser) Parse(ctx context.Context, path string, content []byte) (
 }
 
 // NewSchemaParser creates a new SchemaParser for the specified dialect.
-// Currently only "sqlite" is supported.
+// Currently only "sqlite" is supported. For PostgreSQL, use the postgres package directly.
 func NewSchemaParser(dialect string) (SchemaParser, error) {
 	switch dialect {
 	case "sqlite":
@@ -52,25 +63,6 @@ func NewSchemaParser(dialect string) (SchemaParser, error) {
 	default:
 		return nil, fmt.Errorf("unsupported dialect: %s", dialect)
 	}
-}
-
-// Severity indicates diagnostic severity.
-type Severity int
-
-const (
-	// SeverityError indicates a parsing or validation error.
-	SeverityError Severity = iota
-	// SeverityWarning indicates a non-fatal warning.
-	SeverityWarning
-)
-
-// Diagnostic captures parser feedback for callers to display.
-type Diagnostic struct {
-	Path     string
-	Line     int
-	Column   int
-	Message  string
-	Severity Severity
 }
 
 // Parser consumes tokenizer output and produces a normalized catalog.
