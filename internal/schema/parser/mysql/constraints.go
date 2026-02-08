@@ -9,7 +9,7 @@ import (
 // parseTableConstraint parses table-level constraints.
 func (ps *parserState) parseTableConstraint(table *model.Table) {
 	var constraintName string
-	if ps.matchKeyword("CONSTRAINT") {
+	if ps.matchKeyword(KeywordConstraint) {
 		ps.advance()
 		name, _, ok := ps.parseIdentifier(true)
 		if ok {
@@ -25,9 +25,9 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 	}
 
 	switch tok.Text {
-	case "PRIMARY":
+	case KeywordPrimary:
 		start := ps.advance()
-		if !ps.matchKeyword("KEY") {
+		if !ps.matchKeyword(KeywordKey) {
 			ps.addDiagToken(ps.current(), diagnostic.SeverityError, "expected KEY after PRIMARY")
 		} else {
 			ps.advance()
@@ -47,10 +47,10 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 		}
 		table.PrimaryKey = pk
 
-	case "UNIQUE":
+	case KeywordUnique:
 		start := ps.advance()
 		// UNIQUE can be followed by INDEX/KEY
-		if ps.matchKeyword("INDEX") || ps.matchKeyword("KEY") {
+		if ps.matchKeyword(KeywordIndex) || ps.matchKeyword(KeywordKey) {
 			ps.advance()
 		}
 		// Optional index name
@@ -67,7 +67,7 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 			Span:    tokenizer.SpanBetween(start, last),
 		})
 
-	case "INDEX", "KEY":
+	case KeywordIndex, KeywordKey:
 		start := ps.advance()
 		// Optional index name
 		indexName := ""
@@ -87,10 +87,10 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 		})
 		_ = last
 
-	case "FULLTEXT":
+	case KeywordFullText:
 		start := ps.advance()
 		// Optional INDEX/KEY
-		if ps.matchKeyword("INDEX") || ps.matchKeyword("KEY") {
+		if ps.matchKeyword(KeywordIndex) || ps.matchKeyword(KeywordKey) {
 			ps.advance()
 		}
 		// Optional index name
@@ -108,9 +108,9 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 		})
 		_ = last
 
-	case "FOREIGN":
+	case KeywordForeign:
 		start := ps.advance()
-		if !ps.matchKeyword("KEY") {
+		if !ps.matchKeyword(KeywordKey) {
 			ps.addDiagToken(ps.current(), diagnostic.SeverityError, "expected KEY after FOREIGN")
 			return
 		}
@@ -141,7 +141,7 @@ func (ps *parserState) parseTableConstraint(table *model.Table) {
 		}
 		table.ForeignKeys = append(table.ForeignKeys, fk)
 
-	case "CHECK":
+	case KeywordCheck:
 		ps.advance()
 		ps.skipCheckConstraint()
 
@@ -346,14 +346,14 @@ func isClauseBoundaryKeyword(text string) bool {
 
 // clauseBoundaryKeywords defines keywords that end a clause.
 var clauseBoundaryKeywords = map[string]struct{}{
-	"CONSTRAINT":     {},
-	"PRIMARY":        {},
-	"UNIQUE":         {},
-	"FOREIGN":        {},
-	"INDEX":          {},
-	"KEY":            {},
-	"FULLTEXT":       {},
-	"CHECK":          {},
+	KeywordConstraint:     {},
+	KeywordPrimary:        {},
+	KeywordUnique:         {},
+	KeywordForeign:        {},
+	KeywordIndex:          {},
+	KeywordKey:            {},
+	KeywordFullText:       {},
+	KeywordCheck:          {},
 	"REFERENCES":     {},
 	"DEFAULT":        {},
 	"NOT":            {},

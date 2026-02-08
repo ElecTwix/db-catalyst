@@ -130,9 +130,9 @@ func (ps *parserState) parseCreateTable() {
 
 		// Check for table-level constraints
 		if tok.Kind == tokenizer.KindKeyword {
-			if tok.Text == "CONSTRAINT" || tok.Text == "PRIMARY" || tok.Text == "UNIQUE" ||
-				tok.Text == "FOREIGN" || tok.Text == "CHECK" || tok.Text == "INDEX" ||
-				tok.Text == "KEY" || tok.Text == "FULLTEXT" || tok.Text == "SPATIAL" {
+			if tok.Text == KeywordConstraint || tok.Text == KeywordPrimary || tok.Text == KeywordUnique ||
+				tok.Text == KeywordForeign || tok.Text == KeywordCheck || tok.Text == KeywordIndex ||
+				tok.Text == KeywordKey || tok.Text == KeywordFullText || tok.Text == KeywordSpatial {
 				ps.parseTableConstraint(table)
 				continue
 			}
@@ -249,9 +249,9 @@ func (ps *parserState) parseColumnDefinition() (*columnResult, bool) {
 		}
 
 		switch tok.Text {
-		case "PRIMARY":
+		case KeywordPrimary:
 			start := ps.advance()
-			if ps.matchKeyword("KEY") {
+			if ps.matchKeyword(KeywordKey) {
 				keyTok := ps.advance()
 				res.lastTok = keyTok
 			} else {
@@ -303,12 +303,12 @@ func (ps *parserState) parseColumnDefinition() (*columnResult, bool) {
 				res.lastTok = fkEnd
 			}
 
-		case "UNIQUE":
+		case KeywordUnique:
 			uniqTok := ps.advance()
 			res.unique = &model.UniqueKey{Columns: []string{res.column.Name}, Span: tokenizer.NewSpan(uniqTok)}
 			res.lastTok = uniqTok
 
-		case "CHECK":
+		case KeywordCheck:
 			checkTok := ps.advance()
 			if last := ps.skipCheckConstraint(); last.Line != 0 {
 				res.lastTok = last

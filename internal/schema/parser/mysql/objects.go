@@ -22,7 +22,7 @@ func (ps *parserState) parseCreateIndex(unique bool) {
 	}
 
 	// Skip INDEX or KEY
-	if ps.matchKeyword("INDEX") || ps.matchKeyword("KEY") {
+	if ps.matchKeyword(KeywordIndex) || ps.matchKeyword("KEY") {
 		ps.advance()
 	}
 

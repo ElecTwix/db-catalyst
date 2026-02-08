@@ -270,7 +270,7 @@ func (ps *parserState) parseCreateDomain() {
 				if ps.matchKeyword("NULL") {
 					ps.advance()
 				}
-			case "CHECK":
+			case KeywordCheck:
 				ps.advance()
 				ps.skipCheckConstraint()
 			case "CONSTRAINT":
