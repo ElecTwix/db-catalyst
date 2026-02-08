@@ -8,9 +8,8 @@
 package builtin
 
 import (
-	"errors"
-
 	"github.com/electwix/db-catalyst/internal/engine"
+	"github.com/electwix/db-catalyst/internal/engine/mysql"
 	"github.com/electwix/db-catalyst/internal/engine/postgres"
 	"github.com/electwix/db-catalyst/internal/engine/sqlite"
 )
@@ -27,7 +26,5 @@ func RegisterAll() {
 	engine.Register("sqlite", sqlite.New)
 	engine.Register("postgresql", postgres.New)
 	engine.Register("postgres", postgres.New) // Alias
-	engine.Register("mysql", func(_ engine.Options) (engine.Engine, error) {
-		return nil, errors.New("mysql engine not yet implemented")
-	})
+	engine.Register("mysql", mysql.New)
 }

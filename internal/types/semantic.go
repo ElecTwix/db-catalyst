@@ -74,6 +74,30 @@ const (
 	CategorySerial
 	// CategoryBigSerial represents an auto-incrementing big integer.
 	CategoryBigSerial
+
+	// MySQL-specific categories
+	// CategoryMediumInteger represents a 24-bit signed integer (MySQL MEDIUMINT).
+	CategoryMediumInteger
+	// CategoryTinyText represents a tiny text (MySQL TINYTEXT).
+	CategoryTinyText
+	// CategoryMediumText represents a medium text (MySQL MEDIUMTEXT).
+	CategoryMediumText
+	// CategoryLongText represents a long text (MySQL LONGTEXT).
+	CategoryLongText
+	// CategoryTinyBlob represents a tiny blob (MySQL TINYBLOB).
+	CategoryTinyBlob
+	// CategoryMediumBlob represents a medium blob (MySQL MEDIUMBLOB).
+	CategoryMediumBlob
+	// CategoryLongBlob represents a long blob (MySQL LONGBLOB).
+	CategoryLongBlob
+	// CategoryBinary represents a binary type (MySQL BINARY/VARBINARY).
+	CategoryBinary
+	// CategoryDateTime represents a date and time (MySQL DATETIME).
+	CategoryDateTime
+	// CategoryYear represents a year type (MySQL YEAR).
+	CategoryYear
+	// CategorySet represents a set type (MySQL SET).
+	CategorySet
 )
 
 // String returns a human-readable name for the category
@@ -141,6 +165,28 @@ func (c SemanticTypeCategory) String() string {
 		return "serial"
 	case CategoryBigSerial:
 		return "bigserial"
+	case CategoryMediumInteger:
+		return "mediuminteger"
+	case CategoryTinyText:
+		return "tinytext"
+	case CategoryMediumText:
+		return "mediumtext"
+	case CategoryLongText:
+		return "longtext"
+	case CategoryTinyBlob:
+		return "tinyblob"
+	case CategoryMediumBlob:
+		return "mediumblob"
+	case CategoryLongBlob:
+		return "longblob"
+	case CategoryBinary:
+		return "binary"
+	case CategoryDateTime:
+		return "datetime"
+	case CategoryYear:
+		return "year"
+	case CategorySet:
+		return "set"
 	default:
 		return "unknown"
 	}
