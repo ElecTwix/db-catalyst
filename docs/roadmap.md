@@ -99,12 +99,24 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    - Takes precedence over automatic type inference
    - Multiple `@param` annotations per query supported
 
-### Planned Features
+### Completed
 
-1. **Engine Interface Boundaries** (Exploration)
-   - Define abstract database engine interface
-   - Separate dialect-specific logic from core
-   - Prepare for multi-database support (v0.5.0)
+1. **Engine Interface Boundaries** ✅
+   - Defined abstract database engine interface (`internal/engine`)
+   - Separated dialect-specific logic from core
+   - Created SQLite and PostgreSQL engine implementations
+   - Pipeline now supports engine injection via `Environment.Engine`
+   - Registry pattern for engine discovery and instantiation
+   - All tests pass without modification (backward compatible)
+   
+   **New Packages:**
+   - `internal/engine` - Core interfaces and registry
+   - `internal/engine/sqlite` - SQLite engine implementation
+   - `internal/engine/postgres` - PostgreSQL engine implementation  
+   - `internal/engine/builtin` - Built-in engine registration
+   - `internal/engine/mysql` - MySQL engine stub (future)
+
+### Planned Features
 
 ## v0.5.0 - Extensibility
 

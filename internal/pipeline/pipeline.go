@@ -16,6 +16,7 @@ import (
 	"github.com/electwix/db-catalyst/internal/codegen"
 	"github.com/electwix/db-catalyst/internal/codegen/ast"
 	"github.com/electwix/db-catalyst/internal/config"
+	"github.com/electwix/db-catalyst/internal/engine"
 	"github.com/electwix/db-catalyst/internal/fileset"
 	"github.com/electwix/db-catalyst/internal/logging"
 	queryanalyzer "github.com/electwix/db-catalyst/internal/query/analyzer"
@@ -33,9 +34,10 @@ type Environment struct {
 	FSResolver   func(string) (fileset.Resolver, error)
 	Logger       logging.Logger
 	Writer       Writer
-	SchemaParser schemaparser.SchemaParser // injectable schema parser
+	SchemaParser schemaparser.SchemaParser // injectable schema parser (deprecated: use Engine)
 	Generator    codegen.Generator         // injectable generator
 	Cache        cache.Cache               // injectable cache
+	Engine       engine.Engine             // injectable database engine
 }
 
 // Writer writes generated files to persistent storage.
@@ -446,9 +448,13 @@ func (p *Pipeline) writeFiles(ctx context.Context, opts RunOptions, files []code
 // parseSchemas parses all schema files from the plan, using cache when available.
 // It returns the merged catalog containing all tables and views.
 func (p *Pipeline) parseSchemas(ctx context.Context, plan config.JobPlan, addDiag func(queryanalyzer.Diagnostic)) (*model.Catalog, error) {
-	// Get or create schema parser
-	schemaParser := p.Env.SchemaParser
-	if schemaParser == nil {
+	// Get or create schema parser from engine if available
+	var schemaParser schemaparser.SchemaParser
+	if p.Env.Engine != nil {
+		schemaParser = p.Env.Engine.SchemaParser()
+	} else if p.Env.SchemaParser != nil {
+		schemaParser = p.Env.SchemaParser
+	} else {
 		var err error
 		schemaParser, err = schemaparser.NewSchemaParser("sqlite")
 		if err != nil {
@@ -674,9 +680,14 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
 
 	// Set up type resolver for database-specific type mapping
-	transformer := transform.New(nil) // No overrides for now
-	typeResolver := ast.NewTypeResolverWithDatabase(transformer, plan.Database)
-	analyzer.SetTypeResolver(&analyzerTypeResolver{resolver: typeResolver})
+	// Use engine's type mapper if available, otherwise fall back to legacy TypeResolver
+	if p.Env.Engine != nil {
+		analyzer.SetTypeResolver(&engineTypeResolver{mapper: p.Env.Engine.TypeMapper()})
+	} else {
+		transformer := transform.New(nil) // No overrides for now
+		typeResolver := ast.NewTypeResolverWithDatabase(transformer, plan.Database)
+		analyzer.SetTypeResolver(&analyzerTypeResolver{resolver: typeResolver})
+	}
 	analyses := make([]queryanalyzer.Result, 0, len(queries))
 	for _, q := range queries {
 		result := analyzer.Analyze(q)
@@ -697,6 +708,22 @@ type analyzerTypeResolver struct {
 // ResolveType implements the analyzer.TypeResolver interface.
 func (a *analyzerTypeResolver) ResolveType(sqlType string, nullable bool) queryanalyzer.TypeInfo {
 	info := a.resolver.ResolveType(sqlType, nullable)
+	return queryanalyzer.TypeInfo{
+		GoType:      info.GoType,
+		UsesSQLNull: info.UsesSQLNull,
+		Import:      info.Import,
+		Package:     info.Package,
+	}
+}
+
+// engineTypeResolver wraps the engine.TypeMapper to implement the analyzer TypeResolver interface.
+type engineTypeResolver struct {
+	mapper engine.TypeMapper
+}
+
+// ResolveType implements the analyzer.TypeResolver interface using the engine's type mapper.
+func (e *engineTypeResolver) ResolveType(sqlType string, nullable bool) queryanalyzer.TypeInfo {
+	info := e.mapper.SQLToGo(sqlType, nullable)
 	return queryanalyzer.TypeInfo{
 		GoType:      info.GoType,
 		UsesSQLNull: info.UsesSQLNull,
