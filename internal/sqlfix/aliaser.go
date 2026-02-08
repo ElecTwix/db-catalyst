@@ -65,13 +65,21 @@ var (
 	numericPattern   = regexp.MustCompile(`^[+-]?\d+(?:\.\d+)?$`)
 )
 
+// Regex match group indices and limits for alias generation.
+const (
+	aggregateMatchGroups = 3 // Full match + function name + argument
+	minStringLiteralLen  = 2 // Opening and closing quotes
+	maxAliasParts        = 3 // Maximum identifier parts to include in alias
+	aliasPartsSliceCap   = 4 // Pre-allocation for identifier parts slice
+)
+
 func deriveAliasBase(expr string) string {
 	trimmed := strings.TrimSpace(expr)
 	if trimmed == "" {
 		return ""
 	}
 
-	if m := aggregatePattern.FindStringSubmatch(trimmed); len(m) == 3 {
+	if m := aggregatePattern.FindStringSubmatch(trimmed); len(m) == aggregateMatchGroups {
 		fn := strings.ToLower(m[1])
 		arg := strings.TrimSpace(m[2])
 		if arg == "*" || arg == "1" {
@@ -93,7 +101,7 @@ func deriveAliasBase(expr string) string {
 		return sanitizeAlias("flag_" + strings.ToLower(upper))
 	}
 
-	if strings.HasPrefix(trimmed, "'") && strings.HasSuffix(trimmed, "'") && len(trimmed) >= 2 {
+	if strings.HasPrefix(trimmed, "'") && strings.HasSuffix(trimmed, "'") && len(trimmed) >= minStringLiteralLen {
 		val := trimmed[1 : len(trimmed)-1]
 		val = strings.TrimSpace(val)
 		if val == "" {
@@ -111,15 +119,15 @@ func deriveAliasBase(expr string) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	if len(parts) > 3 {
-		parts = parts[:3]
+	if len(parts) > maxAliasParts {
+		parts = parts[:maxAliasParts]
 	}
 	return sanitizeAlias(strings.Join(parts, "_"))
 }
 
 func splitIdentifierParts(expr string) []string {
 	buf := strings.Builder{}
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, aliasPartsSliceCap)
 	flush := func() {
 		if buf.Len() == 0 {
 			return

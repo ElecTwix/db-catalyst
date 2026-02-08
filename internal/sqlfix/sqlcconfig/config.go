@@ -19,6 +19,12 @@ import (
 	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Column reference part counts for parsing "table.column" and "schema.table.column".
+const (
+	colRefPartsSimple = 2 // table.column
+	colRefPartsSchema = 3 // schema.table.column
+)
+
 // Config represents the subset of sqlc configuration required for override migration.
 type Config struct {
 	Version   string     `yaml:"version"`
@@ -294,10 +300,10 @@ func (c *ColumnTarget) UnmarshalYAML(value *yaml.Node) error {
 		}
 		parts := strings.Split(text, ".")
 		switch len(parts) {
-		case 2:
+		case colRefPartsSimple:
 			c.Table = strings.TrimSpace(parts[0])
 			c.Name = strings.TrimSpace(parts[1])
-		case 3:
+		case colRefPartsSchema:
 			c.Schema = strings.TrimSpace(parts[0])
 			c.Table = strings.TrimSpace(parts[1])
 			c.Name = strings.TrimSpace(parts[2])

@@ -11,6 +11,12 @@ import (
 	"github.com/electwix/db-catalyst/internal/config"
 )
 
+// Regex match group counts for extracting type information.
+const (
+	columnTypeMatchGroups = 3 // Full match + column name + type name
+	typeOnlyMatchGroups   = 2 // Full match + type name only
+)
+
 // Transformer handles conversion of custom types to SQLite-compatible types.
 type Transformer struct {
 	mappings []config.CustomTypeMapping
@@ -105,7 +111,7 @@ func (t *Transformer) ExtractCustomTypesFromSchema(input []byte) []string {
 	// Process the entire input, not just CREATE TABLE lines
 	matches := columnRegex.FindAllSubmatch(input, -1)
 	for _, match := range matches {
-		if len(match) >= 3 {
+		if len(match) >= columnTypeMatchGroups {
 			typeName := string(match[2])
 			if t.IsCustomType(typeName) {
 				found[typeName] = true
@@ -128,7 +134,7 @@ func (t *Transformer) ValidateCustomTypes(input []byte) []string {
 	usedTypes := make(map[string]bool)
 	matches := columnRegex.FindAllSubmatch(input, -1)
 	for _, match := range matches {
-		if len(match) >= 2 {
+		if len(match) >= typeOnlyMatchGroups {
 			typeName := string(match[1])
 			// Skip if it's a standard SQLite type or common SQL keyword
 			if !t.IsStandardSQLiteType(typeName) && !t.isSQLKeyword(typeName) {

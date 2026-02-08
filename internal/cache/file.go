@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+// File permission constants for cache operations.
+const (
+	cacheDirPerm  = 0o750 // Directory permissions: rwxr-x---
+	cacheFilePerm = 0o600 // File permissions: rw-------
+)
+
+// Minimum length for creating subdirectory structure in cache keys.
+const minKeyLengthForSubdir = 4
+
 // FileCache implements Cache using file system storage.
 // It stores cache entries as JSON files in a directory structure.
 type FileCache struct {
@@ -27,7 +36,7 @@ type cacheEntry struct {
 // The baseDir is where cache files will be stored.
 func NewFileCache(baseDir string) (*FileCache, error) {
 	// Create cache directory if it doesn't exist
-	if err := os.MkdirAll(baseDir, 0o750); err != nil {
+	if err := os.MkdirAll(baseDir, cacheDirPerm); err != nil {
 		return nil, fmt.Errorf("create cache directory: %w", err)
 	}
 
@@ -72,7 +81,7 @@ func (f *FileCache) Set(_ context.Context, key string, value any, ttl time.Durat
 
 	// Ensure parent directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, cacheDirPerm); err != nil {
 		return
 	}
 
@@ -95,7 +104,7 @@ func (f *FileCache) Set(_ context.Context, key string, value any, ttl time.Durat
 
 	// Write atomically using temp file
 	tempFile := path + ".tmp"
-	if err := os.WriteFile(tempFile, data, 0o600); err != nil {
+	if err := os.WriteFile(tempFile, data, cacheFilePerm); err != nil {
 		return
 	}
 
@@ -111,7 +120,7 @@ func (f *FileCache) Delete(_ context.Context, key string) {
 // Clear removes all values from the cache.
 func (f *FileCache) Clear(_ context.Context) {
 	_ = os.RemoveAll(f.baseDir)
-	_ = os.MkdirAll(f.baseDir, 0o750)
+	_ = os.MkdirAll(f.baseDir, cacheDirPerm)
 }
 
 // keyToPath converts a cache key to a file path.
@@ -122,7 +131,7 @@ func (f *FileCache) keyToPath(key string) string {
 
 	// Create a 2-level directory structure using first 4 chars of key
 	// This prevents having too many files in a single directory
-	if len(safeKey) >= 4 {
+	if len(safeKey) >= minKeyLengthForSubdir {
 		subDir := filepath.Join(f.baseDir, safeKey[:2], safeKey[2:4])
 		return filepath.Join(subDir, safeKey+".json")
 	}

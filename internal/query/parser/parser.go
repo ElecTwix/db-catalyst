@@ -98,6 +98,17 @@ const (
 	SeverityWarning
 )
 
+// Pre-allocation sizes for common slice operations to reduce reallocations.
+const (
+	defaultSliceCap          = 4 // Default capacity for small slices
+	smallSliceCap            = 2 // Capacity for very small slices (CTEs, diagnostics)
+	tableColumnOffset        = 2 // Offset for table.column pattern lookup
+	paramGroupMinCount       = 2 // Minimum number of params in a variadic group
+	numberedParamLen         = 2 // Token length for numbered params like "?1"
+	namedParamLen            = 2 // Token length for named params like ":name" (colon + identifier)
+	lineOffsetBufferOverhead = 2 // Line offset buffer overhead: initial offset plus extra capacity
+)
+
 // Diagnostic represents an issue found during parsing.
 type Diagnostic struct {
 	Path      string
@@ -196,8 +207,8 @@ func diagnosticFromError(blk block.Block, err error) Diagnostic {
 }
 
 func determineVerb(tokens []tokenizer.Token, blk block.Block, pos positionIndex) (Verb, int, []CTE, []Diagnostic) {
-	ctes := make([]CTE, 0, 2)         //nolint:mnd // initial capacity for CTEs
-	diags := make([]Diagnostic, 0, 2) //nolint:mnd // initial capacity for diagnostics
+	ctes := make([]CTE, 0, smallSliceCap)
+	diags := make([]Diagnostic, 0, smallSliceCap)
 
 	i := 0
 	for i < len(tokens) {
@@ -246,8 +257,8 @@ func determineVerb(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 }
 
 func parseCTEList(tokens []tokenizer.Token, idx int, blk block.Block, pos positionIndex) ([]CTE, int, []Diagnostic) {
-	ctes := make([]CTE, 0, 2)
-	diags := make([]Diagnostic, 0, 2)
+	ctes := make([]CTE, 0, smallSliceCap)
+	diags := make([]Diagnostic, 0, smallSliceCap)
 	i := idx
 
 	for i < len(tokens) && tokens[i].Kind == tokenizer.KindDocComment {
@@ -283,7 +294,7 @@ func parseCTEList(tokens []tokenizer.Token, idx int, blk block.Block, pos positi
 
 		if i < len(tokens) && tokens[i].Kind == tokenizer.KindSymbol && tokens[i].Text == "(" {
 			i++
-			columns := make([]string, 0, 4)
+			columns := make([]string, 0, defaultSliceCap)
 			for {
 				if i >= len(tokens) {
 					diags = append(diags, makeDiag(blk, nameTok.Line, nameTok.Column, SeverityError, "unterminated column list for CTE %s", cte.Name))
@@ -477,9 +488,9 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 		}
 
 		depth := 1
-		placeholderIdxs := make([]int, 0, 4)
-		numberIdxs := make([]int, 0, 4)
-		numbers := make([]int, 0, 4)
+		placeholderIdxs := make([]int, 0, defaultSliceCap)
+		numberIdxs := make([]int, 0, defaultSliceCap)
+		numbers := make([]int, 0, defaultSliceCap)
 		valid := true
 		hasNumber := false
 		hasPlain := false
@@ -557,7 +568,7 @@ func detectVariadicGroups(tokens []tokenizer.Token) map[int]variadicGroup {
 		if !valid || depth != 0 {
 			continue
 		}
-		if len(placeholderIdxs) < 2 {
+		if len(placeholderIdxs) < paramGroupMinCount {
 			continue
 		}
 		if hasNumber && hasPlain {
@@ -595,8 +606,8 @@ func nextAvailableOrder(used map[int]int) int {
 }
 
 func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex) ([]Param, []Diagnostic) {
-	params := make([]Param, 0, 4)
-	diags := make([]Diagnostic, 0, 2)
+	params := make([]Param, 0, defaultSliceCap)
+	diags := make([]Diagnostic, 0, smallSliceCap)
 	numbered := make(map[int]int)
 	named := make(map[string]int)
 	groups := detectVariadicGroups(tokens)
@@ -834,8 +845,7 @@ func tryProcessNumberedParam(
 
 	parsed, err := strconv.Atoi(nextTok.Text)
 	if err != nil || parsed <= 0 {
-		//nolint:mnd // 2 is the position after error
-		return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text)}, 2
+		return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "invalid positional parameter index %s", nextTok.Text)}, numberedParamLen
 	}
 
 	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
@@ -849,9 +859,9 @@ func tryProcessNumberedParam(
 
 	if existingIdx, exists := numbered[parsed]; exists {
 		if params[existingIdx].Name != paramName {
-			return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", parsed)}, 2
+			return nil, []Diagnostic{makeDiag(blk, tok.Line, tok.Column, SeverityError, "duplicate positional parameter %d with conflicting name", parsed)}, numberedParamLen
 		}
-		return params, nil, 2
+		return params, nil, numberedParamLen
 	}
 
 	params = append(params, Param{
@@ -864,7 +874,7 @@ func tryProcessNumberedParam(
 		EndOffset:   endOffset,
 	})
 	numbered[parsed] = len(params) - 1
-	return params, nil, 2
+	return params, nil, numberedParamLen
 }
 
 // processSimplePositionalParam handles a simple "?" parameter.
@@ -980,9 +990,9 @@ func handleNamedParam(
 		if params[existingIdx].Name != camel {
 			return params, []Diagnostic{
 				makeDiag(blk, tokens[idx].Line, tokens[idx].Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel),
-			}, 2
+			}, namedParamLen
 		}
-		return params, nil, 2
+		return params, nil, namedParamLen
 	}
 
 	params = append(params, Param{
@@ -995,7 +1005,7 @@ func handleNamedParam(
 		EndOffset:   endOffset,
 	})
 	named[key] = len(params) - 1
-	return params, nil, 2
+	return params, nil, namedParamLen
 }
 
 type positionIndex struct {
@@ -1004,7 +1014,7 @@ type positionIndex struct {
 }
 
 func newPositionIndex(sql string) positionIndex {
-	offsets := make([]int, 1, strings.Count(sql, "\n")+2)
+	offsets := make([]int, 1, strings.Count(sql, "\n")+lineOffsetBufferOverhead)
 	offsets[0] = 0
 	for i := 0; i < len(sql); {
 		switch sql[i] {
@@ -1044,8 +1054,8 @@ func (p positionIndex) offset(tok tokenizer.Token) int {
 }
 
 func parseSelectColumns(tokens []tokenizer.Token, selectIdx int, blk block.Block, pos positionIndex) ([]Column, []Diagnostic) {
-	columns := make([]Column, 0, 4)
-	diags := make([]Diagnostic, 0, 2)
+	columns := make([]Column, 0, defaultSliceCap)
+	diags := make([]Diagnostic, 0, smallSliceCap)
 	depth := 0
 	start := selectIdx + 1
 	i := start
@@ -1219,7 +1229,7 @@ func camelCaseParam(name string) string {
 	if name == "" {
 		return "param"
 	}
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, defaultSliceCap)
 	var segment strings.Builder
 	for _, r := range name {
 		switch r {
@@ -1278,23 +1288,6 @@ func makeDiag(blk block.Block, relLine, relColumn int, severity Severity, format
 		Column:   column,
 		Message:  fmt.Sprintf(format, args...),
 		Severity: severity,
-	}
-}
-
-func makeDiagFromToken(blk block.Block, tok tokenizer.Token, severity Severity, format string, args ...any) Diagnostic {
-	line, column := actualPosition(blk, tok.Line, tok.Column)
-	length := len(tok.Text)
-	if length == 0 {
-		length = 1
-	}
-	return Diagnostic{
-		Path:      blk.Path,
-		Line:      line,
-		Column:    column,
-		EndColumn: column + length,
-		Length:    length,
-		Message:   fmt.Sprintf(format, args...),
-		Severity:  severity,
 	}
 }
 
@@ -1965,7 +1958,7 @@ func inferParamNameForward(tokens []tokenizer.Token, paramIdx int) string {
 
 // inferBetweenParamName infers parameter names for BETWEEN clauses.
 // For BETWEEN ? AND ?, the first param gets the column name, second gets columnName + "End" or "Upper".
-func inferBetweenParamName(tokens []tokenizer.Token, paramIdx int, usedOrders map[int]int) string {
+func inferBetweenParamName(tokens []tokenizer.Token, paramIdx int, _ map[int]int) string {
 	// Look backward for BETWEEN keyword
 	foundBetween := false
 	var betweenIdx int

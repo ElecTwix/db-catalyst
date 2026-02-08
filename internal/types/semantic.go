@@ -72,7 +72,8 @@ const (
 	CategoryCustom
 	// CategorySerial represents an auto-incrementing integer.
 	CategorySerial
-	CategoryBigSerial // Auto-incrementing big integer
+	// CategoryBigSerial represents an auto-incrementing big integer.
+	CategoryBigSerial
 )
 
 // String returns a human-readable name for the category

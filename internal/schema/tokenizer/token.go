@@ -7,6 +7,9 @@ import (
 	"unicode/utf8"
 )
 
+// Minimum length for a quoted identifier (opening + closing quote).
+const minQuotedIdentLen = 2
+
 // Kind represents the classification of a scanned token.
 type Kind int
 
@@ -136,7 +139,7 @@ func IsKeyword(s string) bool {
 
 // NormalizeIdentifier removes optional quoting from identifiers while unescaping content.
 func NormalizeIdentifier(text string) string {
-	if len(text) < 2 {
+	if len(text) < minQuotedIdentLen {
 		return text
 	}
 	switch text[0] {

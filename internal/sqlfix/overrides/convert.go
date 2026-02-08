@@ -11,6 +11,9 @@ import (
 	"github.com/electwix/db-catalyst/internal/sqlfix/sqlcconfig"
 )
 
+// Maximum parts in a column custom type base (schema, table, column, type).
+const maxColumnTypeParts = 4
+
 // Mappings is a convenience alias for slices of custom type mappings.
 type Mappings []config.CustomTypeMapping
 
@@ -113,7 +116,7 @@ func equivalentMapping(a, b config.CustomTypeMapping) bool {
 }
 
 func buildColumnCustomTypeBase(target sqlcconfig.ColumnTarget, typeName string) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, maxColumnTypeParts)
 	if target.Schema != "" {
 		parts = append(parts, target.Schema)
 	}

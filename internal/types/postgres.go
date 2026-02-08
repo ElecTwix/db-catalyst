@@ -1,9 +1,17 @@
-//nolint:goconst // PostgreSQL type names are naturally repeated
+// Package types provides PostgreSQL-specific type mappings.
+//
 package types
 
 import (
 	"strconv"
 	"strings"
+)
+
+// PostgreSQL MONEY type default precision and scale.
+// MONEY is fixed precision (19,2) in PostgreSQL.
+const (
+	postgresMoneyPrecision = 19
+	postgresMoneyScale     = 2
 )
 
 // PostgresMapper converts PostgreSQL type names to semantic types.
@@ -67,8 +75,8 @@ func (m *PostgresMapper) Map(sqlType string, nullable bool) SemanticType {
 		return SemanticType{
 			Category:  CategoryDecimal,
 			Nullable:  nullable,
-			Precision: 19,
-			Scale:     2,
+			Precision: postgresMoneyPrecision,
+			Scale:     postgresMoneyScale,
 		}
 
 	// String types

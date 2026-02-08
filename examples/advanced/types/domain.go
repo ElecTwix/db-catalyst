@@ -1,3 +1,6 @@
+// Package types provides domain types for the advanced example.
+//
+//nolint:revive // Package name "types" is acceptable for this example
 package types
 
 // UserID is a strongly-typed user identifier

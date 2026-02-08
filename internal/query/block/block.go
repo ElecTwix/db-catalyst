@@ -303,12 +303,12 @@ func parseParamType(content string) *ParamTypeOverride {
 	}
 	rest := strings.TrimSpace(content[len("@param "):])
 	// Parse "name: type" format
-	colonIdx := strings.Index(rest, ":")
-	if colonIdx == -1 {
+	paramName, goType, ok := strings.Cut(rest, ":")
+	if !ok {
 		return nil
 	}
-	paramName := strings.TrimSpace(rest[:colonIdx])
-	goType := strings.TrimSpace(rest[colonIdx+1:])
+	paramName = strings.TrimSpace(paramName)
+	goType = strings.TrimSpace(goType)
 	if paramName == "" || goType == "" {
 		return nil
 	}

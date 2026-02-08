@@ -137,7 +137,7 @@ func TestFileCacheClear(t *testing.T) {
 	ctx := context.Background()
 
 	// Add multiple entries
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		fc.Set(ctx, "key-"+string(rune('a'+i)), "value", time.Hour)
 	}
 
@@ -145,7 +145,7 @@ func TestFileCacheClear(t *testing.T) {
 	fc.Clear(ctx)
 
 	// Verify all entries are gone
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		_, ok := fc.Get(ctx, "key-"+string(rune('a'+i)))
 		if ok {
 			t.Errorf("expected cache miss for key-%c after clear", rune('a'+i))
@@ -164,8 +164,8 @@ func TestFileCacheStats(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Empty cache
-	total, expired, size := fc.Stats()
+	// Empty cache - only checking total count
+	total, _, _ := fc.Stats()
 	if total != 0 {
 		t.Errorf("expected 0 total, got %d", total)
 	}
@@ -174,7 +174,7 @@ func TestFileCacheStats(t *testing.T) {
 	fc.Set(ctx, "key1", "value1", time.Hour)
 	fc.Set(ctx, "key2", map[string]int{"a": 1}, time.Hour)
 
-	total, expired, size = fc.Stats()
+	total, expired, size := fc.Stats()
 	if total != 2 {
 		t.Errorf("expected 2 total, got %d", total)
 	}

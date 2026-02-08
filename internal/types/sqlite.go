@@ -1,9 +1,14 @@
+// Package types provides SQLite-specific type mappings.
+//
 package types
 
 import (
 	"strconv"
 	"strings"
 )
+
+// Minimum parts needed for DECIMAL(precision, scale) format.
+const decimalScaleParts = 2
 
 // SQLiteMapper converts SQLite type names to semantic types.
 // SQLite uses dynamic typing, so we infer the semantic meaning
@@ -143,7 +148,7 @@ func parseDecimalPrecision(sqlType string) (precision, scale int) {
 	if len(parts) >= 1 {
 		precision, _ = strconv.Atoi(strings.TrimSpace(parts[0]))
 	}
-	if len(parts) >= 2 {
+	if len(parts) >= decimalScaleParts {
 		scale, _ = strconv.Atoi(strings.TrimSpace(parts[1]))
 	}
 

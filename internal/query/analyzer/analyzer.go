@@ -17,6 +17,15 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Minimum token offset needed to look for table.column pattern (need at least "table" "." "column").
+const tableColumnLookupOffset = 2
+
+// Small diagnostic slice pre-allocation capacity.
+const smallDiagCap = 2
+
+// Line offset buffer overhead: initial offset plus extra capacity for trailing content.
+const lineOffsetBufferOverhead = 2
+
 // Analyzer validates queries against the schema catalog.
 type Analyzer struct {
 	Catalog      *model.Catalog
@@ -404,7 +413,7 @@ func lookupColumn(tbl *model.Table, name string) *model.Column {
 }
 
 func (a *Analyzer) resolveCTE(cte parser.CTE, parent parser.Query, scope *queryScope, hasCatalog bool) (*scopeEntry, []Diagnostic) {
-	diags := make([]Diagnostic, 0, 2)
+	diags := make([]Diagnostic, 0, smallDiagCap)
 
 	anchorSQL, recursiveSQL, hasUnion := splitRecursiveParts(cte.SelectSQL)
 	if strings.TrimSpace(anchorSQL) == "" {
@@ -1705,7 +1714,7 @@ func splitRecursiveParts(sql string) (string, string, bool) {
 }
 
 func newTextIndex(sql string) textIndex {
-	offsets := make([]int, 1, strings.Count(sql, "\n")+2)
+	offsets := make([]int, 1, strings.Count(sql, "\n")+lineOffsetBufferOverhead)
 	offsets[0] = 0
 	for i := 0; i < len(sql); {
 		switch sql[i] {
@@ -1962,7 +1971,7 @@ func parseColumnReferenceBackward(tokens []tokenizer.Token, idx int) (string, st
 	}
 	column := tokenizer.NormalizeIdentifier(tok.Text)
 	table := ""
-	if idx >= 2 {
+	if idx >= tableColumnLookupOffset {
 		dotTok := tokens[idx-1]
 		prevTok := tokens[idx-2]
 		if dotTok.Kind == tokenizer.KindSymbol && dotTok.Text == "." && isIdentifierToken(prevTok) {
@@ -1982,7 +1991,7 @@ func parseColumnReferenceForward(tokens []tokenizer.Token, idx int) (string, str
 	}
 	table := ""
 	column := tokenizer.NormalizeIdentifier(tok.Text)
-	if idx+2 < len(tokens) {
+	if idx+tableColumnLookupOffset < len(tokens) {
 		dotTok := tokens[idx+1]
 		nextTok := tokens[idx+2]
 		if dotTok.Kind == tokenizer.KindSymbol && dotTok.Text == "." && isIdentifierToken(nextTok) {

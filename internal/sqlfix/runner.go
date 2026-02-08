@@ -16,6 +16,9 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/model"
 )
 
+// File permission for writing fixed SQL files (rw-------).
+const fixedFilePerm = 0o600
+
 // NewRunner creates a new sqlfix Runner.
 func NewRunner() *Runner {
 	return &Runner{
@@ -310,5 +313,5 @@ func applyByteEdits(src []byte, edits []edit) ([]byte, error) {
 }
 
 func defaultWriteFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0o600)
+	return os.WriteFile(path, data, fixedFilePerm)
 }

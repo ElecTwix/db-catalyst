@@ -9,6 +9,12 @@ import (
 	schematokenizer "github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Initial capacity for relation reference slices and index sizing.
+const (
+	initialRelationCap      = 4 // Initial slice capacity
+	relationIndexMultiplier = 2 // Multiplier for index map to account for aliases + table names
+)
+
 type relationRef struct {
 	aliasCanonical  string
 	aliasNormalized string
@@ -173,7 +179,7 @@ func canonicalIdent(name string) string {
 }
 
 func collectRelations(tokens []schematokenizer.Token) []*relationRef {
-	relations := make([]*relationRef, 0, 4)
+	relations := make([]*relationRef, 0, initialRelationCap)
 	depth := 0
 	for i := 0; i < len(tokens); i++ {
 		tok := tokens[i]
@@ -351,7 +357,7 @@ func parseAliasToken(tokens []schematokenizer.Token, idx int) (string, int) {
 }
 
 func buildRelationIndex(refs []*relationRef) map[string]*relationRef {
-	index := make(map[string]*relationRef, len(refs)*2)
+	index := make(map[string]*relationRef, len(refs)*relationIndexMultiplier)
 	for _, ref := range refs {
 		if ref == nil {
 			continue

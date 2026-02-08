@@ -11,6 +11,9 @@ import (
 
 const eofRune = -1
 
+// Minimum blob literal length: X” (X, opening quote, closing quote).
+const minBlobLiteralLen = 3
+
 // Scan tokenizes the provided schema source and returns the token stream.
 func Scan(path string, src []byte, captureDocs bool) ([]Token, error) {
 	if !utf8.Valid(src) {
@@ -472,7 +475,7 @@ func (s *Scanner) consumeBlobLiteral() error {
 		}
 	}
 	text := s.src[startIdx:s.index]
-	if len(text) < 3 {
+	if len(text) < minBlobLiteralLen {
 		return s.errorf(startLine, startCol, "unterminated blob literal")
 	}
 	payload := text[2 : len(text)-1]

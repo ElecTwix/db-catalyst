@@ -14,6 +14,9 @@ import (
 	"github.com/electwix/db-catalyst/internal/schema/tokenizer"
 )
 
+// Initial capacity for type parts slice (e.g., "VARCHAR", "(255)").
+const initialTypePartsCap = 2
+
 // SchemaParser parses SQL DDL statements and produces a schema catalog.
 type SchemaParser interface {
 	Parse(ctx context.Context, path string, content []byte) (*model.Catalog, []Diagnostic, error)
@@ -529,7 +532,7 @@ func (p *Parser) parseColumnDefinition() (*columnResult, bool) {
 		},
 		lastTok: nameTok,
 	}
-	typeParts := make([]string, 0, 2)
+	typeParts := make([]string, 0, initialTypePartsCap)
 	for {
 		tok := p.current()
 		if tok.Kind == tokenizer.KindIdentifier || tok.Kind == tokenizer.KindKeyword {

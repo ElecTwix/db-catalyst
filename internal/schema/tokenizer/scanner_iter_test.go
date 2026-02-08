@@ -111,9 +111,7 @@ func BenchmarkScanSeqIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		for range ScanSeq("test.sql", sql, false) {
-			// Just consume
-		}
+		_ = ScanSeq("test.sql", sql, false) // Iterate and consume all tokens
 	}
 }
 
