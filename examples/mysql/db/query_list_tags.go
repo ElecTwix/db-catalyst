@@ -1,0 +1,25 @@
+package mysqlblog
+
+import "context"
+
+const queryListTags string = `SELECT * FROM tags ORDER BY name;`
+
+func (q *Queries) ListTags(ctx context.Context) ([]ListTagsRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListTags)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTagsRow
+	for rows.Next() {
+		item, err := scanListTagsRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -1,0 +1,9 @@
+package = "mysqlblog"
+out = "db"
+database = "mysql"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[generation]
+emit_prepared_queries = true
+emit_json_tags = true
