@@ -144,13 +144,17 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    
    All tests pass, integrated with PostgreSQL engine.
 
-### Planned Features
+### Completed
 
-2. **Engine-Aware Code Generation** 🔄
-   - Update CLI to use engines instead of hardcoded logic
-   - Generate database-specific queries using engine interfaces
-   - Per-engine query validation
-   - Engine-specific prepared statement generation
+2. **Engine-Aware Code Generation** ✅
+   - CLI now uses engines instead of hardcoded logic
+   - Added `--database` flag to override config database setting
+   - Database selection validation with helpful error messages
+   - Engine automatically created based on database dialect
+   - Integrated with pipeline environment
+   - All tests pass, backward compatible
+
+### Planned Features
 
 3. **MySQL Engine** 🔄
    - Full MySQL type mapper implementation
@@ -173,7 +177,7 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    - Support core PostgreSQL DDL statements
    - Add tests with real PostgreSQL schemas
 
-2. **Week 3-4**: Engine Integration in CLI
+2. **✅ Week 3-4**: Engine Integration in CLI - COMPLETED
    - Migrate CLI to use engine interfaces
    - Remove hardcoded SQLite references
    - Add database selection validation
