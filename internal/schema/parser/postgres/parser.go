@@ -8,8 +8,6 @@
 //   - CREATE TYPE for enums
 //   - Domain constraints
 //   - PostgreSQL-specific syntax variations
-//
-//nolint:goconst // SQL keywords and type names are naturally repeated
 package postgres
 
 import (

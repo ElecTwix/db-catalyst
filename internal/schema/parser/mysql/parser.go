@@ -6,8 +6,6 @@
 //   - ENUM and SET types
 //   - Full-text indexes
 //   - MySQL-specific column attributes
-//
-//nolint:goconst // SQL keywords and type names are naturally repeated
 package mysql
 
 import (

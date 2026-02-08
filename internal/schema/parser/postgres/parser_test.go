@@ -81,12 +81,12 @@ func TestParser_Parse(t *testing.T) {
 			wantTables: 1,
 		},
 		{
-			name: "enum type",
-			ddl: `CREATE TYPE status AS ENUM ('pending', 'active', 'completed');
+			name: "enum_definition",
+			ddl: `CREATE TYPE user_status AS ENUM ('pending', 'active', 'completed');
 			
 			CREATE TABLE tasks (
 				id SERIAL PRIMARY KEY,
-				status status DEFAULT 'pending'
+				status user_status DEFAULT 'pending'
 			);`,
 			wantTables: 1,
 		},

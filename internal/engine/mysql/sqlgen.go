@@ -85,11 +85,12 @@ func (g *sqlGenerator) GenerateTable(table *model.Table) string {
 func (g *sqlGenerator) GenerateIndex(index *model.Index, tableName string) string {
 	var buf strings.Builder
 
-	if index.Unique {
+	switch {
+	case index.Unique:
 		buf.WriteString("CREATE UNIQUE INDEX ")
-	} else if isFullTextIndex(index) {
+	case isFullTextIndex(index):
 		buf.WriteString("CREATE FULLTEXT INDEX ")
-	} else {
+	default:
 		buf.WriteString("CREATE INDEX ")
 	}
 

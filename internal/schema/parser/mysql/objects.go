@@ -126,7 +126,7 @@ func (ps *parserState) parseCreateView() {
 
 	// Collect SQL tokens
 	var sqlTokens []tokenizer.Token
-	var last tokenizer.Token = createTok
+	last := createTok
 
 	for !ps.isEOF() {
 		tok := ps.current()

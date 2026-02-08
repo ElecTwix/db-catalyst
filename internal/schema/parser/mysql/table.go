@@ -407,7 +407,7 @@ checkAttributes:
 }
 
 // parseTableOptions parses MySQL table options like ENGINE, CHARSET, etc.
-func (ps *parserState) parseTableOptions(table *model.Table, span *tokenizer.Span) {
+func (ps *parserState) parseTableOptions(_ *model.Table, span *tokenizer.Span) {
 	for !ps.isEOF() {
 		tok := ps.current()
 		if tok.Kind == tokenizer.KindSymbol && tok.Text == ";" {
