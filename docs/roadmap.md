@@ -154,16 +154,33 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    - Integrated with pipeline environment
    - All tests pass, backward compatible
 
-### Planned Features
+### Completed
 
-3. **MySQL Engine** 🔄
-   - Full MySQL type mapper implementation
-   - MySQL DDL parser (CREATE TABLE with MySQL-specific syntax)
-   - Support for MySQL features:
-     - `AUTO_INCREMENT`
-     - `TIMESTAMP` defaults
-     - `ENUM` and `SET` types
-     - Full-text indexes
+3. **MySQL Engine** ✅
+   - Full MySQL type mapper implemented with MySQL-specific types:
+     - TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT
+     - ENUM and SET types
+     - JSON type (MySQL 5.7+)
+     - Full-text indexes (FULLTEXT INDEX)
+   - Native MySQL DDL parser created
+   - AUTO_INCREMENT support
+   - TIMESTAMP with DEFAULT CURRENT_TIMESTAMP
+   - MySQL table options (ENGINE, CHARSET, COLLATE)
+   - Column attributes (UNSIGNED, ZEROFILL, COMMENT)
+   
+   **New Packages:**
+   - `internal/engine/mysql` - MySQL engine implementation
+   - `internal/schema/parser/mysql` - Native MySQL DDL parser
+   
+   **New Semantic Types:**
+   - CategoryMediumInteger, CategoryTinyText, CategoryMediumText
+   - CategoryLongText, CategoryTinyBlob, CategoryMediumBlob
+   - CategoryLongBlob, CategoryBinary, CategoryDateTime
+   - CategoryYear, CategorySet
+   
+   All tests pass, integrated with CLI via `--database mysql`.
+
+### Planned Features
 
 4. **Database-Specific Optimizations** 🔄
    - Engine-specific query hints
@@ -182,10 +199,10 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    - Remove hardcoded SQLite references
    - Add database selection validation
 
-3. **Week 5-6**: MySQL Engine
+3. **✅ Week 5-6**: MySQL Engine - COMPLETED
    - Implement MySQL type mapper
    - Create MySQL DDL parser
-   - Add MySQL examples
+   - Add MySQL tests
 
 4. **Week 7-8**: Testing & Polish
    - Integration tests for all three databases
