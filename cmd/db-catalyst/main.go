@@ -14,6 +14,8 @@ import (
 	"github.com/electwix/db-catalyst/internal/cli"
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/diagnostics"
+	"github.com/electwix/db-catalyst/internal/engine"
+	_ "github.com/electwix/db-catalyst/internal/engine/builtin" // Register built-in engines
 	"github.com/electwix/db-catalyst/internal/fileset"
 	"github.com/electwix/db-catalyst/internal/logging"
 	"github.com/electwix/db-catalyst/internal/pipeline"
@@ -71,11 +73,35 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	// Determine database dialect (CLI flag overrides config)
+	database := string(loadResult.Plan.Database)
+	if opts.Database != "" {
+		database = opts.Database
+	}
+
+	// Validate database selection
+	if !engine.IsDialectSupported(database) {
+		_, _ = fmt.Fprintf(stderr, "Error: unsupported database dialect %q\n", database)
+		_, _ = fmt.Fprintf(stderr, "Supported dialects: %s\n", strings.Join(engine.ListRegistered(), ", "))
+		return 1
+	}
+
+	// Create engine for the selected database
+	eng, err := engine.New(database, engine.Options{
+		EmitPointersForNull: loadResult.Plan.EmitPointersForNull,
+		CustomTypes:         loadResult.Plan.CustomTypes,
+	})
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "Error creating engine: %v\n", err)
+		return 1
+	}
+
 	env := pipeline.Environment{
 		Logger:     logging.NewSlogAdapter(slogLogger),
 		FSResolver: fileset.NewOSResolver,
 		Writer:     pipeline.NewOSWriter(),
 		Cache:      cacheImpl,
+		Engine:     eng,
 	}
 
 	pipe := pipeline.Pipeline{Env: env}

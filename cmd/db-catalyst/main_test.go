@@ -2130,6 +2130,92 @@ queries = ["queries/*.sql"]
 	}
 }
 
+// TestRunDatabaseFlag tests the --database flag to override config
+func TestRunDatabaseFlag(t *testing.T) {
+	configPath := prepareCmdFixtures(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run(context.Background(), []string{"--config", configPath, "--database", "sqlite", "--dry-run"}, stdout, stderr)
+	if exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr=%q", exitCode, stderr.String())
+	}
+
+	// Should succeed with explicit database flag
+	expected := filepath.Join(filepath.Dir(configPath), "gen", "querier.gen.go")
+	if !strings.Contains(stdout.String(), expected) {
+		t.Fatalf("stdout %q missing generated file %q", stdout.String(), expected)
+	}
+}
+
+// TestRunInvalidDatabaseFlag tests that invalid database dialect is rejected
+func TestRunInvalidDatabaseFlag(t *testing.T) {
+	configPath := prepareCmdFixtures(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run(context.Background(), []string{"--config", configPath, "--database", "invalid-db", "--dry-run"}, stdout, stderr)
+	if exitCode != 1 {
+		t.Fatalf("exit code = %d, want 1; stderr=%q", exitCode, stderr.String())
+	}
+
+	errOut := stderr.String()
+	if !strings.Contains(errOut, "unsupported database dialect") {
+		t.Fatalf("stderr should mention unsupported dialect, got: %q", errOut)
+	}
+}
+
+// TestRunPostgreSQLDatabaseFlag tests PostgreSQL database selection
+func TestRunPostgreSQLDatabaseFlag(t *testing.T) {
+	// Create a temp directory with PostgreSQL config
+	tmpDir := t.TempDir()
+
+	// Create config with PostgreSQL database
+	configContent := `package = "testdb"
+out = "gen"
+database = "postgresql"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+`
+	configPath := filepath.Join(tmpDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Create PostgreSQL schema - use simple SQLite-compatible syntax for now
+	// The key thing we're testing is that the PostgreSQL engine is selected
+	if err := os.MkdirAll(filepath.Join(tmpDir, "schemas"), 0o750); err != nil {
+		t.Fatalf("failed to create schemas dir: %v", err)
+	}
+	schemaContent := "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL);"
+	if err := os.WriteFile(filepath.Join(tmpDir, "schemas", "test.sql"), []byte(schemaContent), 0o600); err != nil {
+		t.Fatalf("failed to write schema: %v", err)
+	}
+
+	// Create query
+	if err := os.MkdirAll(filepath.Join(tmpDir, "queries"), 0o750); err != nil {
+		t.Fatalf("failed to create queries dir: %v", err)
+	}
+	queryContent := "-- name: GetUser :one\nSELECT * FROM users WHERE id = ?;"
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries", "test.sql"), []byte(queryContent), 0o600); err != nil {
+		t.Fatalf("failed to write query: %v", err)
+	}
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitCode := run(context.Background(), []string{"--config", configPath, "--dry-run"}, stdout, stderr)
+	if exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr=%q", exitCode, stderr.String())
+	}
+
+	// Should generate files for PostgreSQL
+	expected := filepath.Join(tmpDir, "gen", "querier.gen.go")
+	if !strings.Contains(stdout.String(), expected) {
+		t.Fatalf("stdout %q missing generated file %q", stdout.String(), expected)
+	}
+}
+
 func prepareCmdFixtures(t *testing.T) string {
 	t.Helper()
 	src := "testdata"

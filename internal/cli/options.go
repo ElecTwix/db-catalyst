@@ -24,6 +24,7 @@ type Options struct {
 	SQLOutput           bool
 	EmitIFNotExists     bool
 	ClearCache          bool
+	Database            string
 	Args                []string
 }
 
@@ -52,6 +53,7 @@ func Parse(args []string) (Options, error) {
 	fs.BoolVar(&opts.SQLOutput, "sql-output", false, "Enable SQL schema generation")
 	fs.BoolVar(&opts.EmitIFNotExists, "if-not-exists", true, "Use IF NOT EXISTS in SQL output")
 	fs.BoolVar(&opts.ClearCache, "clear-cache", false, "Clear the build cache and exit")
+	fs.StringVar(&opts.Database, "database", "", "Database dialect (sqlite, postgresql, mysql) - overrides config setting")
 
 	if len(args) == 0 {
 		usage := Usage(fs)
