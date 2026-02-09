@@ -2,6 +2,8 @@
 package mysql
 
 import (
+	"time"
+
 	"github.com/electwix/db-catalyst/internal/engine"
 	"github.com/electwix/db-catalyst/internal/schema/diagnostic"
 	"github.com/electwix/db-catalyst/internal/schema/parser/mysql"
@@ -66,5 +68,98 @@ func (e *Engine) SupportsFeature(feature engine.Feature) bool {
 		return false // MySQL doesn't have native array types
 	default:
 		return false
+	}
+}
+
+// Default connection pool settings for MySQL.
+const (
+	mysqlMaxOpenConns    = 25
+	mysqlMaxIdleConns    = 5
+	mysqlConnMaxLifetime = 1 * time.Hour
+	mysqlConnMaxIdleTime = 30 * time.Minute
+)
+
+// ConnectionPool returns recommended connection pool settings for MySQL.
+// MySQL benefits from moderate-sized connection pools.
+func (e *Engine) ConnectionPool() engine.ConnectionPoolConfig {
+	return engine.ConnectionPoolConfig{
+		MaxOpenConns:    mysqlMaxOpenConns,
+		MaxIdleConns:    mysqlMaxIdleConns,
+		ConnMaxLifetime: mysqlConnMaxLifetime,
+		ConnMaxIdleTime: mysqlConnMaxIdleTime,
+	}
+}
+
+// IsolationLevels returns supported isolation levels for MySQL.
+func (e *Engine) IsolationLevels() (supported []engine.IsolationLevel, defaultLevel engine.IsolationLevel) {
+	return []engine.IsolationLevel{
+		engine.IsolationLevelReadUncommitted,
+		engine.IsolationLevelReadCommitted,
+		engine.IsolationLevelRepeatableRead,
+		engine.IsolationLevelSerializable,
+	}, engine.IsolationLevelRepeatableRead
+}
+
+// QueryHints returns available query hints for MySQL.
+// MySQL supports index hints and optimizer hints.
+func (e *Engine) QueryHints() []engine.QueryHint {
+	return []engine.QueryHint{
+		// Index hints
+		{
+			Name:        "USE_INDEX",
+			Description: "Suggest which index to use for a table",
+			Syntax:      "SELECT ... FROM table USE INDEX (index_name)",
+		},
+		{
+			Name:        "FORCE_INDEX",
+			Description: "Force use of a specific index",
+			Syntax:      "SELECT ... FROM table FORCE INDEX (index_name)",
+		},
+		{
+			Name:        "IGNORE_INDEX",
+			Description: "Ignore specific indexes",
+			Syntax:      "SELECT ... FROM table IGNORE INDEX (index_name)",
+		},
+		// Optimizer hints (MySQL 5.6+)
+		{
+			Name:        "MAX_EXECUTION_TIME",
+			Description: "Set maximum execution time in milliseconds",
+			Syntax:      "SELECT /*+ MAX_EXECUTION_TIME(ms) */ ...",
+		},
+		{
+			Name:        "NO_RANGE_OPTIMIZATION",
+			Description: "Disable range optimization for a table",
+			Syntax:      "SELECT /*+ NO_RANGE_OPTIMIZATION(table_name) */ ...",
+		},
+		{
+			Name:        "ORDER_INDEX",
+			Description: "Use index for ORDER BY",
+			Syntax:      "SELECT /*+ ORDER_INDEX(table_name index_name) */ ...",
+		},
+		{
+			Name:        "GROUP_INDEX",
+			Description: "Use index for GROUP BY",
+			Syntax:      "SELECT /*+ GROUP_INDEX(table_name index_name) */ ...",
+		},
+		{
+			Name:        "HASH_JOIN",
+			Description: "Use hash join for tables",
+			Syntax:      "SELECT /*+ HASH_JOIN(table1, table2) */ ...",
+		},
+		{
+			Name:        "NO_HASH_JOIN",
+			Description: "Avoid hash join for tables",
+			Syntax:      "SELECT /*+ NO_HASH_JOIN(table1, table2) */ ...",
+		},
+		{
+			Name:        "MERGE",
+			Description: "Merge derived tables/subqueries into outer query",
+			Syntax:      "SELECT /*+ MERGE(dt) */ ...",
+		},
+		{
+			Name:        "NO_MERGE",
+			Description: "Prevent merging of derived tables/subqueries",
+			Syntax:      "SELECT /*+ NO_MERGE(dt) */ ...",
+		},
 	}
 }

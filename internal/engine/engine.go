@@ -19,6 +19,8 @@
 package engine
 
 import (
+	"time"
+
 	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/schema/model"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
@@ -46,6 +48,49 @@ type Engine interface {
 
 	// SupportsFeature reports whether this engine supports a specific feature.
 	SupportsFeature(feature Feature) bool
+
+	// ConnectionPool returns recommended connection pool settings.
+	ConnectionPool() ConnectionPoolConfig
+
+	// IsolationLevels returns supported isolation levels and default.
+	IsolationLevels() (supported []IsolationLevel, defaultLevel IsolationLevel)
+
+	// QueryHints returns available query hints for this database.
+	QueryHints() []QueryHint
+}
+
+// ConnectionPoolConfig defines recommended connection pool settings for a database.
+type ConnectionPoolConfig struct {
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// A value of 0 means no limit.
+	MaxOpenConns int
+
+	// MaxIdleConns is the maximum number of connections in the idle connection pool.
+	// A value of 0 means no idle connections are retained.
+	MaxIdleConns int
+
+	// ConnMaxLifetime is the maximum amount of time a connection may be reused.
+	// Expired connections may be closed lazily before reuse.
+	// A value of 0 means connections are not closed due to age.
+	ConnMaxLifetime time.Duration
+
+	// ConnMaxIdleTime is the maximum amount of time a connection may be idle
+	// before being closed.
+	// A value of 0 means connections are not closed due to inactivity.
+	ConnMaxIdleTime time.Duration
+}
+
+// QueryHint represents a database-specific query optimization hint.
+type QueryHint struct {
+	// Name is the identifier for this hint (e.g., "INDEX", "USE_INDEX").
+	Name string
+
+	// Description explains what this hint does and when to use it.
+	Description string
+
+	// Syntax shows the SQL syntax for this hint.
+	// Example: "/*+ INDEX(table_name index_name) */" for Oracle-style hints.
+	Syntax string
 }
 
 // TypeMapper handles SQL type to programming language type conversions.

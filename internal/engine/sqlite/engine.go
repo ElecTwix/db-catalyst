@@ -2,6 +2,8 @@
 package sqlite
 
 import (
+	"time"
+
 	"github.com/electwix/db-catalyst/internal/engine"
 	schemaparser "github.com/electwix/db-catalyst/internal/schema/parser"
 )
@@ -81,4 +83,39 @@ func (e *Engine) SupportsFeature(feature engine.Feature) bool {
 	default:
 		return false
 	}
+}
+
+// Default connection pool settings for SQLite.
+const (
+	sqliteMaxOpenConns    = 5
+	sqliteMaxIdleConns    = 2
+	sqliteConnMaxLifetime = 1 * time.Hour
+	sqliteConnMaxIdleTime = 30 * time.Minute
+)
+
+// ConnectionPool returns recommended connection pool settings for SQLite.
+// SQLite is file-based and doesn't benefit from large connection pools.
+func (e *Engine) ConnectionPool() engine.ConnectionPoolConfig {
+	return engine.ConnectionPoolConfig{
+		MaxOpenConns:    sqliteMaxOpenConns,
+		MaxIdleConns:    sqliteMaxIdleConns,
+		ConnMaxLifetime: sqliteConnMaxLifetime,
+		ConnMaxIdleTime: sqliteConnMaxIdleTime,
+	}
+}
+
+// IsolationLevels returns supported isolation levels for SQLite.
+// SQLite only supports SERIALIZABLE isolation level internally.
+func (e *Engine) IsolationLevels() (supported []engine.IsolationLevel, defaultLevel engine.IsolationLevel) {
+	// SQLite only supports SERIALIZABLE isolation level
+	return []engine.IsolationLevel{
+		engine.IsolationLevelSerializable,
+	}, engine.IsolationLevelSerializable
+}
+
+// QueryHints returns available query hints for SQLite.
+// SQLite does not support query hints.
+func (e *Engine) QueryHints() []engine.QueryHint {
+	// SQLite does not support query hints
+	return nil
 }

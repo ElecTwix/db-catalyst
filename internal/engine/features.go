@@ -1,5 +1,7 @@
 package engine
 
+import "fmt"
+
 // Feature represents a database capability that may vary between engines.
 type Feature int
 
@@ -67,4 +69,53 @@ func (f Feature) String() string {
 		return name
 	}
 	return "unknown"
+}
+
+// IsolationLevel represents a transaction isolation level.
+type IsolationLevel int
+
+const (
+	// IsolationLevelDefault uses the database's default isolation level.
+	IsolationLevelDefault IsolationLevel = iota
+
+	// IsolationLevelReadUncommitted allows reading uncommitted changes.
+	IsolationLevelReadUncommitted
+
+	// IsolationLevelReadCommitted prevents reading uncommitted changes.
+	IsolationLevelReadCommitted
+
+	// IsolationLevelWriteCommitted is a PostgreSQL-specific level.
+	IsolationLevelWriteCommitted
+
+	// IsolationLevelRepeatableRead ensures consistent reads within a transaction.
+	IsolationLevelRepeatableRead
+
+	// IsolationLevelSnapshot provides snapshot isolation (SQL Server style).
+	IsolationLevelSnapshot
+
+	// IsolationLevelSerializable provides the strictest isolation.
+	IsolationLevelSerializable
+
+	// IsolationLevelLinearizable provides linearizable consistency.
+	IsolationLevelLinearizable
+)
+
+// isolationLevelNames maps isolation levels to human-readable names.
+var isolationLevelNames = map[IsolationLevel]string{
+	IsolationLevelDefault:         "default",
+	IsolationLevelReadUncommitted: "read_uncommitted",
+	IsolationLevelReadCommitted:   "read_committed",
+	IsolationLevelWriteCommitted:  "write_committed",
+	IsolationLevelRepeatableRead:  "repeatable_read",
+	IsolationLevelSnapshot:        "snapshot",
+	IsolationLevelSerializable:    "serializable",
+	IsolationLevelLinearizable:    "linearizable",
+}
+
+// String returns the human-readable name of an isolation level.
+func (i IsolationLevel) String() string {
+	if name, ok := isolationLevelNames[i]; ok {
+		return name
+	}
+	return fmt.Sprintf("unknown(%d)", i)
 }
