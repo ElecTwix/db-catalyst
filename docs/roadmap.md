@@ -10,7 +10,8 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
 | v0.2.0 | Feb 2026 | Released |
 | v0.3.0 | Feb 2026 | Released |
 | v0.4.0 | Feb 2026 | Released |
-| v0.5.0 | TBD | In Progress |
+| v0.5.0 | Feb 2026 | Released |
+| v0.6.0 | TBD | Planning |
 
 ## v0.1.0 (Released)
 
@@ -180,34 +181,71 @@ db-catalyst follows a structured release plan prioritizing simplicity and SQLite
    
    All tests pass, integrated with CLI via `--database mysql`.
 
-### Planned Features
+### Completed
 
-4. **Database-Specific Optimizations** 🔄
-   - Engine-specific query hints
-   - Connection pool configuration per database
-   - Transaction isolation level recommendations
+4. **PostgreSQL Enums and Domains** ✅
+   - Added `Enums` field to `model.Catalog`
+   - Added `Domains` field to `model.Catalog`
+   - Parse `CREATE TYPE ... AS ENUM` statements
+   - Parse `CREATE DOMAIN` with constraints
+   - Fixed multiple statement parsing in PostgreSQL parser
+   - 45+ new tests added
+
+5. **Integration Testing** ✅
+   - 24 comprehensive test suites across all three databases
+   - MySQL tests: CRUD, JSON operations, full-text search
+   - PostgreSQL tests: + enums, domains, arrays, JSONB
+   - SQLite tests: CRUD, JSON operations
+   - End-to-end pipeline tests (SQL → Parse → Generate → Compile → Execute)
+   - Docker Compose with health checks for PostgreSQL and MySQL
+
+6. **Database-Specific Optimizations** ✅
+   - **Connection Pool Configuration**: Per-database recommendations
+     - SQLite: Small pools (5 max open, 2 idle)
+     - PostgreSQL: Medium pools (25 max open, 5 idle)
+     - MySQL: Medium pools (25 max open, 5 idle)
+   - **Transaction Isolation Levels**: Database-appropriate support
+     - SQLite: Serializable only
+     - PostgreSQL: ReadCommitted, RepeatableRead, Serializable
+     - MySQL: ReadUncommitted, ReadCommitted, RepeatableRead, Serializable
+   - **Query Hints**: Engine-specific optimization hints
+     - PostgreSQL: pg_hint_plan extension hints (8 hints)
+     - MySQL: Index hints and optimizer hints (12 hints)
+     - SQLite: No hints supported
 
 ### Implementation Plan
 
 1. **✅ Week 1-2**: PostgreSQL DDL Parser - COMPLETED
-   - Create `internal/schema/parser/postgres` package
-   - Support core PostgreSQL DDL statements
-   - Add tests with real PostgreSQL schemas
-
 2. **✅ Week 3-4**: Engine Integration in CLI - COMPLETED
-   - Migrate CLI to use engine interfaces
-   - Remove hardcoded SQLite references
-   - Add database selection validation
-
 3. **✅ Week 5-6**: MySQL Engine - COMPLETED
-   - Implement MySQL type mapper
-   - Create MySQL DDL parser
-   - Add MySQL tests
+4. **✅ Week 7-8**: Testing, Polish & Optimizations - COMPLETED
 
-4. **Week 7-8**: Testing & Polish
-   - Integration tests for all three databases
-   - Performance benchmarks per engine
-   - Documentation updates
+## v0.6.0 - Language Expansion (Planning)
+
+**Goal:** Extend code generation beyond Go to other languages.
+
+### Planned Features
+
+1. **Rust Code Generation**
+   - Template-based generation using sqlx
+   - Type mappings for PostgreSQL, MySQL, SQLite
+   - Async/await support
+
+2. **TypeScript Code Generation**
+   - Template-based generation with pg driver
+   - Type-safe query builders
+   - Support for PostgreSQL features
+
+3. **Language Selection**
+   ```toml
+   language = "rust"  # or "go" (default), "typescript"
+   ```
+
+### Non-Goals
+
+- Multiple database drivers per language
+- ORM generation
+- GUI interfaces
 
 ## Non-Goals
 
@@ -225,8 +263,8 @@ See [AGENTS.md](../AGENTS.md) for contribution guidelines.
 
 ## Release Checklist
 
-- [ ] All tests pass
-- [ ] Benchmarks run clean
-- [ ] Docs updated
-- [ ] Changelog entry
-- [ ] Version bump
+- [x] All tests pass
+- [x] Benchmarks run clean
+- [x] Docs updated
+- [x] Changelog entry
+- [x] Version bump
