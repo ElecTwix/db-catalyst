@@ -62,3 +62,17 @@ CREATE TABLE IF NOT EXISTS post_tags (
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insert initial test users
+INSERT INTO users (username, email, password_hash, role) VALUES
+    ('alice', 'alice@example.com', '$2a$10$xxxxx', 'admin'),
+    ('bob', 'bob@example.com', '$2a$10$xxxxx', 'user'),
+    ('charlie', 'charlie@example.com', '$2a$10$xxxxx', 'moderator')
+ON DUPLICATE KEY UPDATE updated_at = NOW();
+
+-- Insert initial test posts
+INSERT INTO posts (user_id, title, slug, content, status, published_at) VALUES
+    (1, 'Welcome to db-catalyst', 'welcome-db-catalyst', 'This is the first post.', 'published', NOW()),
+    (2, 'Go Programming Tips', 'go-tips', 'Tips for better Go code.', 'published', NOW()),
+    (1, 'Draft Post', 'draft-post', 'This is a draft.', 'draft', NULL)
+ON DUPLICATE KEY UPDATE updated_at = NOW();

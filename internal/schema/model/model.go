@@ -11,15 +11,19 @@ import (
 
 // Catalog represents the collection of tables and views discovered in DDL files.
 type Catalog struct {
-	Tables map[string]*Table
-	Views  map[string]*View
+	Tables  map[string]*Table
+	Views   map[string]*View
+	Enums   map[string]*Enum
+	Domains map[string]*Domain
 }
 
 // NewCatalog constructs a catalog with initialized maps.
 func NewCatalog() *Catalog {
 	return &Catalog{
-		Tables: make(map[string]*Table),
-		Views:  make(map[string]*View),
+		Tables:  make(map[string]*Table),
+		Views:   make(map[string]*View),
+		Enums:   make(map[string]*Enum),
+		Domains: make(map[string]*Domain),
 	}
 }
 
@@ -89,6 +93,29 @@ type View struct {
 	Name string
 	Doc  string
 	SQL  string
+	Span tokenizer.Span
+}
+
+// Enum represents a CREATE TYPE ... AS ENUM definition.
+type Enum struct {
+	Name   string
+	Values []string
+	Span   tokenizer.Span
+}
+
+// Domain represents a CREATE DOMAIN definition.
+type Domain struct {
+	Name        string
+	BaseType    string
+	Constraints []*DomainConstraint
+	Span        tokenizer.Span
+}
+
+// DomainConstraint represents a constraint on a domain.
+type DomainConstraint struct {
+	Name string
+	Type string // "check", "not_null", "default"
+	Expr string
 	Span tokenizer.Span
 }
 

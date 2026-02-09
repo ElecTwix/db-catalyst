@@ -144,8 +144,10 @@ func (ps *parserState) parseCreate() {
 	}
 
 	tok := ps.current()
-	if tok.Kind != tokenizer.KindKeyword {
-		ps.addDiagToken(tok, diagnostic.SeverityError, "expected TABLE, INDEX, VIEW, or TYPE after CREATE")
+	// Accept keywords or identifiers that match expected CREATE targets
+	// (PostgreSQL-specific keywords like TYPE, DOMAIN may be tokenized as identifiers)
+	if tok.Kind != tokenizer.KindKeyword && tok.Kind != tokenizer.KindIdentifier {
+		ps.addDiagToken(tok, diagnostic.SeverityError, "expected TABLE, INDEX, VIEW, TYPE, or DOMAIN after CREATE")
 		ps.sync()
 		return
 	}

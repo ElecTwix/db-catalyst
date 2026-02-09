@@ -224,6 +224,12 @@ func (ps *parserState) parseColumnDefinition() (*columnResult, bool) {
 	// Parse column type (PostgreSQL types can be complex)
 	typeStr, lastTypeTok, ok := ps.parseColumnType()
 	if ok {
+		// Handle multi-word PostgreSQL types
+		if typeStr == "DOUBLE" && ps.matchKeyword("PRECISION") {
+			precisionTok := ps.advance()
+			typeStr = "DOUBLE PRECISION"
+			lastTypeTok = precisionTok
+		}
 		res.column.Type = typeStr
 		res.lastTok = lastTypeTok
 	}
@@ -368,8 +374,9 @@ func (ps *parserState) parseColumnType() (string, tokenizer.Token, bool) {
 					depth++
 				case ")":
 					depth--
-					if depth < 0 {
-						// End of type modifier
+					if depth <= 0 {
+						// End of type modifier - include the closing paren
+						typeParts = append(typeParts, t.Text)
 						lastTok = t
 						ps.advance()
 						goto checkArray
@@ -384,6 +391,7 @@ func (ps *parserState) parseColumnType() (string, tokenizer.Token, bool) {
 
 checkArray:
 	// Check for array type modifier []
+	// Handle both separate [ ] tokens and combined [] identifier
 	if ps.matchSymbol("[") {
 		bracket := ps.advance()
 		typeParts = append(typeParts, bracket.Text)
@@ -392,6 +400,11 @@ checkArray:
 			typeParts = append(typeParts, closeBracket.Text)
 			lastTok = closeBracket
 		}
+	} else if ps.current().Kind == tokenizer.KindIdentifier && ps.current().Text == "[]" {
+		// Tokenizer combined [] into a single identifier
+		bracket := ps.advance()
+		typeParts = append(typeParts, bracket.Text)
+		lastTok = bracket
 	}
 
 	return strings.Join(typeParts, ""), lastTok, true

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL for testing MySQL SQL output
   mysql:
@@ -19,8 +17,8 @@ services:
       retries: 10
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./test/integration/init-mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./test/integration/seed-mysql.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./init-mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./seed-mysql.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
 
   # PostgreSQL for testing PostgreSQL SQL output
   postgres:
@@ -39,15 +37,15 @@ services:
       retries: 10
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./test/integration/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./test/integration/seed-postgres.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./seed-postgres.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
 
   # SQLite is built-in, but we can test with a file-based approach
   sqlite:
     image: alpine:latest
     container_name: db-catalyst-sqlite
     volumes:
-      - ./test/integration:/test
+      - .:/test
     command: ["sh", "-c", "apk add --no-cache sqlite && while true; do sleep 3600; done"]
 
 volumes:

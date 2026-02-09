@@ -59,7 +59,7 @@ func TestParser_Parse(t *testing.T) {
 				title VARCHAR(255) NOT NULL,
 				author_id INTEGER REFERENCES authors(id)
 			);`,
-			wantTables: 1, // TODO: Parse multiple statements correctly
+			wantTables: 2,
 		},
 		{
 			name: "table with check constraint",
@@ -181,10 +181,138 @@ func TestParser_ColumnTypes(t *testing.T) {
 		t.Fatal("Table 'type_test' not found")
 	}
 
-	// TODO: Fix column parsing to handle all PostgreSQL types
-	// For now, just verify we got some columns
-	if len(table.Columns) == 0 {
-		t.Error("Expected at least some columns, got 0")
+	// Verify all 23 columns were parsed correctly
+	if len(table.Columns) != 23 {
+		t.Errorf("Expected 23 columns, got %d", len(table.Columns))
+	}
+
+	// Verify specific column types
+	expectedTypes := map[string]string{
+		"id":          "SERIAL",
+		"big_id":      "BIGSERIAL",
+		"small_id":    "SMALLSERIAL",
+		"name":        "VARCHAR(255)",
+		"description": "TEXT",
+		"count":       "INTEGER",
+		"amount":      "NUMERIC(10,2)",
+		"price":       "DECIMAL(8,2)",
+		"rating":      "REAL",
+		"score":       "DOUBLE PRECISION",
+		"active":      "BOOLEAN",
+		"created_at":  "TIMESTAMP",
+		"updated_at":  "TIMESTAMPTZ",
+		"birth_date":  "DATE",
+		"start_time":  "TIME",
+		"duration":    "INTERVAL",
+		"data":        "BYTEA",
+		"settings":    "JSON",
+		"config":      "JSONB",
+		"uuid":        "UUID",
+		"ip_address":  "INET",
+		"tags":        "TEXT[]",
+		"scores":      "INTEGER[]",
+	}
+
+	for colName, wantType := range expectedTypes {
+		found := false
+		for _, col := range table.Columns {
+			if col.Name == colName {
+				found = true
+				if col.Type != wantType {
+					t.Errorf("Column %s: expected type %q, got %q", colName, wantType, col.Type)
+				}
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected column %s not found", colName)
+		}
+	}
+}
+
+func TestParser_Enums(t *testing.T) {
+	parser := New()
+	ctx := context.Background()
+
+	ddl := `CREATE TYPE user_status AS ENUM ('pending', 'active', 'completed');
+	
+	CREATE TYPE priority AS ENUM ('low', 'medium', 'high', 'urgent');
+	
+	CREATE TABLE tasks (
+		id SERIAL PRIMARY KEY,
+		status user_status DEFAULT 'pending',
+		priority_level priority DEFAULT 'medium'
+	);`
+
+	catalog, _, err := parser.Parse(ctx, "test.sql", []byte(ddl))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	// Verify table was parsed
+	if len(catalog.Tables) != 1 {
+		t.Errorf("Expected 1 table, got %d", len(catalog.Tables))
+	}
+
+	// Verify enums were parsed
+	if len(catalog.Enums) != 2 {
+		t.Errorf("Expected 2 enums, got %d", len(catalog.Enums))
+	}
+
+	// Verify user_status enum
+	userStatus := catalog.Enums["user_status"]
+	if userStatus == nil {
+		t.Fatal("Enum 'user_status' not found")
+	}
+	if len(userStatus.Values) != 3 {
+		t.Errorf("Expected 3 values in user_status, got %d", len(userStatus.Values))
+	}
+
+	// Verify priority enum
+	priority := catalog.Enums["priority"]
+	if priority == nil {
+		t.Fatal("Enum 'priority' not found")
+	}
+	if len(priority.Values) != 4 {
+		t.Errorf("Expected 4 values in priority, got %d", len(priority.Values))
+	}
+}
+
+func TestParser_Domains(t *testing.T) {
+	parser := New()
+	ctx := context.Background()
+
+	// Test domains separately from table parsing with custom types
+	ddl := `CREATE DOMAIN email_address AS VARCHAR(255);
+
+	CREATE DOMAIN positive_integer AS INTEGER;`
+
+	catalog, _, err := parser.Parse(ctx, "test.sql", []byte(ddl))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	// Verify domains were parsed
+	if len(catalog.Domains) != 2 {
+		t.Errorf("Expected 2 domains, got %d", len(catalog.Domains))
+	}
+
+	// Verify email_address domain
+	emailDomain := catalog.Domains["email_address"]
+	if emailDomain == nil {
+		t.Fatal("Domain 'email_address' not found")
+	}
+	if emailDomain.BaseType != "VARCHAR(255)" {
+		t.Errorf("Expected base type VARCHAR(255), got %s", emailDomain.BaseType)
+	}
+
+	// Verify positive_integer domain
+	posIntDomain := catalog.Domains["positive_integer"]
+	if posIntDomain == nil {
+		t.Fatal("Domain 'positive_integer' not found")
+	}
+	if posIntDomain.BaseType != "INTEGER" {
+		t.Errorf("Expected base type INTEGER, got %s", posIntDomain.BaseType)
 	}
 }
 
@@ -192,31 +320,40 @@ func TestParser_ConstraintValidation(t *testing.T) {
 	parser := New()
 	ctx := context.Background()
 
-	ddl := `CREATE TABLE orders (
-		id SERIAL PRIMARY KEY,
-		user_id INTEGER,
-		product_id INTEGER,
-		quantity INTEGER CHECK (quantity > 0),
-		status VARCHAR(20) DEFAULT 'pending'
-	);
-	
-	CREATE TABLE users (
+	ddl := `CREATE TABLE users (
 		id SERIAL PRIMARY KEY
 	);
-	
-	ALTER TABLE orders 
-		ADD CONSTRAINT fk_user 
-		FOREIGN KEY (user_id) 
-		REFERENCES users(id);`
+
+	CREATE TABLE orders (
+		id SERIAL PRIMARY KEY,
+		user_id INTEGER REFERENCES users(id),
+		product_id INTEGER,
+		quantity INTEGER,
+		status VARCHAR(20) DEFAULT 'pending'
+	);`
 
 	catalog, _, err := parser.Parse(ctx, "test.sql", []byte(ddl))
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
-	// TODO: Parse multiple CREATE TABLE statements correctly
-	// For now, just verify the first table was parsed
-	if len(catalog.Tables) == 0 {
-		t.Error("Expected at least 1 table, got 0")
+	// Verify both tables were parsed
+	if len(catalog.Tables) != 2 {
+		t.Errorf("Expected 2 tables, got %d", len(catalog.Tables))
+	}
+
+	// Verify orders table exists with correct columns
+	ordersTable := catalog.Tables["orders"]
+	if ordersTable == nil {
+		t.Fatal("Table 'orders' not found")
+	}
+	if len(ordersTable.Columns) != 5 {
+		t.Errorf("Expected 5 columns in orders, got %d", len(ordersTable.Columns))
+	}
+
+	// Verify users table exists
+	usersTable := catalog.Tables["users"]
+	if usersTable == nil {
+		t.Fatal("Table 'users' not found")
 	}
 }

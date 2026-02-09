@@ -175,8 +175,8 @@ func (ps *parserState) parseCreateType() {
 	}
 	ps.advance()
 
-	// Check for ENUM
-	if ps.matchKeyword("ENUM") {
+	// Check for ENUM (may be tokenized as identifier)
+	if ps.matchKeyword("ENUM") || (ps.current().Kind == tokenizer.KindIdentifier && ps.current().Text == "ENUM") {
 		ps.advance()
 		ps.parseEnumType(name)
 		return
@@ -198,6 +198,7 @@ func (ps *parserState) parseCreateType() {
 
 // parseEnumType parses an enum type definition.
 func (ps *parserState) parseEnumType(name string) {
+	createTok := ps.previous()
 	if !ps.expectSymbol("(") {
 		return
 	}
@@ -224,17 +225,30 @@ func (ps *parserState) parseEnumType(name string) {
 	}
 
 	// Store enum in catalog
-	// TODO: Add Enums field to model.Catalog for v0.5.0
-	_ = name
-	_ = values
+	enum := &model.Enum{
+		Name:   name,
+		Values: values,
+	}
 
 	if ps.matchSymbol(";") {
-		ps.advance()
+		semi := ps.advance()
+		enum.Span = tokenizer.SpanBetween(createTok, semi)
+	} else {
+		enum.Span = tokenizer.NewSpan(createTok)
+	}
+
+	key := canonicalName(name)
+	if _, exists := ps.catalog.Enums[key]; exists {
+		ps.addDiagSpan(enum.Span, diagnostic.SeverityError, "duplicate enum %q", name)
+	} else {
+		ps.catalog.Enums[key] = enum
 	}
 }
 
 // parseCreateDomain handles CREATE DOMAIN statements.
 func (ps *parserState) parseCreateDomain() {
+	createTok := ps.previous()
+
 	// Parse domain name
 	name, _, ok := ps.parseObjectName()
 	if !ok {
@@ -253,6 +267,11 @@ func (ps *parserState) parseCreateDomain() {
 	// Parse base type
 	baseType, _, _ := ps.parseColumnType()
 
+	domain := &model.Domain{
+		Name:     name,
+		BaseType: baseType,
+	}
+
 	// Parse constraints
 	for !ps.isEOF() {
 		tok := ps.current()
@@ -264,15 +283,24 @@ func (ps *parserState) parseCreateDomain() {
 			switch tok.Text {
 			case "DEFAULT":
 				ps.advance()
-				ps.parseDefaultValue()
+				_, _ = ps.parseDefaultValue()
 			case "NOT":
 				ps.advance()
 				if ps.matchKeyword("NULL") {
 					ps.advance()
+					domain.Constraints = append(domain.Constraints, &model.DomainConstraint{
+						Type: "not_null",
+					})
 				}
 			case KeywordCheck:
-				ps.advance()
-				ps.skipCheckConstraint()
+				checkTok := ps.advance()
+				if last := ps.skipCheckConstraint(); last.Line != 0 {
+					domain.Constraints = append(domain.Constraints, &model.DomainConstraint{
+						Type: "check",
+						Expr: "check constraint", // Simplified
+						Span: tokenizer.SpanBetween(checkTok, last),
+					})
+				}
 			case "CONSTRAINT":
 				ps.advance()
 				// Skip constraint name
@@ -286,12 +314,18 @@ func (ps *parserState) parseCreateDomain() {
 	}
 
 	// Store domain in catalog
-	// TODO: Add Domains field to model.Catalog for v0.5.0
-	_ = name
-	_ = baseType
-
 	if ps.matchSymbol(";") {
-		ps.advance()
+		semi := ps.advance()
+		domain.Span = tokenizer.SpanBetween(createTok, semi)
+	} else {
+		domain.Span = tokenizer.NewSpan(createTok)
+	}
+
+	key := canonicalName(name)
+	if _, exists := ps.catalog.Domains[key]; exists {
+		ps.addDiagSpan(domain.Span, diagnostic.SeverityError, "duplicate domain %q", name)
+	} else {
+		ps.catalog.Domains[key] = domain
 	}
 }
 

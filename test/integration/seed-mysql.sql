@@ -31,7 +31,7 @@ INSERT INTO post_tags (post_id, tag_id) VALUES
     (2, 1),  -- DB -> programming
     (3, 2),  -- SQL Injection -> security
     (4, 3),  -- Rust vs Go -> comparison
-    (5, 1);  -- Testing -> programming
+    (5, 1)   -- Testing -> programming
 ON DUPLICATE KEY UPDATE post_id = post_id;
 
 -- Add comments
