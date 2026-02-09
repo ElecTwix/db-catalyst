@@ -109,6 +109,78 @@ tasks:
     desc: Run all fuzz tests
     deps: [fuzz-tokenizer, fuzz-schema, fuzz-query]
 
+  fuzz-postgres:
+    desc: Fuzz test the PostgreSQL parser
+    cmds:
+      - go test -fuzz=^FuzzParser$ -fuzztime=30s ./internal/schema/parser/postgres/
+
+  fuzz-mysql:
+    desc: Fuzz test the MySQL parser
+    cmds:
+      - go test -fuzz=^FuzzParser$ -fuzztime=30s ./internal/schema/parser/mysql/
+
+  fuzz-graphql:
+    desc: Fuzz test the GraphQL parser
+    cmds:
+      - go test -fuzz=^FuzzParser$ -fuzztime=30s ./internal/parser/languages/graphql/
+
+  fuzz-extended:
+    desc: Run extended fuzz tests with larger corpus
+    cmds:
+      - go test -fuzz=FuzzScanExtended -fuzztime=60s ./internal/schema/tokenizer/
+      - go test -fuzz=FuzzParser -fuzztime=60s ./internal/schema/parser/
+      - go test -fuzz=FuzzParser -fuzztime=60s ./internal/query/parser/
+
+  chaos:
+    desc: Run chaos tests on all parsers
+    cmds:
+      - ./scripts/chaos.sh all
+
+  chaos-tokenizer:
+    desc: Run chaos tests on tokenizer
+    cmds:
+      - ./scripts/chaos.sh tokenizer
+
+  chaos-schema:
+    desc: Run chaos tests on schema parser
+    cmds:
+      - ./scripts/chaos.sh schema
+
+  chaos-query:
+    desc: Run chaos tests on query parser
+    cmds:
+      - ./scripts/chaos.sh query
+
+  chaos-benchmark:
+    desc: Run chaos benchmarks
+    cmds:
+      - ./scripts/chaos.sh benchmark
+
+  mutation:
+    desc: Run mutation testing (quick mode)
+    cmds:
+      - ./scripts/mutation.sh quick
+
+  mutation-schema:
+    desc: Run mutation testing on schema packages
+    cmds:
+      - ./scripts/mutation.sh schema
+
+  mutation-query:
+    desc: Run mutation testing on query packages
+    cmds:
+      - ./scripts/mutation.sh query
+
+  mutation-core:
+    desc: Run mutation testing on core packages
+    cmds:
+      - ./scripts/mutation.sh core
+
+  mutation-all:
+    desc: Run mutation testing on all packages
+    cmds:
+      - ./scripts/mutation.sh all
+
   bench:
     desc: Run all benchmarks
     cmds:
