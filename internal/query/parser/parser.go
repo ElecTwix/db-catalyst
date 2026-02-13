@@ -1502,7 +1502,9 @@ func tryExtractColumnName(tokens []tokenizer.Token, opIdx int) string {
 func findColumnBeforeOperator(tokens []tokenizer.Token, opIdx int) string {
 	for k := opIdx - 1; k >= 0; k-- {
 		prevTok := tokens[k]
-		if prevTok.Kind == tokenizer.KindIdentifier {
+		// Accept both identifiers and keywords as column names
+		// Keywords like "key" are valid column names but tokenized as KindKeyword
+		if prevTok.Kind == tokenizer.KindIdentifier || prevTok.Kind == tokenizer.KindKeyword {
 			return camelCaseParam(prevTok.Text)
 		}
 		if prevTok.Kind == tokenizer.KindSymbol && prevTok.Text != "(" && prevTok.Text != "," {
@@ -1630,7 +1632,7 @@ func findInsertColumns(tokens []tokenizer.Token, paramIdx int) []string {
 			continue
 		}
 
-		if inColumnList && parenDepth == 1 && tok.Kind == tokenizer.KindIdentifier {
+		if inColumnList && parenDepth == 1 && (tok.Kind == tokenizer.KindIdentifier || tok.Kind == tokenizer.KindKeyword) {
 			columns = append(columns, tokenizer.NormalizeIdentifier(tok.Text))
 		}
 	}
@@ -1720,7 +1722,8 @@ func inferUpdateParamName(tokens []tokenizer.Token, paramIdx int) string {
 			// Look for the column name before =
 			for j := i - 1; j >= 0; j-- {
 				prevTok := tokens[j]
-				if prevTok.Kind == tokenizer.KindIdentifier {
+				// Accept both identifiers and keywords as column names
+				if prevTok.Kind == tokenizer.KindIdentifier || prevTok.Kind == tokenizer.KindKeyword {
 					return camelCaseParam(prevTok.Text)
 				}
 				// Skip whitespace-like tokens (we don't have those, but check for non-identifiers)
@@ -1823,7 +1826,8 @@ func inferUpdateWhereParamName(tokens []tokenizer.Token, paramIdx int) string {
 			// Look for the column name before =
 			for j := i - 1; j >= 0; j-- {
 				prevTok := tokens[j]
-				if prevTok.Kind == tokenizer.KindIdentifier {
+				// Accept both identifiers and keywords as column names
+				if prevTok.Kind == tokenizer.KindIdentifier || prevTok.Kind == tokenizer.KindKeyword {
 					return camelCaseParam(prevTok.Text)
 				}
 				// Skip whitespace-like tokens
@@ -1883,7 +1887,8 @@ func findColumnBeforeOr(tokens []tokenizer.Token, paramIdx int) string {
 				// Found LIKE, now look for the column before it
 				for j := i - 1; j >= 0; j-- {
 					prevTok := tokens[j]
-					if prevTok.Kind == tokenizer.KindIdentifier {
+					// Accept both identifiers and keywords as column names
+					if prevTok.Kind == tokenizer.KindIdentifier || prevTok.Kind == tokenizer.KindKeyword {
 						return camelCaseParam(prevTok.Text)
 					}
 					// Stop at certain symbols
@@ -1987,15 +1992,13 @@ func inferBetweenParamName(tokens []tokenizer.Token, paramIdx int, _ map[int]int
 	columnName := ""
 	for i := betweenIdx - 1; i >= 0; i-- {
 		tok := tokens[i]
-		if tok.Kind == tokenizer.KindIdentifier {
+		// Accept both identifiers and keywords as column names
+		if tok.Kind == tokenizer.KindIdentifier || tok.Kind == tokenizer.KindKeyword {
 			columnName = camelCaseParam(tok.Text)
 			break
 		}
 		if tok.Kind == tokenizer.KindSymbol && tok.Text == "." {
 			continue
-		}
-		if tok.Kind == tokenizer.KindKeyword {
-			break
 		}
 	}
 

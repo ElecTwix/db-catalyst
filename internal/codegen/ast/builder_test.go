@@ -963,7 +963,7 @@ func TestBuildQueries_AllCommandTypes(t *testing.T) {
 	expectedReturnTypes := map[string]string{
 		"ExecQuery":       "sql.Result",
 		"ExecResultQuery": "QueryResult",
-		"OneQuery":        "OneQueryRow",
+		"OneQuery":        "int64", // Single column :one queries return scalar type
 		"ManyQuery":       "[]ManyQueryRow",
 	}
 
@@ -2021,7 +2021,7 @@ func TestTypeResolver_ResolveType_SQLiteTypes(t *testing.T) {
 		{"DECIMAL not null", "DECIMAL", false, "float64", false},
 		{"DECIMAL nullable", "DECIMAL", true, "sql.NullFloat64", true},
 		{"UNKNOWN not null", "UNKNOWN", false, "any", false},
-		{"UNKNOWN nullable", "UNKNOWN", true, "*any", false},
+		{"UNKNOWN nullable", "UNKNOWN", true, "any", false},
 	}
 
 	for _, tt := range tests {

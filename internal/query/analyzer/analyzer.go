@@ -1803,6 +1803,11 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 			table, column, ok = matchEqualityReference(tokens, tokenIdx)
 		}
 
+		// Try to match arithmetic expressions like SET col = col + ?
+		if !ok {
+			table, column, ok = matchArithmeticExpression(tokens, tokenIdx)
+		}
+
 		if !ok {
 			continue
 		}
@@ -2003,7 +2008,81 @@ func parseColumnReferenceForward(tokens []tokenizer.Token, idx int) (string, str
 }
 
 func isIdentifierToken(tok tokenizer.Token) bool {
-	return tok.Kind == tokenizer.KindIdentifier
+	// Accept both identifiers and keywords as column names
+	// Keywords like "key" are valid column names but tokenized as KindKeyword
+	return tok.Kind == tokenizer.KindIdentifier || tok.Kind == tokenizer.KindKeyword
+}
+
+// matchArithmeticExpression matches parameters in arithmetic expressions like:
+// SET column = column + ?
+// SET column = column - ?
+// SET column = ? + column
+// Returns the column name whose type should be used for the parameter.
+func matchArithmeticExpression(tokens []tokenizer.Token, paramIdx int) (string, string, bool) {
+	if paramIdx == 0 || paramIdx >= len(tokens) {
+		return "", "", false
+	}
+
+	// Look for + or - operator adjacent to the parameter
+	// Pattern: column + ? or ? + column
+	prevIdx := paramIdx - 1
+	nextIdx := paramIdx + 1
+
+	// Check if prev token is an operator
+	var operatorIdx int
+	var lookDirection int // -1 for backward, 1 for forward
+
+	if prevIdx >= 0 && tokens[prevIdx].Kind == tokenizer.KindSymbol {
+		switch tokens[prevIdx].Text {
+		case "+", "-":
+			operatorIdx = prevIdx
+			lookDirection = -1 // Look backward for column
+		}
+	}
+
+	// If not found backward, check forward
+	if lookDirection == 0 && nextIdx < len(tokens) && tokens[nextIdx].Kind == tokenizer.KindSymbol {
+		switch tokens[nextIdx].Text {
+		case "+", "-":
+			operatorIdx = nextIdx
+			lookDirection = 1 // Look forward for column
+		}
+	}
+
+	if lookDirection == 0 {
+		return "", "", false
+	}
+
+	// Look for column reference
+	if lookDirection == -1 {
+		// Pattern: column + ?
+		// Look backward from operator for column
+		for i := operatorIdx - 1; i >= 0; i-- {
+			tok := tokens[i]
+			if isIdentifierToken(tok) {
+				return parseColumnReferenceBackward(tokens, i)
+			}
+			// Stop at certain boundaries
+			if tok.Kind == tokenizer.KindSymbol && tok.Text != "." {
+				break
+			}
+		}
+	} else {
+		// Pattern: ? + column
+		// Look forward from operator for column
+		for i := operatorIdx + 1; i < len(tokens); i++ {
+			tok := tokens[i]
+			if isIdentifierToken(tok) {
+				return parseColumnReferenceForward(tokens, i)
+			}
+			// Stop at certain boundaries
+			if tok.Kind == tokenizer.KindSymbol && tok.Text != "." {
+				break
+			}
+		}
+	}
+
+	return "", "", false
 }
 
 func (a *Analyzer) inferInsertParams(cat *model.Catalog, tokens []tokenizer.Token, paramIndexByToken map[int]int, infos map[int]paramInfo) {

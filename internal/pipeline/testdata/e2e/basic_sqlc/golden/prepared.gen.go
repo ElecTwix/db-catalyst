@@ -88,22 +88,23 @@ func (p *PreparedQueries) Close() error {
 	return err
 }
 
-func (p *PreparedQueries) CreateUser(ctx context.Context, username string, email string) (CreateUserRow, error) {
+func (p *PreparedQueries) CreateUser(ctx context.Context, username string, email string) (int32, error) {
 	stmt := p.stmtCreateUser
-	rows, err := stmt.QueryContext(ctx, username, email)
+	rows, err := stmt.QueryContext(ctx, arg.Username, arg.Email)
 	if err != nil {
-		return CreateUserRow{}, err
+		return 0, err
 	}
 	defer rows.Close()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return CreateUserRow{}, err
+			return 0, err
 		}
-		return CreateUserRow{}, sql.ErrNoRows
+		return 0, sql.ErrNoRows
 	}
-	item, err := scanCreateUserRow(rows)
+	var item int32
+	err = rows.Scan(&item)
 	if err != nil {
-		return item, err
+		return 0, err
 	}
 	if err := rows.Err(); err != nil {
 		return item, err

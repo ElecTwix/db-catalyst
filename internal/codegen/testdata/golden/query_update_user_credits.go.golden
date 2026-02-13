@@ -5,8 +5,13 @@ import (
 	"database/sql"
 )
 
+type UpdateUserCreditsParams struct {
+	Credits sql.NullFloat64
+	Id      int64
+}
+
 const queryUpdateUserCredits string = `UPDATE users SET credits = ? WHERE id = ?`
 
-func (q *Queries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryUpdateUserCredits, credits, id)
+func (q *Queries) UpdateUserCredits(ctx context.Context, arg UpdateUserCreditsParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, queryUpdateUserCredits, arg.Credits, arg.Id)
 }

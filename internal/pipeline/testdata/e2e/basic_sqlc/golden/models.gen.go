@@ -1,5 +1,7 @@
 package basic
 
+import "database/sql"
+
 type Posts struct {
 	Id       int32
 	AuthorId int32
@@ -11,5 +13,5 @@ type Users struct {
 	Id        int32
 	Username  string
 	Email     string
-	CreatedAt *any
+	CreatedAt sql.NullTime
 }

@@ -1,24 +1,15 @@
 package basic
 
-import "database/sql"
-
-type CreateUserRow struct {
-	Id int32
-}
-
-func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
-	var item CreateUserRow
-	if err := rows.Scan(&item.Id); err != nil {
-		return item, err
-	}
-	return item, nil
-}
+import (
+	"database/sql"
+	"time"
+)
 
 type GetUserRow struct {
 	Id        int32
 	Username  string
 	Email     string
-	CreatedAt *any
+	CreatedAt *time.Time
 }
 
 func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {

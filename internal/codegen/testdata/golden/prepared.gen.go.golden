@@ -248,7 +248,7 @@ func (p *PreparedQueries) CreateUser(ctx context.Context, email sql.NullString, 
 	if recorder != nil {
 		start = time.Now()
 	}
-	res, err := stmt.ExecContext(ctx, email, credits)
+	res, err := stmt.ExecContext(ctx, arg.Email, arg.Credits)
 	if recorder != nil {
 		recorder.ObservePreparedQuery(ctx, "CreateUser", time.Since(start), err)
 	}
@@ -430,7 +430,7 @@ func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.Nul
 	if recorder != nil {
 		start = time.Now()
 	}
-	res, err := stmt.ExecContext(ctx, credits, id)
+	res, err := stmt.ExecContext(ctx, arg.Credits, arg.Id)
 	if recorder != nil {
 		recorder.ObservePreparedQuery(ctx, "UpdateUserCredits", time.Since(start), err)
 	}

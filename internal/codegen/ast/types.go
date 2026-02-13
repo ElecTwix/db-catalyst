@@ -230,6 +230,10 @@ func (r *TypeResolver) sqliteTypeToGo(sqlType string) string {
 		return "bool"
 	case strings.Contains(upperType, "NUMERIC"), strings.Contains(upperType, "DECIMAL"):
 		return "float64"
+	case strings.Contains(upperType, "DATETIME"), strings.Contains(upperType, "TIMESTAMP"):
+		return "time.Time"
+	case strings.Contains(upperType, "DATE"):
+		return "time.Time"
 	default:
 		return "any"
 	}
@@ -344,6 +348,11 @@ func (r *TypeResolver) resolveStandardType(goType string, nullable bool) TypeInf
 
 // resolveNullableType handles nullable type resolution based on database.
 func (r *TypeResolver) resolveNullableType(base string) TypeInfo {
+	// Never wrap 'any' with a pointer - it's already the most generic nullable type
+	if base == "any" {
+		return TypeInfo{GoType: "any", UsesSQLNull: false}
+	}
+
 	if r.emitPointersForNull {
 		// Use pointer types instead of sql.Null*/pgtype
 		if !strings.HasPrefix(base, "*") {
@@ -372,6 +381,11 @@ func (r *TypeResolver) resolveSQLiteNullableType(base string) TypeInfo {
 		return TypeInfo{GoType: "sql.NullString", UsesSQLNull: true}
 	case "bool":
 		return TypeInfo{GoType: "sql.NullBool", UsesSQLNull: true}
+	case "time.Time":
+		return TypeInfo{GoType: "sql.NullTime", UsesSQLNull: true}
+	case "any":
+		// Don't wrap 'any' with a pointer - it's already the most generic type
+		return TypeInfo{GoType: "any", UsesSQLNull: false}
 	default:
 		// For custom types or blobs, use pointer
 		if !strings.HasPrefix(base, "*") {

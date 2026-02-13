@@ -171,6 +171,20 @@ type queryInfo struct {
 	prepareFn  string
 	metricsKey string
 	cache      *cacheSpec
+	// paramStruct is set when there are 2+ params to group them into a struct
+	paramStruct *paramStructSpec
+}
+
+// paramStructSpec represents a parameter struct like CreateCounterParams
+type paramStructSpec struct {
+	typeName string
+	fields   []paramStructField
+}
+
+type paramStructField struct {
+	name       string
+	goType     string
+	importPath string
 }
 
 type cacheSpec struct {
@@ -332,24 +346,38 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 			}
 		}
 
+		// Build args and potentially a parameter struct
 		args := make([]string, 0, len(params))
-		for _, p := range params {
-			args = append(args, p.argExpr)
+		var paramStruct *paramStructSpec
+
+		// If there are 2+ params, group them into a struct like SQLC does
+		if len(params) >= 2 {
+			paramStruct = buildParamStruct(methodName, params)
+			args = append(args, "arg."+ExportedIdentifier(params[0].name))
+			for i := 1; i < len(params); i++ {
+				args = append(args, "arg."+ExportedIdentifier(params[i].name))
+			}
+		} else {
+			for _, p := range params {
+				args = append(args, p.argExpr)
+			}
 		}
+
 		stmtField := "stmt" + methodName
 		prepareFn := "prepare" + methodName
 		info := queryInfo{
-			methodName: methodName,
-			constName:  constName,
-			fileName:   fileName,
-			sqlLiteral: sqlLiteral,
-			command:    res.Query.Block.Command,
-			docComment: res.Query.Block.Doc,
-			params:     params,
-			args:       args,
-			stmtField:  stmtField,
-			prepareFn:  prepareFn,
-			metricsKey: methodName,
+			methodName:  methodName,
+			constName:   constName,
+			fileName:    fileName,
+			sqlLiteral:  sqlLiteral,
+			command:     res.Query.Block.Command,
+			docComment:  res.Query.Block.Doc,
+			params:      params,
+			args:        args,
+			stmtField:   stmtField,
+			prepareFn:   prepareFn,
+			metricsKey:  methodName,
+			paramStruct: paramStruct,
 		}
 
 		// Extract cache configuration
@@ -364,14 +392,28 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 
 		switch res.Query.Block.Command {
 		case block.CommandOne:
-			helper, err := b.buildHelper(methodName, res.Columns)
-			if err != nil {
-				return nil, err
+			// For single-column results, return the scalar type directly
+			if len(res.Columns) == 1 {
+				col := res.Columns[0]
+				var typeInfo TypeInfo
+				if b.opts.TypeResolver != nil {
+					typeInfo = b.opts.TypeResolver.ResolveType(col.GoType, col.Nullable)
+				} else {
+					typeInfo = resolveType(col.GoType, col.Nullable)
+				}
+				info.returnType = typeInfo.GoType
+				info.returnZero = b.zeroValueForType(typeInfo.GoType)
+				info.helper = nil // No helper needed for scalar
+			} else {
+				helper, err := b.buildHelper(methodName, res.Columns)
+				if err != nil {
+					return nil, err
+				}
+				info.helper = helper
+				info.rowType = helper.rowTypeName
+				info.returnType = helper.rowTypeName
+				info.returnZero = helper.rowTypeName + "{}"
 			}
-			info.helper = helper
-			info.rowType = helper.rowTypeName
-			info.returnType = helper.rowTypeName
-			info.returnZero = helper.rowTypeName + "{}"
 		case block.CommandMany:
 			helper, err := b.buildHelper(methodName, res.Columns)
 			if err != nil {
@@ -399,6 +441,30 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 	})
 
 	return queries, nil
+}
+
+// buildParamStruct creates a parameter struct spec for grouping multiple parameters.
+// This matches SQLC's behavior of generating structs like CreateCounterParams.
+func buildParamStruct(methodName string, params []paramSpec) *paramStructSpec {
+	typeName := methodName + "Params"
+	fields := make([]paramStructField, 0, len(params))
+
+	for _, p := range params {
+		fieldName := ExportedIdentifier(p.name)
+		if fieldName == "" {
+			fieldName = "Arg"
+		}
+		fields = append(fields, paramStructField{
+			name:       fieldName,
+			goType:     p.goType,
+			importPath: p.importPath,
+		})
+	}
+
+	return &paramStructSpec{
+		typeName: typeName,
+		fields:   fields,
+	}
 }
 
 func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error) {
@@ -806,6 +872,27 @@ func (b *Builder) buildQueryFiles(pkg string, queries []queryInfo) ([]File, erro
 			file.Decls = append(file.Decls, importDecl)
 		}
 
+		// Generate param struct type if needed (for 2+ params)
+		if q.paramStruct != nil {
+			structFields := make([]*goast.Field, 0, len(q.paramStruct.fields))
+			for _, f := range q.paramStruct.fields {
+				expr, err := parser.ParseExpr(f.goType)
+				if err != nil {
+					return nil, err
+				}
+				structFields = append(structFields, &goast.Field{
+					Names: []*goast.Ident{goast.NewIdent(f.name)},
+					Type:  expr,
+				})
+			}
+			structSpec := &goast.TypeSpec{
+				Name: goast.NewIdent(q.paramStruct.typeName),
+				Type: &goast.StructType{Fields: &goast.FieldList{List: structFields}},
+			}
+			structDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{structSpec}}
+			file.Decls = append(file.Decls, structDecl)
+		}
+
 		constSpec := &goast.ValueSpec{
 			Names:  []*goast.Ident{goast.NewIdent(q.constName)},
 			Type:   goast.NewIdent("string"),
@@ -1073,10 +1160,19 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 			fmt.Fprintf(&buf, "\t\t}\n")
 			fmt.Fprintf(&buf, "\t\treturn %s, sql.ErrNoRows\n", q.returnZero)
 			fmt.Fprintf(&buf, "\t}\n")
-			fmt.Fprintf(&buf, "\titem, err := %s(rows)\n", q.helper.funcName)
-			fmt.Fprintf(&buf, "\tif err != nil {\n")
-			fmt.Fprintf(&buf, "\t\treturn item, err\n")
-			fmt.Fprintf(&buf, "\t}\n")
+			// For scalar single-column returns, scan directly; otherwise use helper
+			if q.helper == nil {
+				fmt.Fprintf(&buf, "\tvar item %s\n", q.returnType)
+				fmt.Fprintf(&buf, "\terr = rows.Scan(&item)\n")
+				fmt.Fprintf(&buf, "\tif err != nil {\n")
+				fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+				fmt.Fprintf(&buf, "\t}\n")
+			} else {
+				fmt.Fprintf(&buf, "\titem, err := %s(rows)\n", q.helper.funcName)
+				fmt.Fprintf(&buf, "\tif err != nil {\n")
+				fmt.Fprintf(&buf, "\t\treturn item, err\n")
+				fmt.Fprintf(&buf, "\t}\n")
+			}
 			fmt.Fprintf(&buf, "\tif err := rows.Err(); err != nil {\n")
 			fmt.Fprintf(&buf, "\t\treturn item, err\n")
 			fmt.Fprintf(&buf, "\t}\n")
@@ -1131,16 +1227,25 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 
 func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	params := []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")}}
-	for _, p := range q.params {
-		expr, err := parser.ParseExpr(p.goType)
-		if err != nil {
-			return nil, err
+
+	// If we have a param struct (2+ params), use it instead of individual params
+	if q.paramStruct != nil {
+		params = append(params, &goast.Field{
+			Names: []*goast.Ident{goast.NewIdent("arg")},
+			Type:  goast.NewIdent(q.paramStruct.typeName),
+		})
+	} else {
+		for _, p := range q.params {
+			expr, err := parser.ParseExpr(p.goType)
+			if err != nil {
+				return nil, err
+			}
+			paramType := expr
+			if p.variadic {
+				paramType = &goast.Ellipsis{Elt: expr}
+			}
+			params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 		}
-		paramType := expr
-		if p.variadic {
-			paramType = &goast.Ellipsis{Elt: expr}
-		}
-		params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 	}
 
 	results := []*goast.Field{}
@@ -1303,8 +1408,17 @@ func (b *Builder) buildStandardQueryBody(body []goast.Stmt, q queryInfo, hasDyna
 
 	if q.command == block.CommandOne {
 		body = append(body, mustParseStmt("if !rows.Next() {\nif err := rows.Err(); err != nil {\nreturn "+zero+", err\n}\nreturn "+zero+", sql.ErrNoRows\n}"))
-		body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
-		body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
+
+		// For scalar single-column returns, scan directly; otherwise use helper
+		if q.helper == nil {
+			// Scalar return - scan directly into variable
+			body = append(body, mustParseStmt("var item "+q.returnType))
+			body = append(body, mustParseStmt("err = rows.Scan(&item)"))
+			body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
+		} else {
+			body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
+			body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
+		}
 		body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn item, err\n}"))
 		// Cache the result before returning
 		if q.cache != nil && q.cache.enabled {
@@ -1395,4 +1509,32 @@ func (b *Builder) buildDocComment(doc string) *goast.CommentGroup {
 		comments = append(comments, &goast.Comment{Text: "// " + line})
 	}
 	return &goast.CommentGroup{List: comments}
+}
+
+// zeroValueForType returns the zero value for a Go type.
+func (b *Builder) zeroValueForType(goType string) string {
+	switch goType {
+	case "int", "int8", "int16", "int32", "int64":
+		return "0"
+	case "uint", "uint8", "uint16", "uint32", "uint64":
+		return "0"
+	case "float32", "float64":
+		return "0"
+	case "string":
+		return `""`
+	case "bool":
+		return "false"
+	case "[]byte":
+		return "nil"
+	default:
+		// For pointer types and other complex types
+		if strings.HasPrefix(goType, "*") {
+			return "nil"
+		}
+		// For sql.Null* types and other structs
+		if strings.HasPrefix(goType, "sql.Null") {
+			return goType + "{}"
+		}
+		return goType + "{}"
+	}
 }
