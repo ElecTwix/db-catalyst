@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/electwix/db-catalyst/internal/query/cache"
 )
 
 // Command represents the type of query (one, many, exec, etc.).
@@ -44,6 +46,7 @@ type Block struct {
 	EndOffset   int
 	Suffix      string
 	ParamTypes  []ParamTypeOverride // Explicit type overrides from @param comments
+	Cache       *cache.Annotation   // Cache annotation if present
 }
 
 func (c Command) String() string {
@@ -94,6 +97,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 		contentStart int
 		lineIndex    int
 		paramTypes   []ParamTypeOverride
+		cacheAnn     *cache.Annotation
 	}
 	markers := make([]markerInfo, 0, len(lines))
 	for idx, ln := range lines {
@@ -127,7 +131,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s:%d:%d: unknown command %s", path, ln.line, column, cmdTag)
 		}
-		docLines, docStart, paramTypes := collectDocLines(lines, idx)
+		docLines, docStart, paramTypes, cacheAnn := collectDocLines(lines, idx)
 		markers = append(markers, markerInfo{
 			name:         name,
 			command:      cmd,
@@ -138,6 +142,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 			contentStart: ln.next,
 			lineIndex:    idx,
 			paramTypes:   paramTypes,
+			cacheAnn:     cacheAnn,
 		})
 	}
 	if len(markers) == 0 {
@@ -203,6 +208,7 @@ func Slice(path string, src []byte) ([]Block, error) {
 			EndOffset:   sqlEnd,
 			Suffix:      suffix,
 			ParamTypes:  m.paramTypes,
+			Cache:       m.cacheAnn,
 		})
 	}
 	return blocks, nil
@@ -254,12 +260,13 @@ func splitLines(text string) []lineInfo {
 	return lines
 }
 
-func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int, []ParamTypeOverride) {
+func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int, []ParamTypeOverride, *cache.Annotation) {
 	if markerIdx == 0 {
-		return nil, lines[markerIdx].start, nil
+		return nil, lines[markerIdx].start, nil, nil
 	}
 	doc := make([]string, 0)
 	paramTypes := make([]ParamTypeOverride, 0)
+	var cacheAnn *cache.Annotation
 	docStart := lines[markerIdx].start
 	for i := markerIdx - 1; i >= 0; i-- {
 		text := lines[i].text
@@ -279,6 +286,8 @@ func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int, []ParamTyp
 		// Check for @param annotation
 		if pt := parseParamType(content); pt != nil {
 			paramTypes = append(paramTypes, *pt)
+		} else if ann := cache.ParseAnnotation(content); ann != nil {
+			cacheAnn = ann
 		} else {
 			doc = append(doc, content)
 		}
@@ -292,7 +301,7 @@ func collectDocLines(lines []lineInfo, markerIdx int) ([]string, int, []ParamTyp
 	}
 	slices.Reverse(doc)
 	slices.Reverse(paramTypes)
-	return doc, docStart, paramTypes
+	return doc, docStart, paramTypes, cacheAnn
 }
 
 // parseParamType parses a @param annotation like "@param userID: uuid".

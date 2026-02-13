@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/tools/imports"
 
@@ -169,6 +170,14 @@ type queryInfo struct {
 	stmtField  string
 	prepareFn  string
 	metricsKey string
+	cache      *cacheSpec
+}
+
+type cacheSpec struct {
+	enabled    bool
+	ttl        time.Duration
+	keyPattern string
+	invalidate []string
 }
 
 type paramSpec struct {
@@ -341,6 +350,16 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 			stmtField:  stmtField,
 			prepareFn:  prepareFn,
 			metricsKey: methodName,
+		}
+
+		// Extract cache configuration
+		if res.Query.Block.Cache != nil {
+			info.cache = &cacheSpec{
+				enabled:    true,
+				ttl:        res.Query.Block.Cache.TTL,
+				keyPattern: res.Query.Block.Cache.KeyPattern,
+				invalidate: res.Query.Block.Cache.Invalidate,
+			}
 		}
 
 		switch res.Query.Block.Command {
@@ -617,7 +636,18 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 	dbtxType := &goast.TypeSpec{Name: goast.NewIdent("DBTX"), Type: &goast.InterfaceType{Methods: &goast.FieldList{List: dbtxMethods}}}
 	dbtxDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{dbtxType}}
 
-	queriesStruct := &goast.TypeSpec{Name: goast.NewIdent("Queries"), Type: &goast.StructType{Fields: &goast.FieldList{List: []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("db")}, Type: goast.NewIdent("DBTX")}}}}}
+	queriesFields := []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("db")}, Type: goast.NewIdent("DBTX")}}
+	hasCache := false
+	for _, q := range queries {
+		if q.cache != nil && q.cache.enabled {
+			hasCache = true
+			break
+		}
+	}
+	if hasCache {
+		queriesFields = append(queriesFields, &goast.Field{Names: []*goast.Ident{goast.NewIdent("cache")}, Type: goast.NewIdent("Cache")})
+	}
+	queriesStruct := &goast.TypeSpec{Name: goast.NewIdent("Queries"), Type: &goast.StructType{Fields: &goast.FieldList{List: queriesFields}}}
 	queriesDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{queriesStruct}}
 
 	newFunc := &goast.FuncDecl{
@@ -640,7 +670,40 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 	resultDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{resultStruct}}
 
 	file.Decls = []goast.Decl{querierDecl, dbtxDecl, queriesDecl, newFunc, resultDecl}
+
+	// Add Cache interface if any queries use caching
+	if hasCache {
+		cacheDecl := buildCacheInterface()
+		// Insert cache interface before queriesDecl
+		file.Decls = append([]goast.Decl{querierDecl, dbtxDecl, cacheDecl, queriesDecl, newFunc, resultDecl}, file.Decls[5:]...)
+	}
+
 	return file, nil
+}
+
+func buildCacheInterface() goast.Decl {
+	methods := []*goast.Field{
+		{Names: []*goast.Ident{goast.NewIdent("Get")}, Type: funcType([]*goast.Field{
+			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
+			{Names: []*goast.Ident{goast.NewIdent("key")}, Type: goast.NewIdent("string")},
+		}, []*goast.Field{{Type: goast.NewIdent("any")}, {Type: goast.NewIdent("bool")}})},
+		{Names: []*goast.Ident{goast.NewIdent("Set")}, Type: funcType([]*goast.Field{
+			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
+			{Names: []*goast.Ident{goast.NewIdent("key")}, Type: goast.NewIdent("string")},
+			{Names: []*goast.Ident{goast.NewIdent("value")}, Type: goast.NewIdent("any")},
+			{Names: []*goast.Ident{goast.NewIdent("ttl")}, Type: selector("time", "Duration")},
+		}, nil)},
+		{Names: []*goast.Ident{goast.NewIdent("Delete")}, Type: funcType([]*goast.Field{
+			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
+			{Names: []*goast.Ident{goast.NewIdent("key")}, Type: goast.NewIdent("string")},
+		}, nil)},
+		{Names: []*goast.Ident{goast.NewIdent("Invalidate")}, Type: funcType([]*goast.Field{
+			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
+			{Names: []*goast.Ident{goast.NewIdent("pattern")}, Type: goast.NewIdent("string")},
+		}, nil)},
+	}
+	cacheType := &goast.TypeSpec{Name: goast.NewIdent("Cache"), Type: &goast.InterfaceType{Methods: &goast.FieldList{List: methods}}}
+	return &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{cacheType}}
 }
 
 func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.File, error) {
@@ -1175,42 +1238,11 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 		body = append(body, mustParseStmt("if v, err := res.RowsAffected(); err == nil {\nresult.RowsAffected = v\n}"))
 		body = append(body, mustParseStmt("return result, nil"))
 	default:
-		if hasDynamic {
-			body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(ctx, query, %s...)", callArgsName)))
+		// Check if caching is enabled for this query
+		if q.cache != nil && q.cache.enabled {
+			body = b.buildCacheAwareQueryBody(body, q, hasDynamic, callArgsName)
 		} else {
-			args := append([]string{"ctx", q.constName}, q.args...)
-			body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(%s)", strings.Join(args, ", "))))
-		}
-		zero := q.returnZero
-		if zero == "" {
-			zero = "nil"
-		}
-		body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
-		body = append(body, mustParseStmt("defer rows.Close()"))
-
-		if q.command == block.CommandOne {
-			body = append(body, mustParseStmt("if !rows.Next() {\nif err := rows.Err(); err != nil {\nreturn "+zero+", err\n}\nreturn "+zero+", sql.ErrNoRows\n}"))
-			body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
-			body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
-			body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn item, err\n}"))
-			body = append(body, mustParseStmt("return item, nil"))
-		} else {
-			if b.opts.EmitEmptySlices {
-				body = append(body, mustParseStmt("items := make([]"+q.rowType+", 0)"))
-			} else {
-				body = append(body, mustParseStmt("var items []"+q.rowType))
-			}
-			loop := &goast.ForStmt{
-				Cond: &goast.CallExpr{Fun: &goast.SelectorExpr{X: goast.NewIdent("rows"), Sel: goast.NewIdent("Next")}},
-				Body: &goast.BlockStmt{List: []goast.Stmt{
-					mustParseStmt("item, err := " + q.helper.funcName + "(rows)"),
-					mustParseStmt("if err != nil {\nreturn nil, err\n}"),
-					mustParseStmt("items = append(items, item)"),
-				}},
-			}
-			body = append(body, loop)
-			body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn nil, err\n}"))
-			body = append(body, mustParseStmt("return items, nil"))
+			body = b.buildStandardQueryBody(body, q, hasDynamic, callArgsName)
 		}
 	}
 
@@ -1226,6 +1258,87 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	}
 
 	return funcDecl, nil
+}
+
+func (b *Builder) buildCacheAwareQueryBody(body []goast.Stmt, q queryInfo, hasDynamic bool, callArgsName string) []goast.Stmt {
+	// Build cache key from parameters
+	keyBuilder := `cacheKey := "` + q.methodName + `:"`
+	for _, p := range q.params {
+		if p.variadic || p.isDynamicSlice {
+			continue // Skip variadic params in cache key
+		}
+		keyBuilder += ` + fmt.Sprintf("` + p.name + `=%v:", ` + p.name + `)`
+	}
+	body = append(body, mustParseStmt(keyBuilder))
+
+	// Check cache
+	body = append(body, mustParseStmt(`if q.cache != nil {
+if cached, ok := q.cache.Get(ctx, cacheKey); ok {
+if result, ok := cached.(`+q.returnType+`); ok {
+return result, nil
+}
+}
+}`))
+
+	// Execute query (standard logic)
+	body = b.buildStandardQueryBody(body, q, hasDynamic, callArgsName)
+
+	return body
+}
+
+func (b *Builder) buildStandardQueryBody(body []goast.Stmt, q queryInfo, hasDynamic bool, callArgsName string) []goast.Stmt {
+
+	if hasDynamic {
+		body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(ctx, query, %s...)", callArgsName)))
+	} else {
+		args := append([]string{"ctx", q.constName}, q.args...)
+		body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(%s)", strings.Join(args, ", "))))
+	}
+	zero := q.returnZero
+	if zero == "" {
+		zero = "nil"
+	}
+	body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
+	body = append(body, mustParseStmt("defer rows.Close()"))
+
+	if q.command == block.CommandOne {
+		body = append(body, mustParseStmt("if !rows.Next() {\nif err := rows.Err(); err != nil {\nreturn "+zero+", err\n}\nreturn "+zero+", sql.ErrNoRows\n}"))
+		body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
+		body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
+		body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn item, err\n}"))
+		// Cache the result before returning
+		if q.cache != nil && q.cache.enabled {
+			body = append(body, mustParseStmt(fmt.Sprintf(`if q.cache != nil {
+q.cache.Set(ctx, cacheKey, item, %d)
+}`, int(q.cache.ttl.Seconds()))))
+		}
+		body = append(body, mustParseStmt("return item, nil"))
+	} else {
+		if b.opts.EmitEmptySlices {
+			body = append(body, mustParseStmt("items := make([]"+q.rowType+", 0)"))
+		} else {
+			body = append(body, mustParseStmt("var items []"+q.rowType))
+		}
+		loop := &goast.ForStmt{
+			Cond: &goast.CallExpr{Fun: &goast.SelectorExpr{X: goast.NewIdent("rows"), Sel: goast.NewIdent("Next")}},
+			Body: &goast.BlockStmt{List: []goast.Stmt{
+				mustParseStmt("item, err := " + q.helper.funcName + "(rows)"),
+				mustParseStmt("if err != nil {\nreturn nil, err\n}"),
+				mustParseStmt("items = append(items, item)"),
+			}},
+		}
+		body = append(body, loop)
+		body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn nil, err\n}"))
+		// Cache the result before returning
+		if q.cache != nil && q.cache.enabled {
+			body = append(body, mustParseStmt(fmt.Sprintf(`if q.cache != nil {
+q.cache.Set(ctx, cacheKey, items, %d)
+}`, int(q.cache.ttl.Seconds()))))
+		}
+		body = append(body, mustParseStmt("return items, nil"))
+	}
+
+	return body
 }
 
 func selector(pkg, name string) *goast.SelectorExpr {
