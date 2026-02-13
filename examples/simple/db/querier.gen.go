@@ -6,11 +6,11 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, arg1 string, arg2 sql.NullString) (CreateUserRow, error)
-	DeleteUser(ctx context.Context, id int32) (sql.Result, error)
-	GetUser(ctx context.Context, id int32) (GetUserRow, error)
+	CreateUser(ctx context.Context, name string, email sql.NullString) (CreateUserRow, error)
+	DeleteUser(ctx context.Context, id int64) (sql.Result, error)
+	GetUser(ctx context.Context, id int64) (GetUserRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
-	UpdateUser(ctx context.Context, name string, arg2 sql.NullString, arg3 int32) (UpdateUserRow, error)
+	UpdateUser(ctx context.Context, name string, email sql.NullString, id int64) (UpdateUserRow, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)

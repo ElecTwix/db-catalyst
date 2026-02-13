@@ -10,8 +10,8 @@ SET name = ?, email = ?
 WHERE id = ?
 RETURNING *;`
 
-func (q *Queries) UpdateUser(ctx context.Context, name string, arg2 sql.NullString, arg3 int32) (UpdateUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryUpdateUser, name, arg2, arg3)
+func (q *Queries) UpdateUser(ctx context.Context, name string, email sql.NullString, id int64) (UpdateUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryUpdateUser, name, email, id)
 	if err != nil {
 		return UpdateUserRow{}, err
 	}

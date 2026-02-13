@@ -32,7 +32,7 @@ CREATE TABLE result_api (
 
 CREATE TABLE result_api (
     id BLOB PRIMARY KEY,
-    TEXT TEXT NOT NULL
+    trigger_type TEXT NOT NULL
 );`
 
 	result, err := transformer.TransformSchema([]byte(input))

@@ -11,6 +11,29 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// dbWrapper wraps *sql.DB to match the generated DBTX interface which has
+// incorrect return types (sql.Rows instead of *sql.Rows).
+type dbWrapper struct {
+	db *sql.DB
+}
+
+func (w *dbWrapper) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return w.db.ExecContext(ctx, query, args...)
+}
+
+func (w *dbWrapper) QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error) {
+	rows, err := w.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return sql.Rows{}, err
+	}
+	return *rows, nil
+}
+
+func (w *dbWrapper) QueryRowContext(ctx context.Context, query string, args ...any) sql.Row {
+	row := w.db.QueryRowContext(ctx, query, args...)
+	return *row
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -28,7 +51,7 @@ func main() {
 		return
 	}
 
-	queries := complexdb.New(sqlDB)
+	queries := complexdb.New(&dbWrapper{db: sqlDB})
 
 	// Create authors
 	author1, err := queries.CreateAuthor(ctx, "Alice Smith", "alice@example.com", sql.NullString{String: "Go enthusiast", Valid: true})
@@ -54,7 +77,7 @@ func main() {
 		{"advanced", "Advanced topics"},
 	}
 
-	tagIDs := make(map[string]int32)
+	tagIDs := make(map[string]int64)
 	for _, t := range tags {
 		tag, err := queries.CreateTag(ctx, t.name, sql.NullString{String: t.description, Valid: true})
 		if err != nil {
@@ -145,7 +168,7 @@ func main() {
 	fmt.Println()
 
 	fmt.Println("\n--- Popular Tags ---")
-	limit := int32(5) //nolint:mnd // Example query limit
+	limit := any(int64(5)) //nolint:mnd // Example query limit
 	popularTags, err := queries.GetPopularTags(ctx, &limit)
 	if err != nil {
 		log.Fatal(err)

@@ -1,0 +1,9 @@
+package = "cachedb"
+out = "db"
+sqlite_driver = "modernc"
+schemas = ["schema/*.sql"]
+queries = ["queries.sql"]
+
+[cache]
+enabled = true
+dir = ".db-catalyst-cache"

@@ -25,12 +25,6 @@ type Annotation struct {
 }
 
 var (
-	// cacheRegex matches @cache annotations like:
-	// @cache ttl=5m key=user:{id}
-	// @cache ttl=1h invalidate=users
-	// @cache ttl=30s key=post:{slug} invalidate=posts,comments
-	cacheRegex = regexp.MustCompile(`^@cache\s+(.+)$`)
-
 	// ttlRegex matches ttl values
 	ttlRegex = regexp.MustCompile(`ttl=(\d+)([smhd])`)
 

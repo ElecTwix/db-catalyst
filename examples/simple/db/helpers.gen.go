@@ -3,10 +3,10 @@ package simpledb
 import "database/sql"
 
 type CreateUserRow struct {
-	Id        int32
+	Id        int64
 	Name      string
 	Email     sql.NullString
-	CreatedAt int32
+	CreatedAt int64
 }
 
 func scanCreateUserRow(rows *sql.Rows) (CreateUserRow, error) {
@@ -18,10 +18,10 @@ func scanCreateUserRow(rows *sql.Rows) (CreateUserRow, error) {
 }
 
 type GetUserRow struct {
-	Id        int32
+	Id        int64
 	Name      string
 	Email     sql.NullString
-	CreatedAt int32
+	CreatedAt int64
 }
 
 func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
@@ -33,10 +33,10 @@ func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 }
 
 type ListUsersRow struct {
-	Id        int32
+	Id        int64
 	Name      string
 	Email     sql.NullString
-	CreatedAt int32
+	CreatedAt int64
 }
 
 func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
@@ -48,10 +48,10 @@ func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
 }
 
 type UpdateUserRow struct {
-	Id        int32
+	Id        int64
 	Name      string
 	Email     sql.NullString
-	CreatedAt int32
+	CreatedAt int64
 }
 
 func scanUpdateUserRow(rows *sql.Rows) (UpdateUserRow, error) {

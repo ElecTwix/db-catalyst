@@ -1254,7 +1254,7 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 	}
 
 	if q.docComment != "" {
-		funcDecl.Doc = &goast.CommentGroup{List: []*goast.Comment{{Text: "// " + q.docComment}}}
+		funcDecl.Doc = b.buildDocComment(q.docComment)
 	}
 
 	return funcDecl, nil
@@ -1383,4 +1383,16 @@ func mustParseStmt(code string) goast.Stmt {
 		panic(fmt.Errorf("failed to parse generated code %q: %w", code, err))
 	}
 	return stmt
+}
+
+// buildDocComment creates a CommentGroup from a multiline doc comment string.
+// It splits the comment by newlines and ensures each line is properly prefixed
+// with "// " for valid Go documentation comments.
+func (b *Builder) buildDocComment(doc string) *goast.CommentGroup {
+	lines := strings.Split(doc, "\n")
+	comments := make([]*goast.Comment, 0, len(lines))
+	for _, line := range lines {
+		comments = append(comments, &goast.Comment{Text: "// " + line})
+	}
+	return &goast.CommentGroup{List: comments}
 }

@@ -7,6 +7,6 @@ import (
 
 const queryDeleteUser string = `DELETE FROM users WHERE id = ?;`
 
-func (q *Queries) DeleteUser(ctx context.Context, id int32) (sql.Result, error) {
+func (q *Queries) DeleteUser(ctx context.Context, id int64) (sql.Result, error) {
 	return q.db.ExecContext(ctx, queryDeleteUser, id)
 }

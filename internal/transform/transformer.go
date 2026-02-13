@@ -31,9 +31,11 @@ func New(mappings []config.CustomTypeMapping) *Transformer {
 	}
 	// Pre-compile regexes for each custom type
 	for _, mapping := range mappings {
-		// Match custom types as whole words in column definitions
-		// This matches patterns like "id idwrap" or "trigger_type trigger_type"
-		pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(mapping.CustomType))
+		// Match custom types only when they appear as types (after a column name)
+		// Pattern: match custom type when preceded by a word (column name) and whitespace
+		// This avoids replacing the type when it appears as a column name itself
+		// Example: "user_id user_id INTEGER" -> only the second "user_id" is the type
+		pattern := fmt.Sprintf(`(?m)(\w+\s+)%s\b`, regexp.QuoteMeta(mapping.CustomType))
 		t.typeRegexes = append(t.typeRegexes, regexp.MustCompile(pattern))
 	}
 	return t
@@ -47,8 +49,10 @@ func (t *Transformer) TransformSchema(input []byte) ([]byte, error) {
 
 	result := input
 	for i, mapping := range t.mappings {
-		// Replace custom types with SQLite types
-		result = t.typeRegexes[i].ReplaceAll(result, []byte(mapping.SQLiteType))
+		// Replace custom types with SQLite types, preserving the captured column name
+		// The regex captures (column_name + whitespace) as group 1, so we include it in replacement
+		replacement := []byte("${1}" + mapping.SQLiteType)
+		result = t.typeRegexes[i].ReplaceAll(result, replacement)
 	}
 
 	return result, nil

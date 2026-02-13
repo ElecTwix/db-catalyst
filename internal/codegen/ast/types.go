@@ -168,8 +168,11 @@ func (r *TypeResolver) buildCustomTypeInfo(mapping *config.CustomTypeMapping, go
 		return TypeInfo{GoType: goType, UsesSQLNull: false}, true
 	}
 
+	// Prefix the type with its package name for proper qualification
+	qualifiedType := packageName + "." + goType
+
 	return TypeInfo{
-		GoType:      goType,
+		GoType:      qualifiedType,
 		UsesSQLNull: false,
 		Import:      importPath,
 		Package:     packageName,

@@ -1,8 +1,8 @@
 // Generated models module
 
-pub mod users;
 pub mod posts;
+pub mod users;
 
 // Re-exports
-pub use users::Users;
 pub use posts::Posts;
+pub use users::Users;
