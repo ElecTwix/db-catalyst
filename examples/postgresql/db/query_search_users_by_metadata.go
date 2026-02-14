@@ -6,7 +6,7 @@ const querySearchUsersByMetadata string = `SELECT * FROM users WHERE metadata @>
 
 -- Post queries`
 
-func (q *Queries) SearchUsersByMetadata(ctx context.Context, p *any) ([]SearchUsersByMetadataRow, error) {
+func (q *Queries) SearchUsersByMetadata(ctx context.Context, p any) ([]SearchUsersByMetadataRow, error) {
 	rows, err := q.db.QueryContext(ctx, querySearchUsersByMetadata, p)
 	if err != nil {
 		return nil, err

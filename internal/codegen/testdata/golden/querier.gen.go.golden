@@ -6,18 +6,18 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteUser(ctx context.Context, id int64) (QueryResult, error)
 	GetUser(ctx context.Context, id int64) (GetUserRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	ListUsersByIDs(ctx context.Context, ids ...int64) ([]ListUsersByIDsRow, error)
 	SummarizeCredits(ctx context.Context) (SummarizeCreditsRow, error)
-	UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error)
+	UpdateUserCredits(ctx context.Context, arg UpdateUserCreditsParams) error
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 type Queries struct {
 	db DBTX
@@ -25,6 +25,9 @@ type Queries struct {
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
+}
+func (q *Queries) WithTx(tx DBTX) *Queries {
+	return &Queries{db: tx}
 }
 
 type QueryResult struct {

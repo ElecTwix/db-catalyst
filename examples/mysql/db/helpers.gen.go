@@ -2,18 +2,6 @@ package mysqlblog
 
 import "database/sql"
 
-type CountCommentsByPostRow struct {
-	Count int64
-}
-
-func scanCountCommentsByPostRow(rows sql.Rows) (CountCommentsByPostRow, error) {
-	var item CountCommentsByPostRow
-	if err := rows.Scan(&item.Count); err != nil {
-		return item, err
-	}
-	return item, nil
-}
-
 type GetCommentRow struct {
 	Id        int32
 	PostId    int32
@@ -22,7 +10,7 @@ type GetCommentRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanGetCommentRow(rows sql.Rows) (GetCommentRow, error) {
+func scanGetCommentRow(rows *sql.Rows) (GetCommentRow, error) {
 	var item GetCommentRow
 	if err := rows.Scan(&item.Id, &item.PostId, &item.UserId, &item.Content, &item.CreatedAt); err != nil {
 		return item, err
@@ -40,7 +28,7 @@ type GetPostRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanGetPostRow(rows sql.Rows) (GetPostRow, error) {
+func scanGetPostRow(rows *sql.Rows) (GetPostRow, error) {
 	var item GetPostRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Status, &item.ViewCount, &item.CreatedAt); err != nil {
 		return item, err
@@ -58,7 +46,7 @@ type GetPostsForTagRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanGetPostsForTagRow(rows sql.Rows) (GetPostsForTagRow, error) {
+func scanGetPostsForTagRow(rows *sql.Rows) (GetPostsForTagRow, error) {
 	var item GetPostsForTagRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Status, &item.ViewCount, &item.CreatedAt); err != nil {
 		return item, err
@@ -73,7 +61,7 @@ type GetTagByNameRow struct {
 	CreatedAt   sql.NullString
 }
 
-func scanGetTagByNameRow(rows sql.Rows) (GetTagByNameRow, error) {
+func scanGetTagByNameRow(rows *sql.Rows) (GetTagByNameRow, error) {
 	var item GetTagByNameRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description, &item.CreatedAt); err != nil {
 		return item, err
@@ -88,7 +76,7 @@ type GetTagRow struct {
 	CreatedAt   sql.NullString
 }
 
-func scanGetTagRow(rows sql.Rows) (GetTagRow, error) {
+func scanGetTagRow(rows *sql.Rows) (GetTagRow, error) {
 	var item GetTagRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description, &item.CreatedAt); err != nil {
 		return item, err
@@ -103,7 +91,7 @@ type GetTagsForPostRow struct {
 	CreatedAt   sql.NullString
 }
 
-func scanGetTagsForPostRow(rows sql.Rows) (GetTagsForPostRow, error) {
+func scanGetTagsForPostRow(rows *sql.Rows) (GetTagsForPostRow, error) {
 	var item GetTagsForPostRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description, &item.CreatedAt); err != nil {
 		return item, err
@@ -120,7 +108,7 @@ type GetUserByEmailRow struct {
 	CreatedAt    sql.NullString
 }
 
-func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
+func scanGetUserByEmailRow(rows *sql.Rows) (GetUserByEmailRow, error) {
 	var item GetUserByEmailRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.Username, &item.PasswordHash, &item.Status, &item.CreatedAt); err != nil {
 		return item, err
@@ -137,7 +125,7 @@ type GetUserRow struct {
 	CreatedAt    sql.NullString
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.Username, &item.PasswordHash, &item.Status, &item.CreatedAt); err != nil {
 		return item, err
@@ -153,7 +141,7 @@ type ListCommentsByPostRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanListCommentsByPostRow(rows sql.Rows) (ListCommentsByPostRow, error) {
+func scanListCommentsByPostRow(rows *sql.Rows) (ListCommentsByPostRow, error) {
 	var item ListCommentsByPostRow
 	if err := rows.Scan(&item.Id, &item.PostId, &item.UserId, &item.Content, &item.CreatedAt); err != nil {
 		return item, err
@@ -169,7 +157,7 @@ type ListCommentsByUserRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanListCommentsByUserRow(rows sql.Rows) (ListCommentsByUserRow, error) {
+func scanListCommentsByUserRow(rows *sql.Rows) (ListCommentsByUserRow, error) {
 	var item ListCommentsByUserRow
 	if err := rows.Scan(&item.Id, &item.PostId, &item.UserId, &item.Content, &item.CreatedAt); err != nil {
 		return item, err
@@ -187,7 +175,7 @@ type ListPostsByUserRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanListPostsByUserRow(rows sql.Rows) (ListPostsByUserRow, error) {
+func scanListPostsByUserRow(rows *sql.Rows) (ListPostsByUserRow, error) {
 	var item ListPostsByUserRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Status, &item.ViewCount, &item.CreatedAt); err != nil {
 		return item, err
@@ -205,7 +193,7 @@ type ListPostsRow struct {
 	CreatedAt sql.NullString
 }
 
-func scanListPostsRow(rows sql.Rows) (ListPostsRow, error) {
+func scanListPostsRow(rows *sql.Rows) (ListPostsRow, error) {
 	var item ListPostsRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Status, &item.ViewCount, &item.CreatedAt); err != nil {
 		return item, err
@@ -220,7 +208,7 @@ type ListTagsRow struct {
 	CreatedAt   sql.NullString
 }
 
-func scanListTagsRow(rows sql.Rows) (ListTagsRow, error) {
+func scanListTagsRow(rows *sql.Rows) (ListTagsRow, error) {
 	var item ListTagsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description, &item.CreatedAt); err != nil {
 		return item, err
@@ -237,7 +225,7 @@ type ListUsersRow struct {
 	CreatedAt    sql.NullString
 }
 
-func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
+func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
 	var item ListUsersRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.Username, &item.PasswordHash, &item.Status, &item.CreatedAt); err != nil {
 		return item, err

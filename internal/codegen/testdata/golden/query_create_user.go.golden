@@ -12,6 +12,7 @@ type CreateUserParams struct {
 
 const queryCreateUser string = `INSERT INTO users (email, credits) VALUES (?, ?)`
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryCreateUser, arg.Email, arg.Credits)
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
+	_, err := q.db.ExecContext(ctx, queryCreateUser, arg.Email, arg.Credits)
+	return err
 }

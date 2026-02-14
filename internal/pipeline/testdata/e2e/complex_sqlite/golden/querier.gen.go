@@ -6,13 +6,13 @@ import (
 )
 
 type Querier interface {
-	DeleteTag(ctx context.Context, tag string) (sql.Result, error)
+	DeleteTag(ctx context.Context, tag string) error
 	GetItemWithTags(ctx context.Context, id *int32) (GetItemWithTagsRow, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 type Queries struct {
 	db DBTX
@@ -20,6 +20,9 @@ type Queries struct {
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
+}
+func (q *Queries) WithTx(tx DBTX) *Queries {
+	return &Queries{db: tx}
 }
 
 type QueryResult struct {

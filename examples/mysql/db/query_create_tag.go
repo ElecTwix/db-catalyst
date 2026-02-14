@@ -5,10 +5,15 @@ import (
 	"database/sql"
 )
 
+type CreateTagParams struct {
+	Name        string
+	Description sql.NullString
+}
+
 const queryCreateTag string = `INSERT INTO tags (name, description) VALUES (?, ?);`
 
-func (q *Queries) CreateTag(ctx context.Context, name string, description sql.NullString) (QueryResult, error) {
-	res, err := q.db.ExecContext(ctx, queryCreateTag, name, description)
+func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) (QueryResult, error) {
+	res, err := q.db.ExecContext(ctx, queryCreateTag, arg.Name, arg.Description)
 	if err != nil {
 		return QueryResult{}, err
 	}

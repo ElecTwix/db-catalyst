@@ -10,7 +10,7 @@ type CreateAuthorRow struct {
 	CreatedAt int64
 }
 
-func scanCreateAuthorRow(rows sql.Rows) (CreateAuthorRow, error) {
+func scanCreateAuthorRow(rows *sql.Rows) (CreateAuthorRow, error) {
 	var item CreateAuthorRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Bio, &item.CreatedAt); err != nil {
 		return item, err
@@ -29,7 +29,7 @@ type CreatePostRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanCreatePostRow(rows sql.Rows) (CreatePostRow, error) {
+func scanCreatePostRow(rows *sql.Rows) (CreatePostRow, error) {
 	var item CreatePostRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -43,7 +43,7 @@ type CreateTagRow struct {
 	Description sql.NullString
 }
 
-func scanCreateTagRow(rows sql.Rows) (CreateTagRow, error) {
+func scanCreateTagRow(rows *sql.Rows) (CreateTagRow, error) {
 	var item CreateTagRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description); err != nil {
 		return item, err
@@ -59,7 +59,7 @@ type GetAuthorRow struct {
 	CreatedAt int64
 }
 
-func scanGetAuthorRow(rows sql.Rows) (GetAuthorRow, error) {
+func scanGetAuthorRow(rows *sql.Rows) (GetAuthorRow, error) {
 	var item GetAuthorRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Bio, &item.CreatedAt); err != nil {
 		return item, err
@@ -70,11 +70,11 @@ func scanGetAuthorRow(rows sql.Rows) (GetAuthorRow, error) {
 type GetAuthorStatsRow struct {
 	Id         int64
 	Name       string
-	TotalPosts *any
-	TotalViews *any
+	TotalPosts any
+	TotalViews any
 }
 
-func scanGetAuthorStatsRow(rows sql.Rows) (GetAuthorStatsRow, error) {
+func scanGetAuthorStatsRow(rows *sql.Rows) (GetAuthorStatsRow, error) {
 	var item GetAuthorStatsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.TotalPosts, &item.TotalViews); err != nil {
 		return item, err
@@ -87,10 +87,10 @@ type GetAuthorWithPostCountRow struct {
 	Name       string
 	Email      string
 	Bio        sql.NullString
-	TotalPosts *any
+	TotalPosts any
 }
 
-func scanGetAuthorWithPostCountRow(rows sql.Rows) (GetAuthorWithPostCountRow, error) {
+func scanGetAuthorWithPostCountRow(rows *sql.Rows) (GetAuthorWithPostCountRow, error) {
 	var item GetAuthorWithPostCountRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Bio, &item.TotalPosts); err != nil {
 		return item, err
@@ -102,10 +102,10 @@ type GetPopularTagsRow struct {
 	Id          int64
 	Name        string
 	Description sql.NullString
-	PostCount   *any
+	PostCount   any
 }
 
-func scanGetPopularTagsRow(rows sql.Rows) (GetPopularTagsRow, error) {
+func scanGetPopularTagsRow(rows *sql.Rows) (GetPopularTagsRow, error) {
 	var item GetPopularTagsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description, &item.PostCount); err != nil {
 		return item, err
@@ -124,7 +124,7 @@ type GetPostRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanGetPostRow(rows sql.Rows) (GetPostRow, error) {
+func scanGetPostRow(rows *sql.Rows) (GetPostRow, error) {
 	var item GetPostRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -138,7 +138,7 @@ type GetPostTagsRow struct {
 	Description sql.NullString
 }
 
-func scanGetPostTagsRow(rows sql.Rows) (GetPostTagsRow, error) {
+func scanGetPostTagsRow(rows *sql.Rows) (GetPostTagsRow, error) {
 	var item GetPostTagsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description); err != nil {
 		return item, err
@@ -157,7 +157,7 @@ type GetPostsByTagRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanGetPostsByTagRow(rows sql.Rows) (GetPostsByTagRow, error) {
+func scanGetPostsByTagRow(rows *sql.Rows) (GetPostsByTagRow, error) {
 	var item GetPostsByTagRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -171,7 +171,7 @@ type GetTagByNameRow struct {
 	Description sql.NullString
 }
 
-func scanGetTagByNameRow(rows sql.Rows) (GetTagByNameRow, error) {
+func scanGetTagByNameRow(rows *sql.Rows) (GetTagByNameRow, error) {
 	var item GetTagByNameRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description); err != nil {
 		return item, err
@@ -185,7 +185,7 @@ type GetTagRow struct {
 	Description sql.NullString
 }
 
-func scanGetTagRow(rows sql.Rows) (GetTagRow, error) {
+func scanGetTagRow(rows *sql.Rows) (GetTagRow, error) {
 	var item GetTagRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description); err != nil {
 		return item, err
@@ -201,7 +201,7 @@ type ListAuthorsRow struct {
 	CreatedAt int64
 }
 
-func scanListAuthorsRow(rows sql.Rows) (ListAuthorsRow, error) {
+func scanListAuthorsRow(rows *sql.Rows) (ListAuthorsRow, error) {
 	var item ListAuthorsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Bio, &item.CreatedAt); err != nil {
 		return item, err
@@ -220,7 +220,7 @@ type ListPostsRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanListPostsRow(rows sql.Rows) (ListPostsRow, error) {
+func scanListPostsRow(rows *sql.Rows) (ListPostsRow, error) {
 	var item ListPostsRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -234,7 +234,7 @@ type ListTagsRow struct {
 	Description sql.NullString
 }
 
-func scanListTagsRow(rows sql.Rows) (ListTagsRow, error) {
+func scanListTagsRow(rows *sql.Rows) (ListTagsRow, error) {
 	var item ListTagsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Description); err != nil {
 		return item, err
@@ -253,7 +253,7 @@ type ListUnpublishedPostsRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanListUnpublishedPostsRow(rows sql.Rows) (ListUnpublishedPostsRow, error) {
+func scanListUnpublishedPostsRow(rows *sql.Rows) (ListUnpublishedPostsRow, error) {
 	var item ListUnpublishedPostsRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -272,7 +272,7 @@ type SearchPostsRow struct {
 	UpdatedAt sql.NullInt64
 }
 
-func scanSearchPostsRow(rows sql.Rows) (SearchPostsRow, error) {
+func scanSearchPostsRow(rows *sql.Rows) (SearchPostsRow, error) {
 	var item SearchPostsRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Content, &item.Published, &item.ViewCount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -288,7 +288,7 @@ type UpdateAuthorRow struct {
 	CreatedAt int64
 }
 
-func scanUpdateAuthorRow(rows sql.Rows) (UpdateAuthorRow, error) {
+func scanUpdateAuthorRow(rows *sql.Rows) (UpdateAuthorRow, error) {
 	var item UpdateAuthorRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Bio, &item.CreatedAt); err != nil {
 		return item, err

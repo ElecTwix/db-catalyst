@@ -5,11 +5,18 @@ import (
 	"database/sql"
 )
 
+type CreatePostParams struct {
+	UserId  int32
+	Title   string
+	Content sql.NullString
+	Status  sql.NullString
+}
+
 const queryCreatePost string = `INSERT INTO posts (user_id, title, content, status)
 VALUES (?, ?, ?, ?);`
 
-func (q *Queries) CreatePost(ctx context.Context, userId int32, title string, content sql.NullString, status sql.NullString) (QueryResult, error) {
-	res, err := q.db.ExecContext(ctx, queryCreatePost, userId, title, content, status)
+func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (QueryResult, error) {
+	res, err := q.db.ExecContext(ctx, queryCreatePost, arg.UserId, arg.Title, arg.Content, arg.Status)
 	if err != nil {
 		return QueryResult{}, err
 	}

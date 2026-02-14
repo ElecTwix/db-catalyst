@@ -5,13 +5,20 @@ import (
 	"database/sql"
 )
 
+type UpdateAuthorParams struct {
+	Name  string
+	Email string
+	Bio   sql.NullString
+	Id    int64
+}
+
 const queryUpdateAuthor string = `UPDATE authors
 SET name = ?, email = ?, bio = ?
 WHERE id = ?
 RETURNING *;`
 
-func (q *Queries) UpdateAuthor(ctx context.Context, name string, email string, bio sql.NullString, id int64) (UpdateAuthorRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryUpdateAuthor, name, email, bio, id)
+func (q *Queries) UpdateAuthor(ctx context.Context, arg UpdateAuthorParams) (UpdateAuthorRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryUpdateAuthor, arg.Name, arg.Email, arg.Bio, arg.Id)
 	if err != nil {
 		return UpdateAuthorRow{}, err
 	}

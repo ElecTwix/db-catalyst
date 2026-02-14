@@ -2,11 +2,17 @@ package mysqlblog
 
 import "context"
 
+type CreateCommentParams struct {
+	PostId  int32
+	UserId  int32
+	Content string
+}
+
 const queryCreateComment string = `INSERT INTO comments (post_id, user_id, content)
 VALUES (?, ?, ?);`
 
-func (q *Queries) CreateComment(ctx context.Context, postId int32, userId int32, content string) (QueryResult, error) {
-	res, err := q.db.ExecContext(ctx, queryCreateComment, postId, userId, content)
+func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (QueryResult, error) {
+	res, err := q.db.ExecContext(ctx, queryCreateComment, arg.PostId, arg.UserId, arg.Content)
 	if err != nil {
 		return QueryResult{}, err
 	}

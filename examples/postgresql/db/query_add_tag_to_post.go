@@ -2,13 +2,18 @@ package postgresqldb
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
 
+type AddTagToPostParams struct {
+	PostId  *uuid.UUID
+	PostId2 *uuid.UUID
+}
+
 const queryAddTagToPost string = `INSERT INTO post_tags (post_id, tag_id) VALUES ($1, $2);`
 
-func (q *Queries) AddTagToPost(ctx context.Context, postId *uuid.UUID, postId2 *uuid.UUID) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryAddTagToPost, postId, postId2)
+func (q *Queries) AddTagToPost(ctx context.Context, arg AddTagToPostParams) error {
+	_, err := q.db.ExecContext(ctx, queryAddTagToPost, arg.PostId, arg.PostId2)
+	return err
 }

@@ -31,7 +31,9 @@ func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQu
 		db:      db,
 	}
 	prepared := make([]*sql.Stmt, 0, 3)
-	stmt, err := db.PrepareContext(ctx, queryCreateUser)
+	var stmt *sql.Stmt
+	var err error
+	stmt, err = db.PrepareContext(ctx, queryCreateUser)
 	if err != nil {
 		for _, preparedStmt := range prepared {
 			preparedStmt.Close()
@@ -40,7 +42,7 @@ func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQu
 	}
 	prepared = append(prepared, stmt)
 	pq.stmtCreateUser = stmt
-	stmt, err := db.PrepareContext(ctx, queryGetUser)
+	stmt, err = db.PrepareContext(ctx, queryGetUser)
 	if err != nil {
 		for _, preparedStmt := range prepared {
 			preparedStmt.Close()
@@ -49,7 +51,7 @@ func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQu
 	}
 	prepared = append(prepared, stmt)
 	pq.stmtGetUser = stmt
-	stmt, err := db.PrepareContext(ctx, queryListPostsByAuthor)
+	stmt, err = db.PrepareContext(ctx, queryListPostsByAuthor)
 	if err != nil {
 		for _, preparedStmt := range prepared {
 			preparedStmt.Close()
@@ -88,7 +90,7 @@ func (p *PreparedQueries) Close() error {
 	return err
 }
 
-func (p *PreparedQueries) CreateUser(ctx context.Context, username string, email string) (int32, error) {
+func (p *PreparedQueries) CreateUser(ctx context.Context, arg CreateUserParams) (int32, error) {
 	stmt := p.stmtCreateUser
 	rows, err := stmt.QueryContext(ctx, arg.Username, arg.Email)
 	if err != nil {

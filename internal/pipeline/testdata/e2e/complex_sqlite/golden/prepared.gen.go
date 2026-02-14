@@ -30,7 +30,9 @@ func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQu
 		db:      db,
 	}
 	prepared := make([]*sql.Stmt, 0, 2)
-	stmt, err := db.PrepareContext(ctx, queryDeleteTag)
+	var stmt *sql.Stmt
+	var err error
+	stmt, err = db.PrepareContext(ctx, queryDeleteTag)
 	if err != nil {
 		for _, preparedStmt := range prepared {
 			preparedStmt.Close()
@@ -39,7 +41,7 @@ func Prepare(ctx context.Context, db PrepareDB, cfg PreparedConfig) (*PreparedQu
 	}
 	prepared = append(prepared, stmt)
 	pq.stmtDeleteTag = stmt
-	stmt, err := db.PrepareContext(ctx, queryGetItemWithTags)
+	stmt, err = db.PrepareContext(ctx, queryGetItemWithTags)
 	if err != nil {
 		for _, preparedStmt := range prepared {
 			preparedStmt.Close()
@@ -72,10 +74,10 @@ func (p *PreparedQueries) Close() error {
 	return err
 }
 
-func (p *PreparedQueries) DeleteTag(ctx context.Context, tag string) (sql.Result, error) {
+func (p *PreparedQueries) DeleteTag(ctx context.Context, tag string) error {
 	stmt := p.stmtDeleteTag
-	res, err := stmt.ExecContext(ctx, tag)
-	return res, err
+	_, err := stmt.ExecContext(ctx, tag)
+	return err
 }
 
 func (p *PreparedQueries) GetItemWithTags(ctx context.Context, id *int32) (GetItemWithTagsRow, error) {

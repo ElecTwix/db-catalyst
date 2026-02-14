@@ -11,7 +11,7 @@ type GetPopularPostsRow struct {
 	CreatedAt int64
 }
 
-func scanGetPopularPostsRow(rows sql.Rows) (GetPopularPostsRow, error) {
+func scanGetPopularPostsRow(rows *sql.Rows) (GetPopularPostsRow, error) {
 	var item GetPopularPostsRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Likes, &item.CreatedAt); err != nil {
 		return item, err
@@ -27,7 +27,7 @@ type GetUserByEmailRow struct {
 	CreatedAt int64
 }
 
-func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
+func scanGetUserByEmailRow(rows *sql.Rows) (GetUserByEmailRow, error) {
 	var item GetUserByEmailRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Active, &item.CreatedAt); err != nil {
 		return item, err
@@ -44,7 +44,7 @@ type GetUserPostsRow struct {
 	CreatedAt int64
 }
 
-func scanGetUserPostsRow(rows sql.Rows) (GetUserPostsRow, error) {
+func scanGetUserPostsRow(rows *sql.Rows) (GetUserPostsRow, error) {
 	var item GetUserPostsRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Title, &item.Content, &item.Likes, &item.CreatedAt); err != nil {
 		return item, err
@@ -60,7 +60,7 @@ type GetUserRow struct {
 	CreatedAt int64
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Active, &item.CreatedAt); err != nil {
 		return item, err
@@ -76,7 +76,7 @@ type ListActiveUsersRow struct {
 	CreatedAt int64
 }
 
-func scanListActiveUsersRow(rows sql.Rows) (ListActiveUsersRow, error) {
+func scanListActiveUsersRow(rows *sql.Rows) (ListActiveUsersRow, error) {
 	var item ListActiveUsersRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Email, &item.Active, &item.CreatedAt); err != nil {
 		return item, err

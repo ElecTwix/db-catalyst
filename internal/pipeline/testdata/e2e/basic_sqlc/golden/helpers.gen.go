@@ -12,7 +12,7 @@ type GetUserRow struct {
 	CreatedAt *time.Time
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Username, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -28,7 +28,7 @@ type ListPostsByAuthorRow struct {
 	Status   string
 }
 
-func scanListPostsByAuthorRow(rows sql.Rows) (ListPostsByAuthorRow, error) {
+func scanListPostsByAuthorRow(rows *sql.Rows) (ListPostsByAuthorRow, error) {
 	var item ListPostsByAuthorRow
 	if err := rows.Scan(&item.Id, &item.AuthorId, &item.Title, &item.Body, &item.Status); err != nil {
 		return item, err

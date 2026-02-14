@@ -9,7 +9,7 @@ FROM tags t
 ORDER BY post_count DESC
 LIMIT ?;`
 
-func (q *Queries) GetPopularTags(ctx context.Context, limit *any) ([]GetPopularTagsRow, error) {
+func (q *Queries) GetPopularTags(ctx context.Context, limit any) ([]GetPopularTagsRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetPopularTags, limit)
 	if err != nil {
 		return nil, err

@@ -1,13 +1,17 @@
 package cachedb
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
+
+type UpdateUserParams struct {
+	Name  string
+	Email string
+	Id    int64
+}
 
 const queryUpdateUser string = `UPDATE users SET name = $1, email = $2 WHERE id = $3;`
 
 // UpdateUser updates a user and invalidates related caches.
-func (q *Queries) UpdateUser(ctx context.Context, name string, email string, id int64) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryUpdateUser, name, email, id)
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
+	_, err := q.db.ExecContext(ctx, queryUpdateUser, arg.Name, arg.Email, arg.Id)
+	return err
 }

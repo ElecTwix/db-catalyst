@@ -5,11 +5,18 @@ import (
 	"database/sql"
 )
 
+type CreateUserParams struct {
+	Email        string
+	Username     string
+	PasswordHash string
+	Status       sql.NullString
+}
+
 const queryCreateUser string = `INSERT INTO users (email, username, password_hash, status)
 VALUES (?, ?, ?, ?);`
 
-func (q *Queries) CreateUser(ctx context.Context, email string, username string, passwordHash string, status sql.NullString) (QueryResult, error) {
-	res, err := q.db.ExecContext(ctx, queryCreateUser, email, username, passwordHash, status)
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (QueryResult, error) {
+	res, err := q.db.ExecContext(ctx, queryCreateUser, arg.Email, arg.Username, arg.PasswordHash, arg.Status)
 	if err != nil {
 		return QueryResult{}, err
 	}

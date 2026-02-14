@@ -8,7 +8,7 @@ type GetUserRow struct {
 	Credits sql.NullFloat64
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.Credits); err != nil {
 		return item, err
@@ -21,7 +21,7 @@ type ListUsersByIDsRow struct {
 	Email sql.NullString
 }
 
-func scanListUsersByIDsRow(rows sql.Rows) (ListUsersByIDsRow, error) {
+func scanListUsersByIDsRow(rows *sql.Rows) (ListUsersByIDsRow, error) {
 	var item ListUsersByIDsRow
 	if err := rows.Scan(&item.Id, &item.Email); err != nil {
 		return item, err
@@ -34,7 +34,7 @@ type ListUsersRow struct {
 	Email sql.NullString
 }
 
-func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
+func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
 	var item ListUsersRow
 	if err := rows.Scan(&item.Id, &item.Email); err != nil {
 		return item, err
@@ -48,7 +48,7 @@ type SummarizeCreditsRow struct {
 	AvgCredit  sql.NullFloat64
 }
 
-func scanSummarizeCreditsRow(rows sql.Rows) (SummarizeCreditsRow, error) {
+func scanSummarizeCreditsRow(rows *sql.Rows) (SummarizeCreditsRow, error) {
 	var item SummarizeCreditsRow
 	if err := rows.Scan(&item.TotalUsers, &item.SumCredits, &item.AvgCredit); err != nil {
 		return item, err

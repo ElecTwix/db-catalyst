@@ -50,7 +50,11 @@ func main() {
 	// Create products with Money type
 	fmt.Println("\n2. Creating products with Money type...")
 	//nolint:mnd // Example product prices
-	product1, err := queries.CreateProduct(ctx, types.SKU("LAPTOP-001"), "Gaming Laptop", types.FromDollars(1299.99))
+	product1, err := queries.CreateProduct(ctx, advanceddb.CreateProductParams{
+		Sku:   types.SKU("LAPTOP-001"),
+		Name:  "Gaming Laptop",
+		Price: types.FromDollars(1299.99),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,7 +62,11 @@ func main() {
 		product1.Id, product1.Sku, types.Money(product1.Price.(int64)).Dollars())
 
 	//nolint:mnd // Example product prices
-	product2, err := queries.CreateProduct(ctx, types.SKU("MOUSE-001"), "Wireless Mouse", types.FromDollars(49.99))
+	product2, err := queries.CreateProduct(ctx, advanceddb.CreateProductParams{
+		Sku:   types.SKU("MOUSE-001"),
+		Name:  "Wireless Mouse",
+		Price: types.FromDollars(49.99),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,7 +75,11 @@ func main() {
 
 	// Create order with custom types
 	fmt.Println("\n3. Creating orders with Status enum...")
-	order1, err := queries.CreateOrder(ctx, user1.Id, types.StatusPending, types.FromDollars(0))
+	order1, err := queries.CreateOrder(ctx, advanceddb.CreateOrderParams{
+		UserId:      user1.Id,
+		Status:      types.StatusPending,
+		TotalAmount: types.FromDollars(0),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -94,7 +106,10 @@ func main() {
 
 	// Update order status
 	fmt.Println("\n6. Updating order status...")
-	updatedOrder, err := queries.UpdateOrderStatus(ctx, types.StatusProcessing, order1.Id)
+	updatedOrder, err := queries.UpdateOrderStatus(ctx, advanceddb.UpdateOrderStatusParams{
+		Status: types.StatusProcessing,
+		Id:     order1.Id,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

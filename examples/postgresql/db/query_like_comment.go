@@ -2,7 +2,6 @@ package postgresqldb
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -11,6 +10,7 @@ const queryLikeComment string = `UPDATE comments SET likes = likes + 1 WHERE id 
 
 -- Tag queries`
 
-func (q *Queries) LikeComment(ctx context.Context, id uuid.UUID) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryLikeComment, id)
+func (q *Queries) LikeComment(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, queryLikeComment, id)
+	return err
 }

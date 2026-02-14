@@ -328,7 +328,41 @@ func parseParamType(content string) *ParamTypeOverride {
 }
 
 func trimSQL(sql string) string {
-	return strings.TrimRightFunc(sql, unicode.IsSpace)
+	// Trim trailing whitespace
+	sql = strings.TrimRightFunc(sql, unicode.IsSpace)
+
+	// Remove trailing block comments (/* ... */)
+	// Keep trimming until no more trailing comments
+	for {
+		// Find the last occurrence of "*/"
+		endIdx := strings.LastIndex(sql, "*/")
+		if endIdx == -1 {
+			break
+		}
+
+		// Find the matching "/*" before it
+		startIdx := strings.LastIndex(sql[:endIdx], "/*")
+		if startIdx == -1 {
+			break
+		}
+
+		// Check if there's only whitespace between the end of SQL and the comment
+		beforeComment := sql[:startIdx]
+		afterComment := sql[endIdx+2:]
+
+		// If afterComment is empty or whitespace, and beforeComment ends with semicolon,
+		// then this is a trailing comment we should remove
+		afterComment = strings.TrimRightFunc(afterComment, unicode.IsSpace)
+		if afterComment == "" && strings.TrimRightFunc(beforeComment, unicode.IsSpace) != "" {
+			// This is a trailing comment
+			sql = strings.TrimRightFunc(beforeComment, unicode.IsSpace)
+			continue
+		}
+
+		break
+	}
+
+	return sql
 }
 
 func formatDoc(lines []string) string {

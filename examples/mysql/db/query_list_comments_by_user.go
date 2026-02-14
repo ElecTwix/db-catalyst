@@ -2,10 +2,15 @@ package mysqlblog
 
 import "context"
 
+type ListCommentsByUserParams struct {
+	UserId int32
+	Limit  any
+}
+
 const queryListCommentsByUser string = `SELECT * FROM comments WHERE user_id = ? ORDER BY created_at DESC LIMIT ?;`
 
-func (q *Queries) ListCommentsByUser(ctx context.Context, userId int32, limit *any) ([]ListCommentsByUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryListCommentsByUser, userId, limit)
+func (q *Queries) ListCommentsByUser(ctx context.Context, arg ListCommentsByUserParams) ([]ListCommentsByUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListCommentsByUser, arg.UserId, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

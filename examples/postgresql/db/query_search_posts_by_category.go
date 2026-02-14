@@ -6,7 +6,7 @@ const querySearchPostsByCategory string = `SELECT * FROM posts WHERE $1 = ANY(ca
 
 -- Comment queries`
 
-func (q *Queries) SearchPostsByCategory(ctx context.Context, any *any) ([]SearchPostsByCategoryRow, error) {
+func (q *Queries) SearchPostsByCategory(ctx context.Context, any any) ([]SearchPostsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, querySearchPostsByCategory, any)
 	if err != nil {
 		return nil, err

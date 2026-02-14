@@ -1,12 +1,10 @@
 package mysqlblog
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
 
 const queryDeleteComment string = `DELETE FROM comments WHERE id = ?;`
 
-func (q *Queries) DeleteComment(ctx context.Context, id int32) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryDeleteComment, id)
+func (q *Queries) DeleteComment(ctx context.Context, id int32) error {
+	_, err := q.db.ExecContext(ctx, queryDeleteComment, id)
+	return err
 }

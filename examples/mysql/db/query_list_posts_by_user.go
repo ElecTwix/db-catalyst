@@ -5,10 +5,16 @@ import (
 	"database/sql"
 )
 
+type ListPostsByUserParams struct {
+	UserId int32
+	Status sql.NullString
+	Limit  any
+}
+
 const queryListPostsByUser string = `SELECT * FROM posts WHERE user_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?;`
 
-func (q *Queries) ListPostsByUser(ctx context.Context, userId int32, status sql.NullString, limit *any) ([]ListPostsByUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryListPostsByUser, userId, status, limit)
+func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]ListPostsByUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryListPostsByUser, arg.UserId, arg.Status, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

@@ -1,12 +1,10 @@
 package simpledb
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
 
 const queryDeleteUser string = `DELETE FROM users WHERE id = ?;`
 
-func (q *Queries) DeleteUser(ctx context.Context, id int64) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryDeleteUser, id)
+func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, queryDeleteUser, id)
+	return err
 }

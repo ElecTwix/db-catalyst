@@ -8,10 +8,10 @@ type CreateOrderRow struct {
 	Status      any
 	TotalAmount any
 	CreatedAt   any
-	UpdatedAt   *any
+	UpdatedAt   any
 }
 
-func scanCreateOrderRow(rows sql.Rows) (CreateOrderRow, error) {
+func scanCreateOrderRow(rows *sql.Rows) (CreateOrderRow, error) {
 	var item CreateOrderRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Status, &item.TotalAmount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -27,7 +27,7 @@ type CreateProductRow struct {
 	CreatedAt any
 }
 
-func scanCreateProductRow(rows sql.Rows) (CreateProductRow, error) {
+func scanCreateProductRow(rows *sql.Rows) (CreateProductRow, error) {
 	var item CreateProductRow
 	if err := rows.Scan(&item.Id, &item.Sku, &item.Name, &item.Price, &item.CreatedAt); err != nil {
 		return item, err
@@ -41,7 +41,7 @@ type CreateUserRow struct {
 	CreatedAt any
 }
 
-func scanCreateUserRow(rows sql.Rows) (CreateUserRow, error) {
+func scanCreateUserRow(rows *sql.Rows) (CreateUserRow, error) {
 	var item CreateUserRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -55,10 +55,10 @@ type GetOrderRow struct {
 	Status      any
 	TotalAmount any
 	CreatedAt   any
-	UpdatedAt   *any
+	UpdatedAt   any
 }
 
-func scanGetOrderRow(rows sql.Rows) (GetOrderRow, error) {
+func scanGetOrderRow(rows *sql.Rows) (GetOrderRow, error) {
 	var item GetOrderRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Status, &item.TotalAmount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -68,10 +68,10 @@ func scanGetOrderRow(rows sql.Rows) (GetOrderRow, error) {
 
 type GetOrderStatisticsRow struct {
 	TotalOrders  int64
-	TotalRevenue *any
+	TotalRevenue any
 }
 
-func scanGetOrderStatisticsRow(rows sql.Rows) (GetOrderStatisticsRow, error) {
+func scanGetOrderStatisticsRow(rows *sql.Rows) (GetOrderStatisticsRow, error) {
 	var item GetOrderStatisticsRow
 	if err := rows.Scan(&item.TotalOrders, &item.TotalRevenue); err != nil {
 		return item, err
@@ -87,7 +87,7 @@ type GetOrdersByStatusRow struct {
 	CreatedAt   any
 }
 
-func scanGetOrdersByStatusRow(rows sql.Rows) (GetOrdersByStatusRow, error) {
+func scanGetOrdersByStatusRow(rows *sql.Rows) (GetOrdersByStatusRow, error) {
 	var item GetOrdersByStatusRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Status, &item.TotalAmount, &item.CreatedAt); err != nil {
 		return item, err
@@ -103,7 +103,7 @@ type GetProductBySkuRow struct {
 	CreatedAt any
 }
 
-func scanGetProductBySkuRow(rows sql.Rows) (GetProductBySkuRow, error) {
+func scanGetProductBySkuRow(rows *sql.Rows) (GetProductBySkuRow, error) {
 	var item GetProductBySkuRow
 	if err := rows.Scan(&item.Id, &item.Sku, &item.Name, &item.Price, &item.CreatedAt); err != nil {
 		return item, err
@@ -119,7 +119,7 @@ type GetProductRow struct {
 	CreatedAt any
 }
 
-func scanGetProductRow(rows sql.Rows) (GetProductRow, error) {
+func scanGetProductRow(rows *sql.Rows) (GetProductRow, error) {
 	var item GetProductRow
 	if err := rows.Scan(&item.Id, &item.Sku, &item.Name, &item.Price, &item.CreatedAt); err != nil {
 		return item, err
@@ -133,7 +133,7 @@ type GetUserByEmailRow struct {
 	CreatedAt any
 }
 
-func scanGetUserByEmailRow(rows sql.Rows) (GetUserByEmailRow, error) {
+func scanGetUserByEmailRow(rows *sql.Rows) (GetUserByEmailRow, error) {
 	var item GetUserByEmailRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -147,7 +147,7 @@ type GetUserRow struct {
 	CreatedAt any
 }
 
-func scanGetUserRow(rows sql.Rows) (GetUserRow, error) {
+func scanGetUserRow(rows *sql.Rows) (GetUserRow, error) {
 	var item GetUserRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -162,7 +162,7 @@ type ListOrdersByUserRow struct {
 	CreatedAt   any
 }
 
-func scanListOrdersByUserRow(rows sql.Rows) (ListOrdersByUserRow, error) {
+func scanListOrdersByUserRow(rows *sql.Rows) (ListOrdersByUserRow, error) {
 	var item ListOrdersByUserRow
 	if err := rows.Scan(&item.Id, &item.Status, &item.TotalAmount, &item.CreatedAt); err != nil {
 		return item, err
@@ -178,7 +178,7 @@ type ListProductsRow struct {
 	CreatedAt any
 }
 
-func scanListProductsRow(rows sql.Rows) (ListProductsRow, error) {
+func scanListProductsRow(rows *sql.Rows) (ListProductsRow, error) {
 	var item ListProductsRow
 	if err := rows.Scan(&item.Id, &item.Sku, &item.Name, &item.Price, &item.CreatedAt); err != nil {
 		return item, err
@@ -192,7 +192,7 @@ type ListUsersRow struct {
 	CreatedAt any
 }
 
-func scanListUsersRow(rows sql.Rows) (ListUsersRow, error) {
+func scanListUsersRow(rows *sql.Rows) (ListUsersRow, error) {
 	var item ListUsersRow
 	if err := rows.Scan(&item.Id, &item.Email, &item.CreatedAt); err != nil {
 		return item, err
@@ -206,10 +206,10 @@ type UpdateOrderStatusRow struct {
 	Status      any
 	TotalAmount any
 	CreatedAt   any
-	UpdatedAt   *any
+	UpdatedAt   any
 }
 
-func scanUpdateOrderStatusRow(rows sql.Rows) (UpdateOrderStatusRow, error) {
+func scanUpdateOrderStatusRow(rows *sql.Rows) (UpdateOrderStatusRow, error) {
 	var item UpdateOrderStatusRow
 	if err := rows.Scan(&item.Id, &item.UserId, &item.Status, &item.TotalAmount, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, err
@@ -225,7 +225,7 @@ type UpdateProductPriceRow struct {
 	CreatedAt any
 }
 
-func scanUpdateProductPriceRow(rows sql.Rows) (UpdateProductPriceRow, error) {
+func scanUpdateProductPriceRow(rows *sql.Rows) (UpdateProductPriceRow, error) {
 	var item UpdateProductPriceRow
 	if err := rows.Scan(&item.Id, &item.Sku, &item.Name, &item.Price, &item.CreatedAt); err != nil {
 		return item, err

@@ -238,21 +238,21 @@ func (p *PreparedQueries) prepareUpdateUserCredits(ctx context.Context) (*sql.St
 	return stmt, nil
 }
 
-func (p *PreparedQueries) CreateUser(ctx context.Context, email sql.NullString, credits sql.NullFloat64) (sql.Result, error) {
+func (p *PreparedQueries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	stmt, err := p.prepareCreateUser(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	recorder := p.metrics
 	var start time.Time
 	if recorder != nil {
 		start = time.Now()
 	}
-	res, err := stmt.ExecContext(ctx, arg.Email, arg.Credits)
+	_, err = stmt.ExecContext(ctx, arg.Email, arg.Credits)
 	if recorder != nil {
 		recorder.ObservePreparedQuery(ctx, "CreateUser", time.Since(start), err)
 	}
-	return res, err
+	return err
 }
 
 func (p *PreparedQueries) DeleteUser(ctx context.Context, id int64) (QueryResult, error) {
@@ -420,19 +420,19 @@ func (p *PreparedQueries) SummarizeCredits(ctx context.Context) (SummarizeCredit
 	return item, nil
 }
 
-func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, credits sql.NullFloat64, id int64) (sql.Result, error) {
+func (p *PreparedQueries) UpdateUserCredits(ctx context.Context, arg UpdateUserCreditsParams) error {
 	stmt, err := p.prepareUpdateUserCredits(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	recorder := p.metrics
 	var start time.Time
 	if recorder != nil {
 		start = time.Now()
 	}
-	res, err := stmt.ExecContext(ctx, arg.Credits, arg.Id)
+	_, err = stmt.ExecContext(ctx, arg.Credits, arg.Id)
 	if recorder != nil {
 		recorder.ObservePreparedQuery(ctx, "UpdateUserCredits", time.Since(start), err)
 	}
-	return res, err
+	return err
 }

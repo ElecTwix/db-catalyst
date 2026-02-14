@@ -9,7 +9,7 @@ type GetItemWithTagsRow struct {
 	Tags     any
 }
 
-func scanGetItemWithTagsRow(rows sql.Rows) (GetItemWithTagsRow, error) {
+func scanGetItemWithTagsRow(rows *sql.Rows) (GetItemWithTagsRow, error) {
 	var item GetItemWithTagsRow
 	if err := rows.Scan(&item.Id, &item.Name, &item.Metadata, &item.Tags); err != nil {
 		return item, err

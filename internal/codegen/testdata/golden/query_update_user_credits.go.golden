@@ -12,6 +12,7 @@ type UpdateUserCreditsParams struct {
 
 const queryUpdateUserCredits string = `UPDATE users SET credits = ? WHERE id = ?`
 
-func (q *Queries) UpdateUserCredits(ctx context.Context, arg UpdateUserCreditsParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, queryUpdateUserCredits, arg.Credits, arg.Id)
+func (q *Queries) UpdateUserCredits(ctx context.Context, arg UpdateUserCreditsParams) error {
+	_, err := q.db.ExecContext(ctx, queryUpdateUserCredits, arg.Credits, arg.Id)
+	return err
 }

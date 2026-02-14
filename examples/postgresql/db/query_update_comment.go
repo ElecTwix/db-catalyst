@@ -8,10 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type UpdateCommentParams struct {
+	Commentbody pgtype.Text
+	Id          uuid.UUID
+}
+
 const queryUpdateComment string = `UPDATE comments SET commentbody = $2 WHERE id = $1 RETURNING *;`
 
-func (q *Queries) UpdateComment(ctx context.Context, commentbody pgtype.Text, id uuid.UUID) (UpdateCommentRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryUpdateComment, commentbody, id)
+func (q *Queries) UpdateComment(ctx context.Context, arg UpdateCommentParams) (UpdateCommentRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryUpdateComment, arg.Commentbody, arg.Id)
 	if err != nil {
 		return UpdateCommentRow{}, err
 	}

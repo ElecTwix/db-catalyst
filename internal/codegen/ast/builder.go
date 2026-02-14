@@ -424,8 +424,9 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 			info.returnType = "[]" + helper.rowTypeName
 			info.returnZero = "nil"
 		case block.CommandExec:
-			info.returnType = "sql.Result"
-			info.returnZero = "nil"
+			// :exec returns just error, not sql.Result
+			info.returnType = ""
+			info.returnZero = ""
 		case block.CommandExecResult:
 			info.returnType = "QueryResult"
 			info.returnZero = "QueryResult{}"
@@ -648,17 +649,27 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 	interfaceFields := make([]*goast.Field, 0, len(queries))
 	for _, q := range queries {
 		params := []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")}}
-		for _, p := range q.params {
-			expr, err := parser.ParseExpr(p.goType)
-			if err != nil {
-				return nil, err
+
+		// If we have a param struct (2+ params), use it instead of individual params
+		if q.paramStruct != nil {
+			params = append(params, &goast.Field{
+				Names: []*goast.Ident{goast.NewIdent("arg")},
+				Type:  goast.NewIdent(q.paramStruct.typeName),
+			})
+		} else {
+			for _, p := range q.params {
+				expr, err := parser.ParseExpr(p.goType)
+				if err != nil {
+					return nil, err
+				}
+				paramType := expr
+				if p.variadic {
+					paramType = &goast.Ellipsis{Elt: expr}
+				}
+				params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 			}
-			paramType := expr
-			if p.variadic {
-				paramType = &goast.Ellipsis{Elt: expr}
-			}
-			params = append(params, &goast.Field{Names: []*goast.Ident{goast.NewIdent(p.name)}, Type: paramType})
 		}
+
 		results := []*goast.Field{}
 		if q.returnType != "" {
 			expr, err := parser.ParseExpr(q.returnType)
@@ -692,12 +703,12 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
 			{Names: []*goast.Ident{goast.NewIdent("query")}, Type: goast.NewIdent("string")},
 			{Names: []*goast.Ident{goast.NewIdent("args")}, Type: &goast.Ellipsis{Elt: goast.NewIdent("any")}},
-		}, []*goast.Field{{Type: selector("sql", "Rows")}, {Type: goast.NewIdent("error")}})},
+		}, []*goast.Field{{Type: &goast.StarExpr{X: selector("sql", "Rows")}}, {Type: goast.NewIdent("error")}})},
 		{Names: []*goast.Ident{goast.NewIdent("QueryRowContext")}, Type: funcType([]*goast.Field{
 			{Names: []*goast.Ident{goast.NewIdent("ctx")}, Type: selector("context", "Context")},
 			{Names: []*goast.Ident{goast.NewIdent("query")}, Type: goast.NewIdent("string")},
 			{Names: []*goast.Ident{goast.NewIdent("args")}, Type: &goast.Ellipsis{Elt: goast.NewIdent("any")}},
-		}, []*goast.Field{{Type: selector("sql", "Row")}})},
+		}, []*goast.Field{{Type: &goast.StarExpr{X: selector("sql", "Row")}}})},
 	}
 	dbtxType := &goast.TypeSpec{Name: goast.NewIdent("DBTX"), Type: &goast.InterfaceType{Methods: &goast.FieldList{List: dbtxMethods}}}
 	dbtxDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{dbtxType}}
@@ -729,19 +740,34 @@ func (b *Builder) buildQuerierFile(pkg string, queries []queryInfo) (*goast.File
 		}},
 	}
 
+	// Add WithTx method for transaction support
+	withTxFunc := &goast.FuncDecl{
+		Name: goast.NewIdent("WithTx"),
+		Recv: &goast.FieldList{List: []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("q")}, Type: &goast.StarExpr{X: goast.NewIdent("Queries")}}}},
+		Type: &goast.FuncType{
+			Params:  &goast.FieldList{List: []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("tx")}, Type: goast.NewIdent("DBTX")}}},
+			Results: &goast.FieldList{List: []*goast.Field{{Type: &goast.StarExpr{X: goast.NewIdent("Queries")}}}},
+		},
+		Body: &goast.BlockStmt{List: []goast.Stmt{
+			&goast.ReturnStmt{Results: []goast.Expr{&goast.UnaryExpr{Op: token.AND, X: &goast.CompositeLit{Type: goast.NewIdent("Queries"), Elts: []goast.Expr{
+				&goast.KeyValueExpr{Key: goast.NewIdent("db"), Value: goast.NewIdent("tx")},
+			}}}}},
+		}},
+	}
+
 	resultStruct := &goast.TypeSpec{Name: goast.NewIdent("QueryResult"), Type: &goast.StructType{Fields: &goast.FieldList{List: []*goast.Field{
 		{Names: []*goast.Ident{goast.NewIdent("LastInsertID")}, Type: goast.NewIdent("int64")},
 		{Names: []*goast.Ident{goast.NewIdent("RowsAffected")}, Type: goast.NewIdent("int64")},
 	}}}}
 	resultDecl := &goast.GenDecl{Tok: token.TYPE, Specs: []goast.Spec{resultStruct}}
 
-	file.Decls = []goast.Decl{querierDecl, dbtxDecl, queriesDecl, newFunc, resultDecl}
+	file.Decls = []goast.Decl{querierDecl, dbtxDecl, queriesDecl, newFunc, withTxFunc, resultDecl}
 
 	// Add Cache interface if any queries use caching
 	if hasCache {
 		cacheDecl := buildCacheInterface()
-		// Insert cache interface before queriesDecl
-		file.Decls = append([]goast.Decl{querierDecl, dbtxDecl, cacheDecl, queriesDecl, newFunc, resultDecl}, file.Decls[5:]...)
+		// Insert cache interface before queriesDecl: [querier, dbtx, cache, queries, newFunc, withTxFunc, resultDecl]
+		file.Decls = []goast.Decl{querierDecl, dbtxDecl, cacheDecl, queriesDecl, newFunc, withTxFunc, resultDecl}
 	}
 
 	return file, nil
@@ -836,7 +862,7 @@ func (b *Builder) buildHelpersFile(pkg string, helpers []*helperSpec) (*goast.Fi
 		funcDecl := &goast.FuncDecl{
 			Name: goast.NewIdent(helper.funcName),
 			Type: &goast.FuncType{
-				Params:  &goast.FieldList{List: []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("rows")}, Type: selector("sql", "Rows")}}},
+				Params:  &goast.FieldList{List: []*goast.Field{{Names: []*goast.Ident{goast.NewIdent("rows")}, Type: &goast.StarExpr{X: selector("sql", "Rows")}}}},
 				Results: &goast.FieldList{List: []*goast.Field{{Type: goast.NewIdent(helper.rowTypeName)}, {Type: goast.NewIdent("error")}}},
 			},
 			Body: &goast.BlockStmt{List: stmts},
@@ -987,8 +1013,10 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 	fmt.Fprintf(&buf, "\t}\n")
 	if !b.opts.Prepared.ThreadSafe {
 		fmt.Fprintf(&buf, "\tprepared := make([]*sql.Stmt, 0, %d)\n", len(queries))
+		fmt.Fprintf(&buf, "\tvar stmt *sql.Stmt\n")
+		fmt.Fprintf(&buf, "\tvar err error\n")
 		for _, q := range queries {
-			fmt.Fprintf(&buf, "\tstmt, err := db.PrepareContext(ctx, %s)\n", q.constName)
+			fmt.Fprintf(&buf, "\tstmt, err = db.PrepareContext(ctx, %s)\n", q.constName)
 			fmt.Fprintf(&buf, "\tif err != nil {\n")
 			fmt.Fprintf(&buf, "\t\tfor _, preparedStmt := range prepared {\n")
 			fmt.Fprintf(&buf, "\t\t\tpreparedStmt.Close()\n")
@@ -1065,22 +1093,34 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 			fmt.Fprintf(&buf, "// %s\n", q.docComment)
 		}
 		fmt.Fprintf(&buf, "func (p *PreparedQueries) %s(ctx context.Context", q.methodName)
-		for _, param := range q.params {
-			if param.variadic {
-				fmt.Fprintf(&buf, ", %s ...%s", param.name, param.goType)
-				continue
+
+		// If we have a param struct (2+ params), use it instead of individual params
+		if q.paramStruct != nil {
+			fmt.Fprintf(&buf, ", arg %s", q.paramStruct.typeName)
+		} else {
+			for _, param := range q.params {
+				if param.variadic {
+					fmt.Fprintf(&buf, ", %s ...%s", param.name, param.goType)
+					continue
+				}
+				fmt.Fprintf(&buf, ", %s %s", param.name, param.goType)
 			}
-			fmt.Fprintf(&buf, ", %s %s", param.name, param.goType)
 		}
 		fmt.Fprintf(&buf, ") (")
 		if q.returnType != "" {
 			fmt.Fprintf(&buf, "%s, ", q.returnType)
 		}
 		fmt.Fprintf(&buf, "error) {\n")
+		// Track if err was declared (only in ThreadSafe mode when calling prepareFn)
+		errDeclared := b.opts.Prepared.ThreadSafe
 		if b.opts.Prepared.ThreadSafe {
 			fmt.Fprintf(&buf, "\tstmt, err := p.%s(ctx)\n", q.prepareFn)
 			fmt.Fprintf(&buf, "\tif err != nil {\n")
-			fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+			if q.returnType != "" {
+				fmt.Fprintf(&buf, "\t\treturn %s, err\n", q.returnZero)
+			} else {
+				fmt.Fprintf(&buf, "\t\treturn err\n")
+			}
 			fmt.Fprintf(&buf, "\t}\n")
 		} else {
 			fmt.Fprintf(&buf, "\tstmt := p.%s\n", q.stmtField)
@@ -1106,7 +1146,11 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 
 		switch q.command {
 		case block.CommandExec:
-			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
+			if errDeclared {
+				fmt.Fprintf(&buf, "\t_, err = stmt.ExecContext(ctx")
+			} else {
+				fmt.Fprintf(&buf, "\t_, err := stmt.ExecContext(ctx")
+			}
 			for _, arg := range q.args {
 				fmt.Fprintf(&buf, ", %s", arg)
 			}
@@ -1116,7 +1160,7 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
 				fmt.Fprintf(&buf, "\t}\n")
 			}
-			fmt.Fprintf(&buf, "\treturn res, err\n")
+			fmt.Fprintf(&buf, "\treturn err\n")
 		case block.CommandExecResult:
 			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
 			for _, arg := range q.args {
@@ -1324,12 +1368,14 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 
 	switch q.command {
 	case block.CommandExec:
+		// :exec returns just error, execute and discard result
 		if hasDynamic {
-			body = append(body, mustParseStmt(fmt.Sprintf("return q.db.ExecContext(ctx, query, %s...)", callArgsName)))
+			body = append(body, mustParseStmt(fmt.Sprintf("_, err := q.db.ExecContext(ctx, query, %s...)", callArgsName)))
 		} else {
 			args := append([]string{"ctx", q.constName}, q.args...)
-			body = append(body, mustParseStmt(fmt.Sprintf("return q.db.ExecContext(%s)", strings.Join(args, ", "))))
+			body = append(body, mustParseStmt(fmt.Sprintf("_, err := q.db.ExecContext(%s)", strings.Join(args, ", "))))
 		}
+		body = append(body, mustParseStmt("return err"))
 	case block.CommandExecResult:
 		if hasDynamic {
 			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(ctx, query, %s...)", callArgsName)))

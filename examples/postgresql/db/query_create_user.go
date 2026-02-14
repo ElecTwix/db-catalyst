@@ -7,12 +7,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreateUserParams struct {
+	Username  pgtype.Text
+	Username2 pgtype.Text
+	Username3 *[]byte
+	Username4 pgtype.Text
+}
+
 const queryCreateUser string = `INSERT INTO users (username, useremail, metadata, tags)
 VALUES ($1, $2, $3, $4)
 RETURNING *;`
 
-func (q *Queries) CreateUser(ctx context.Context, username pgtype.Text, username2 pgtype.Text, username3 *[]byte, username4 pgtype.Text) (CreateUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryCreateUser, username, username2, username3, username4)
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreateUser, arg.Username, arg.Username2, arg.Username3, arg.Username4)
 	if err != nil {
 		return CreateUserRow{}, err
 	}

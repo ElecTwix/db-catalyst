@@ -6,14 +6,14 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, username string, email string) (int32, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (int32, error)
 	GetUser(ctx context.Context, id int32) (GetUserRow, error)
 	ListPostsByAuthor(ctx context.Context, authorId int32) ([]ListPostsByAuthorRow, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 type Queries struct {
 	db DBTX
@@ -21,6 +21,9 @@ type Queries struct {
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
+}
+func (q *Queries) WithTx(tx DBTX) *Queries {
+	return &Queries{db: tx}
 }
 
 type QueryResult struct {

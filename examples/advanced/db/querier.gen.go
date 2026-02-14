@@ -6,8 +6,8 @@ import (
 )
 
 type Querier interface {
-	CreateOrder(ctx context.Context, userId any, status any, totalAmount any) (CreateOrderRow, error)
-	CreateProduct(ctx context.Context, sku any, name any, price any) (CreateProductRow, error)
+	CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error)
+	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateUser(ctx context.Context, email any) (CreateUserRow, error)
 	GetOrder(ctx context.Context, id any) (GetOrderRow, error)
 	GetOrderStatistics(ctx context.Context, userId any) (GetOrderStatisticsRow, error)
@@ -19,13 +19,13 @@ type Querier interface {
 	ListOrdersByUser(ctx context.Context, userId any) ([]ListOrdersByUserRow, error)
 	ListProducts(ctx context.Context) ([]ListProductsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
-	UpdateOrderStatus(ctx context.Context, status any, id any) (UpdateOrderStatusRow, error)
-	UpdateProductPrice(ctx context.Context, price any, id any) (UpdateProductPriceRow, error)
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (UpdateOrderStatusRow, error)
+	UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (UpdateProductPriceRow, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) sql.Row
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 type Queries struct {
 	db DBTX
@@ -33,6 +33,9 @@ type Queries struct {
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
+}
+func (q *Queries) WithTx(tx DBTX) *Queries {
+	return &Queries{db: tx}
 }
 
 type QueryResult struct {

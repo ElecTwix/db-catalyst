@@ -5,13 +5,18 @@ import (
 	"database/sql"
 )
 
+type UpdateProductPriceParams struct {
+	Price any
+	Id    any
+}
+
 const queryUpdateProductPrice string = `UPDATE products
 SET price = ?
 WHERE id = ?
 RETURNING *;`
 
-func (q *Queries) UpdateProductPrice(ctx context.Context, price any, id any) (UpdateProductPriceRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryUpdateProductPrice, price, id)
+func (q *Queries) UpdateProductPrice(ctx context.Context, arg UpdateProductPriceParams) (UpdateProductPriceRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryUpdateProductPrice, arg.Price, arg.Id)
 	if err != nil {
 		return UpdateProductPriceRow{}, err
 	}

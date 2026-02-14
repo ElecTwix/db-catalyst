@@ -2,13 +2,18 @@ package mysqlblog
 
 import "context"
 
+type GetPostsForTagParams struct {
+	TagId int32
+	Limit any
+}
+
 const queryGetPostsForTag string = `SELECT p.* FROM posts p
 JOIN post_tags pt ON p.id = pt.post_id
 WHERE pt.tag_id = ? AND p.status = 'published'
 ORDER BY p.created_at DESC LIMIT ?;`
 
-func (q *Queries) GetPostsForTag(ctx context.Context, tagId int32, limit *any) ([]GetPostsForTagRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryGetPostsForTag, tagId, limit)
+func (q *Queries) GetPostsForTag(ctx context.Context, arg GetPostsForTagParams) ([]GetPostsForTagRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryGetPostsForTag, arg.TagId, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

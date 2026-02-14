@@ -5,12 +5,17 @@ import (
 	"database/sql"
 )
 
+type CreateUserParams struct {
+	Name  string
+	Email sql.NullString
+}
+
 const queryCreateUser string = `INSERT INTO users (name, email)
 VALUES (?, ?)
 RETURNING *;`
 
-func (q *Queries) CreateUser(ctx context.Context, name string, email sql.NullString) (CreateUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryCreateUser, name, email)
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreateUser, arg.Name, arg.Email)
 	if err != nil {
 		return CreateUserRow{}, err
 	}

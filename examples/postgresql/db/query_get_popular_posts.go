@@ -7,7 +7,7 @@ WHERE is_published = true
 ORDER BY view_count DESC, published_at DESC
 LIMIT $1;`
 
-func (q *Queries) GetPopularPosts(ctx context.Context, limit *any) ([]GetPopularPostsRow, error) {
+func (q *Queries) GetPopularPosts(ctx context.Context, limit any) ([]GetPopularPostsRow, error) {
 	rows, err := q.db.QueryContext(ctx, queryGetPopularPosts, limit)
 	if err != nil {
 		return nil, err

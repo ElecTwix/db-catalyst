@@ -11,29 +11,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// dbWrapper wraps *sql.DB to match the generated DBTX interface which has
-// incorrect return types (sql.Rows instead of *sql.Rows).
-type dbWrapper struct {
-	db *sql.DB
-}
-
-func (w *dbWrapper) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return w.db.ExecContext(ctx, query, args...)
-}
-
-func (w *dbWrapper) QueryContext(ctx context.Context, query string, args ...any) (sql.Rows, error) {
-	rows, err := w.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return sql.Rows{}, err
-	}
-	return *rows, nil
-}
-
-func (w *dbWrapper) QueryRowContext(ctx context.Context, query string, args ...any) sql.Row {
-	row := w.db.QueryRowContext(ctx, query, args...)
-	return *row
-}
-
 func main() {
 	ctx := context.Background()
 
@@ -51,16 +28,24 @@ func main() {
 		return
 	}
 
-	queries := complexdb.New(&dbWrapper{db: sqlDB})
+	queries := complexdb.New(sqlDB)
 
 	// Create authors
-	author1, err := queries.CreateAuthor(ctx, "Alice Smith", "alice@example.com", sql.NullString{String: "Go enthusiast", Valid: true})
+	author1, err := queries.CreateAuthor(ctx, complexdb.CreateAuthorParams{
+		Name:  "Alice Smith",
+		Email: "alice@example.com",
+		Bio:   sql.NullString{String: "Go enthusiast", Valid: true},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Created author: %s\n", author1.Name)
 
-	author2, err := queries.CreateAuthor(ctx, "Bob Jones", "bob@example.com", sql.NullString{String: "SQLite expert", Valid: true})
+	author2, err := queries.CreateAuthor(ctx, complexdb.CreateAuthorParams{
+		Name:  "Bob Jones",
+		Email: "bob@example.com",
+		Bio:   sql.NullString{String: "SQLite expert", Valid: true},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,7 +64,10 @@ func main() {
 
 	tagIDs := make(map[string]int64)
 	for _, t := range tags {
-		tag, err := queries.CreateTag(ctx, t.name, sql.NullString{String: t.description, Valid: true})
+		tag, err := queries.CreateTag(ctx, complexdb.CreateTagParams{
+			Name:        t.name,
+			Description: sql.NullString{String: t.description, Valid: true},
+		})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -88,51 +76,81 @@ func main() {
 	}
 
 	// Create posts
-	post1, err := queries.CreatePost(ctx, author1.Id, "Getting Started with SQLite in Go", "This is a comprehensive guide...", 1)
+	post1, err := queries.CreatePost(ctx, complexdb.CreatePostParams{
+		AuthorId:  author1.Id,
+		Title:     "Getting Started with SQLite in Go",
+		Content:   "This is a comprehensive guide...",
+		Published: 1,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Created post: %s\n", post1.Title)
 
 	// Add tags to post
-	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["go"]); err != nil {
+	if err := queries.AddTagToPost(ctx, complexdb.AddTagToPostParams{
+		PostId: post1.Id,
+		TagId:  tagIDs["go"],
+	}); err != nil {
 		log.Fatal(err)
 	}
-	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["sqlite"]); err != nil {
+	if err := queries.AddTagToPost(ctx, complexdb.AddTagToPostParams{
+		PostId: post1.Id,
+		TagId:  tagIDs["sqlite"],
+	}); err != nil {
 		log.Fatal(err)
 	}
-	if _, err := queries.AddTagToPost(ctx, post1.Id, tagIDs["tutorial"]); err != nil {
+	if err := queries.AddTagToPost(ctx, complexdb.AddTagToPostParams{
+		PostId: post1.Id,
+		TagId:  tagIDs["tutorial"],
+	}); err != nil {
 		log.Fatal(err)
 	}
 
 	// Create more posts
-	post2, err := queries.CreatePost(ctx, author2.Id, "Advanced SQLite Optimization", "Deep dive into query optimization...", 1)
+	post2, err := queries.CreatePost(ctx, complexdb.CreatePostParams{
+		AuthorId:  author2.Id,
+		Title:     "Advanced SQLite Optimization",
+		Content:   "Deep dive into query optimization...",
+		Published: 1,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Add tags to post2
-	if _, err := queries.AddTagToPost(ctx, post2.Id, tagIDs["sqlite"]); err != nil {
+	if err := queries.AddTagToPost(ctx, complexdb.AddTagToPostParams{
+		PostId: post2.Id,
+		TagId:  tagIDs["sqlite"],
+	}); err != nil {
 		log.Fatal(err)
 	}
-	if _, err := queries.AddTagToPost(ctx, post2.Id, tagIDs["advanced"]); err != nil {
+	if err := queries.AddTagToPost(ctx, complexdb.AddTagToPostParams{
+		PostId: post2.Id,
+		TagId:  tagIDs["advanced"],
+	}); err != nil {
 		log.Fatal(err)
 	}
 
 	// Create unpublished post
-	_, err = queries.CreatePost(ctx, author1.Id, "Draft: Upcoming Features", "This is still being written...", 0)
+	_, err = queries.CreatePost(ctx, complexdb.CreatePostParams{
+		AuthorId:  author1.Id,
+		Title:     "Draft: Upcoming Features",
+		Content:   "This is still being written...",
+		Published: 0,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Simulate views
 	for range 100 {
-		if _, err := queries.IncrementViewCount(ctx, post1.Id); err != nil {
+		if err := queries.IncrementViewCount(ctx, post1.Id); err != nil {
 			log.Fatal(err)
 		}
 	}
 	for range 50 {
-		if _, err := queries.IncrementViewCount(ctx, post2.Id); err != nil {
+		if err := queries.IncrementViewCount(ctx, post2.Id); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -194,7 +212,7 @@ func main() {
 	}
 
 	fmt.Println("\n--- Search Posts ---")
-	searchResults, err := queries.SearchPosts(ctx, nil, nil, nil, nil)
+	searchResults, err := queries.SearchPosts(ctx, complexdb.SearchPostsParams{})
 	if err != nil {
 		log.Fatal(err)
 	}

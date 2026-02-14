@@ -7,10 +7,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreateTagParams struct {
+	Tagname  pgtype.Text
+	Tagname2 pgtype.Text
+}
+
 const queryCreateTag string = `INSERT INTO tags (tagname, tagdescription) VALUES ($1, $2) RETURNING *;`
 
-func (q *Queries) CreateTag(ctx context.Context, tagname pgtype.Text, tagname2 pgtype.Text) (CreateTagRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryCreateTag, tagname, tagname2)
+func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) (CreateTagRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreateTag, arg.Tagname, arg.Tagname2)
 	if err != nil {
 		return CreateTagRow{}, err
 	}

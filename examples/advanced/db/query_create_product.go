@@ -5,12 +5,18 @@ import (
 	"database/sql"
 )
 
+type CreateProductParams struct {
+	Sku   any
+	Name  any
+	Price any
+}
+
 const queryCreateProduct string = `INSERT INTO products (sku, name, price)
 VALUES (?, ?, ?)
 RETURNING *;`
 
-func (q *Queries) CreateProduct(ctx context.Context, sku any, name any, price any) (CreateProductRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryCreateProduct, sku, name, price)
+func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryCreateProduct, arg.Sku, arg.Name, arg.Price)
 	if err != nil {
 		return CreateProductRow{}, err
 	}

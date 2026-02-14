@@ -8,10 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type UpdateTagParams struct {
+	Tagname        pgtype.Text
+	Tagdescription pgtype.Text
+	Id             uuid.UUID
+}
+
 const queryUpdateTag string = `UPDATE tags SET tagname = $2, tagdescription = $3 WHERE id = $1 RETURNING *;`
 
-func (q *Queries) UpdateTag(ctx context.Context, tagname pgtype.Text, tagdescription pgtype.Text, id uuid.UUID) (UpdateTagRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryUpdateTag, tagname, tagdescription, id)
+func (q *Queries) UpdateTag(ctx context.Context, arg UpdateTagParams) (UpdateTagRow, error) {
+	rows, err := q.db.QueryContext(ctx, queryUpdateTag, arg.Tagname, arg.Tagdescription, arg.Id)
 	if err != nil {
 		return UpdateTagRow{}, err
 	}

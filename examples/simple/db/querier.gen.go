@@ -6,11 +6,11 @@ import (
 )
 
 type Querier interface {
-	CreateUser(ctx context.Context, name string, email sql.NullString) (CreateUserRow, error)
-	DeleteUser(ctx context.Context, id int64) (sql.Result, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	DeleteUser(ctx context.Context, id int64) error
 	GetUser(ctx context.Context, id int64) (GetUserRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
-	UpdateUser(ctx context.Context, name string, email sql.NullString, id int64) (UpdateUserRow, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error)
 }
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
@@ -23,6 +23,9 @@ type Queries struct {
 
 func New(db DBTX) *Queries {
 	return &Queries{db: db}
+}
+func (q *Queries) WithTx(tx DBTX) *Queries {
+	return &Queries{db: tx}
 }
 
 type QueryResult struct {

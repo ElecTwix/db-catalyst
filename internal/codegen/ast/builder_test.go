@@ -961,7 +961,7 @@ func TestBuildQueries_AllCommandTypes(t *testing.T) {
 
 	// Check return types
 	expectedReturnTypes := map[string]string{
-		"ExecQuery":       "sql.Result",
+		"ExecQuery":       "", // :exec returns just error
 		"ExecResultQuery": "QueryResult",
 		"OneQuery":        "int64", // Single column :one queries return scalar type
 		"ManyQuery":       "[]ManyQueryRow",
