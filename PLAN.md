@@ -49,13 +49,51 @@ Improve db-catalyst to match SQLC's feature set for complex SQL projects.
 - [x] Column-level type overrides
 - [x] ON CONFLICT excluded table support
 - [x] Schema INSERT statements (warn instead of error)
+- [x] :execrows command support (commit 9bca9da)
+- [x] :execlastid command support (commit 9bca9da)
+- [x] FTS5 virtual table support (commit 9bca9da)
+- [x] TRIGGER support with warning (commit 9bca9da)
 
 ### In Progress
-- [ ] :execrows command support
-- [ ] :execlastid command support
+- [ ] CTE type inference improvements
+- [ ] Window function metadata handling
 
 ### Blocked
 - None
+
+## Verified Working
+
+### New Commands
+```go
+// :execlastid - returns last insert ID
+func (q *Queries) InsertItem(ctx context.Context, name string) (int64, error) {
+    res, err := q.db.ExecContext(ctx, queryInsertItem, name)
+    if err != nil {
+        return 0, err
+    }
+    return res.LastInsertId()
+}
+
+// :execrows - returns rows affected
+func (q *Queries) DeleteAllItems(ctx context.Context) (int64, error) {
+    res, err := q.db.ExecContext(ctx, queryDeleteAllItems)
+    if err != nil {
+        return 0, err
+    }
+    return res.RowsAffected()
+}
+```
+
+### Schema Parser
+```sql
+-- FTS5 virtual tables - parsed with warning
+CREATE VIRTUAL TABLE posts_fts USING fts5(title, content);
+
+-- Triggers - parsed with warning, body skipped
+CREATE TRIGGER posts_ai AFTER INSERT ON posts BEGIN
+    INSERT INTO posts_fts(rowid, title, content) VALUES (new.id, new.title, new.content);
+END;
+```
 
 ## Notes
 - All changes must pass existing tests
