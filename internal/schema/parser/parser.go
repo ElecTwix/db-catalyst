@@ -107,6 +107,10 @@ func (p *Parser) parse() error {
 				p.parseCreate()
 			case "ALTER":
 				p.parseAlter()
+			case "INSERT", "UPDATE", "DELETE":
+				// DML statements are allowed in schema files for data seeding, but we skip them
+				p.addDiagToken(tok, SeverityWarning, "%s statements are ignored in schema files (data seeding not supported)", tok.Text)
+				p.sync()
 			default:
 				p.addDiagToken(tok, SeverityError, "unsupported statement starting with %s", tok.Text)
 				p.sync()

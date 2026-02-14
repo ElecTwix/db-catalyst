@@ -1366,6 +1366,10 @@ func shouldSkipIdentifier(isQualified bool, table, upperName, name string, scope
 		if strings.ToUpper(table) == "SQLC" {
 			return true
 		}
+		// Skip "excluded" pseudo-table in ON CONFLICT clauses (PostgreSQL/SQLite UPSERT)
+		if strings.ToUpper(table) == "EXCLUDED" {
+			return true
+		}
 		return false
 	}
 	// Skip common SQL functions and special identifiers for bare names
