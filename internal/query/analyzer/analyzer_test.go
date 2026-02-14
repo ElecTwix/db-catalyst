@@ -103,7 +103,7 @@ SELECT numbers.id, numbers.depth FROM numbers;`,
 				if res.Columns[0].GoType != "int64" || res.Columns[0].Nullable {
 					t.Errorf("unexpected id column %+v", res.Columns[0])
 				}
-				if res.Columns[1].GoType != "any" || !res.Columns[1].Nullable {
+				if res.Columns[1].GoType != "int64" || res.Columns[1].Nullable {
 					t.Errorf("unexpected depth column %+v", res.Columns[1])
 				}
 				if len(res.Params) != 1 {
@@ -112,15 +112,10 @@ SELECT numbers.id, numbers.depth FROM numbers;`,
 				if res.Params[0].Name != "userId" || res.Params[0].GoType != "int64" {
 					t.Errorf("unexpected param %+v", res.Params[0])
 				}
-				foundWarning := false
 				for _, d := range res.Diagnostics {
 					if d.Severity == analyzer.SeverityWarning && strings.Contains(d.Message, "defaulting to interface{}") {
-						foundWarning = true
-						break
+						t.Fatalf("unexpected warning about interface{} fallback: %s", d.Message)
 					}
-				}
-				if !foundWarning {
-					t.Fatalf("expected warning about interface{} fallback, got %+v", res.Diagnostics)
 				}
 			},
 		},
@@ -933,5 +928,133 @@ func buildTestCatalog() *model.Catalog {
 				},
 			},
 		},
+	}
+}
+
+func TestInferTypeFromExpr(t *testing.T) {
+	tests := []struct {
+		name      string
+		expr      string
+		wantType  string
+		wantNull  bool
+		wantFound bool
+	}{
+		{"string literal", "'hello'", "string", false, true},
+		{"integer literal", "42", "int64", false, true},
+		{"negative integer", "-10", "", false, false}, // Not supported: unary minus is two tokens
+		{"float literal", "3.14", "float64", false, true},
+		{"scientific notation", "1e10", "float64", false, true},
+		{"boolean true", "TRUE", "bool", false, true},
+		{"boolean false", "FALSE", "bool", false, true},
+		{"blob literal", "X'48454C4C4F'", "[]byte", false, true},
+		{"CAST to TEXT", "CAST(id AS TEXT)", "string", false, true},
+		{"CAST to INTEGER", "CAST(price AS INTEGER)", "int64", false, true},
+		{"CAST to REAL", "CAST(value AS REAL)", "float64", false, true},
+		{"CAST to BLOB", "CAST(data AS BLOB)", "[]byte", false, true},
+		{"unknown expression", "complex_func()", "", false, false},
+		{"empty string", "", "", false, false},
+		{"column reference", "users.id", "", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			goType, nullable, found := analyzer.InferTypeFromExprWithResolver(tt.expr, nil, nil)
+			if found != tt.wantFound {
+				t.Errorf("inferTypeFromExpr(%q) found = %v, want %v", tt.expr, found, tt.wantFound)
+				return
+			}
+			if found && tt.wantFound {
+				if goType != tt.wantType {
+					t.Errorf("inferTypeFromExpr(%q) goType = %q, want %q", tt.expr, goType, tt.wantType)
+				}
+				if nullable != tt.wantNull {
+					t.Errorf("inferTypeFromExpr(%q) nullable = %v, want %v", tt.expr, nullable, tt.wantNull)
+				}
+			}
+		})
+	}
+}
+
+func TestCTELiteralColumnInference(t *testing.T) {
+	catalog := buildTestCatalog()
+
+	tests := []struct {
+		name       string
+		sql        string
+		colIndex   int
+		wantType   string
+		wantNull   bool
+		wantNoWarn bool
+	}{
+		{
+			name:       "string literal in CTE",
+			sql:        `WITH activities AS (SELECT id, 'post' as activity_type FROM posts) SELECT * FROM activities`,
+			colIndex:   1,
+			wantType:   "string",
+			wantNull:   false,
+			wantNoWarn: true,
+		},
+		{
+			name:       "integer literal in CTE",
+			sql:        `WITH numbered AS (SELECT id, 0 as depth FROM users) SELECT * FROM numbered`,
+			colIndex:   1,
+			wantType:   "int64",
+			wantNull:   false,
+			wantNoWarn: true,
+		},
+		{
+			name:       "float literal in CTE",
+			sql:        `WITH scored AS (SELECT id, 0.0 as score FROM posts) SELECT * FROM scored`,
+			colIndex:   1,
+			wantType:   "float64",
+			wantNull:   false,
+			wantNoWarn: true,
+		},
+		{
+			name:       "CAST in CTE",
+			sql:        `WITH converted AS (SELECT id, CAST(id AS TEXT) as id_str FROM posts) SELECT * FROM converted`,
+			colIndex:   1,
+			wantType:   "string",
+			wantNull:   false,
+			wantNoWarn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			blk := block.Block{
+				Path:   "query/test.sql",
+				Line:   1,
+				Column: 1,
+				SQL:    tt.sql,
+			}
+			q, diags := parser.Parse(blk)
+			if len(diags) != 0 {
+				t.Fatalf("unexpected parser diagnostics: %+v", diags)
+			}
+
+			an := analyzer.New(catalog)
+			res := an.Analyze(q)
+
+			if tt.colIndex >= len(res.Columns) {
+				t.Fatalf("colIndex %d out of range (have %d columns)", tt.colIndex, len(res.Columns))
+			}
+
+			col := res.Columns[tt.colIndex]
+			if col.GoType != tt.wantType {
+				t.Errorf("column GoType = %q, want %q", col.GoType, tt.wantType)
+			}
+			if col.Nullable != tt.wantNull {
+				t.Errorf("column Nullable = %v, want %v", col.Nullable, tt.wantNull)
+			}
+
+			if tt.wantNoWarn {
+				for _, d := range res.Diagnostics {
+					if d.Severity == analyzer.SeverityWarning && strings.Contains(d.Message, "derives from expression") {
+						t.Errorf("unexpected warning: %s", d.Message)
+					}
+				}
+			}
+		})
 	}
 }

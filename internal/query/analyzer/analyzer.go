@@ -677,9 +677,21 @@ func (a *Analyzer) resolveCTEColumn(col parser.Column, cte parser.CTE, workingSc
 			info.nullable = lookup.nullable
 		}
 	case scopeLookupAliasNotFound:
-		diags = append(diags, a.makeAliasNotFoundDiag(alias, col, cte, path)...)
+		if inferred, ok := a.inferTypeFromExpr(col.Expr); ok {
+			info.goType = inferred.goType
+			info.nullable = inferred.nullable
+			info.suppressWarning = true
+		} else {
+			diags = append(diags, a.makeAliasNotFoundDiag(alias, col, cte, path)...)
+		}
 	case scopeLookupColumnNotFound:
-		diags = append(diags, a.makeColumnNotFoundDiag(alias, columnName, col, cte, path)...)
+		if inferred, ok := a.inferTypeFromExpr(col.Expr); ok {
+			info.goType = inferred.goType
+			info.nullable = inferred.nullable
+			info.suppressWarning = true
+		} else {
+			diags = append(diags, a.makeColumnNotFoundDiag(alias, columnName, col, cte, path)...)
+		}
 	case scopeLookupAmbiguous:
 		diags = append(diags, Diagnostic{
 			Path:     path,
@@ -691,6 +703,167 @@ func (a *Analyzer) resolveCTEColumn(col parser.Column, cte parser.CTE, workingSc
 	}
 
 	return info, diags
+}
+
+// exprTypeInfo holds inferred type information from an expression.
+type exprTypeInfo struct {
+	goType   string
+	nullable bool
+}
+
+// inferTypeFromExpr attempts to infer the Go type from a literal or simple expression.
+// Returns the inferred type and true if successful, or empty and false if unable to infer.
+func (a *Analyzer) inferTypeFromExpr(expr string) (exprTypeInfo, bool) {
+	return inferTypeFromExprWithResolver(expr, a.typeResolver, a.CustomTypes)
+}
+
+// InferTypeFromExprWithResolver is the public API for inferring type from an expression.
+// Returns the Go type, nullable flag, and true if successful.
+func InferTypeFromExprWithResolver(expr string, resolver TypeResolver, customTypes map[string]config.CustomTypeMapping) (goType string, nullable bool, ok bool) {
+	info, found := inferTypeFromExprWithResolver(expr, resolver, customTypes)
+	if !found {
+		return "", false, false
+	}
+	return info.goType, info.nullable, true
+}
+
+// inferTypeFromExprWithResolver infers type with optional type resolver for CAST expressions.
+func inferTypeFromExprWithResolver(expr string, resolver TypeResolver, customTypes map[string]config.CustomTypeMapping) (exprTypeInfo, bool) {
+	trimmed := strings.TrimSpace(expr)
+	if trimmed == "" {
+		return exprTypeInfo{}, false
+	}
+
+	tokens, err := tokenizer.Scan("", []byte(trimmed), false)
+	if err != nil || len(tokens) == 0 {
+		return exprTypeInfo{}, false
+	}
+
+	filtered := make([]tokenizer.Token, 0, len(tokens))
+	for _, tok := range tokens {
+		if tok.Kind == tokenizer.KindEOF || tok.Kind == tokenizer.KindDocComment {
+			continue
+		}
+		filtered = append(filtered, tok)
+	}
+	if len(filtered) == 0 {
+		return exprTypeInfo{}, false
+	}
+
+	if len(filtered) == 1 {
+		return inferTypeFromSingleToken(filtered[0])
+	}
+
+	if castInfo, ok := inferTypeFromCast(filtered, resolver, customTypes); ok {
+		return castInfo, true
+	}
+
+	return exprTypeInfo{}, false
+}
+
+// inferTypeFromSingleToken infers type from a single token (literal).
+func inferTypeFromSingleToken(tok tokenizer.Token) (exprTypeInfo, bool) {
+	switch tok.Kind {
+	case tokenizer.KindString:
+		return exprTypeInfo{goType: "string", nullable: false}, true
+	case tokenizer.KindNumber:
+		return inferTypeFromNumber(tok.Text)
+	case tokenizer.KindBlob:
+		return exprTypeInfo{goType: "[]byte", nullable: false}, true
+	case tokenizer.KindKeyword:
+		upper := strings.ToUpper(tok.Text)
+		switch upper {
+		case "TRUE", "FALSE":
+			return exprTypeInfo{goType: "bool", nullable: false}, true
+		case "NULL":
+			return exprTypeInfo{goType: "any", nullable: true}, true
+		}
+	case tokenizer.KindIdentifier:
+		upper := strings.ToUpper(tok.Text)
+		switch upper {
+		case "TRUE", "FALSE":
+			return exprTypeInfo{goType: "bool", nullable: false}, true
+		case "NULL":
+			return exprTypeInfo{goType: "any", nullable: true}, true
+		}
+	}
+	return exprTypeInfo{}, false
+}
+
+// inferTypeFromNumber infers type from a numeric literal.
+func inferTypeFromNumber(text string) (exprTypeInfo, bool) {
+	if strings.ContainsAny(text, ".eE") {
+		return exprTypeInfo{goType: "float64", nullable: false}, true
+	}
+	return exprTypeInfo{goType: "int64", nullable: false}, true
+}
+
+// inferTypeFromCast infers type from a CAST expression.
+func inferTypeFromCast(tokens []tokenizer.Token, resolver TypeResolver, customTypes map[string]config.CustomTypeMapping) (exprTypeInfo, bool) {
+	if len(tokens) < 4 { //nolint:mnd // minimum tokens: CAST ( AS TYPE )
+		return exprTypeInfo{}, false
+	}
+
+	isCast := (tokens[0].Kind == tokenizer.KindKeyword || tokens[0].Kind == tokenizer.KindIdentifier) &&
+		strings.ToUpper(tokens[0].Text) == "CAST"
+	if !isCast {
+		return exprTypeInfo{}, false
+	}
+
+	var targetType string
+	var foundAS bool
+	depth := 0
+
+	for i := 1; i < len(tokens); i++ {
+		tok := tokens[i]
+		if tok.Kind == tokenizer.KindSymbol {
+			switch tok.Text {
+			case "(":
+				depth++
+			case ")":
+				depth--
+				if depth == 0 && foundAS && targetType != "" {
+					goType := sqlTypeToGo(targetType, resolver, customTypes)
+					if goType != "any" {
+						return exprTypeInfo{goType: goType, nullable: false}, true
+					}
+				}
+			}
+			continue
+		}
+		if (tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier) && strings.ToUpper(tok.Text) == "AS" && depth == 1 {
+			foundAS = true
+			continue
+		}
+		if foundAS && depth == 1 && (tok.Kind == tokenizer.KindKeyword || tok.Kind == tokenizer.KindIdentifier) {
+			if targetType == "" {
+				targetType = tok.Text
+			} else {
+				targetType += " " + tok.Text
+			}
+		}
+	}
+
+	return exprTypeInfo{}, false
+}
+
+// sqlTypeToGo converts a SQL type to Go type, optionally using a resolver and custom types.
+func sqlTypeToGo(sqlType string, resolver TypeResolver, customTypes map[string]config.CustomTypeMapping) string {
+	if resolver != nil {
+		typeInfo := resolver.ResolveType(sqlType, false)
+		if typeInfo.GoType != "" && typeInfo.GoType != "any" {
+			return typeInfo.GoType
+		}
+	}
+
+	if customTypes != nil {
+		normalized := normalizeSQLiteType(sqlType)
+		if mapping, exists := customTypes[normalized]; exists {
+			return mapping.GoType
+		}
+	}
+
+	return SQLiteTypeToGo(sqlType)
 }
 
 // resolveAggregateType determines the type for an aggregate expression.
@@ -1184,6 +1357,9 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 				Message:  fmt.Sprintf("result column %q references unknown table %q", rcOrExprName(rc, col), alias),
 				Severity: SeverityError,
 			})
+		} else if goType, nullable, ok := InferTypeFromExprWithResolver(col.Expr, nil, nil); ok {
+			rc.GoType = goType
+			rc.Nullable = nullable
 		} else if col.Alias != "" {
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
@@ -1218,13 +1394,18 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 				Severity: SeverityError,
 			})
 		case col.Alias != "":
-			diags = append(diags, Diagnostic{
-				Path:     blk.Path,
-				Line:     col.Line,
-				Column:   col.Column,
-				Message:  fmt.Sprintf("result column %q derives from expression without schema mapping", col.Alias),
-				Severity: SeverityWarning,
-			})
+			if goType, nullable, ok := InferTypeFromExprWithResolver(col.Expr, nil, nil); ok {
+				rc.GoType = goType
+				rc.Nullable = nullable
+			} else {
+				diags = append(diags, Diagnostic{
+					Path:     blk.Path,
+					Line:     col.Line,
+					Column:   col.Column,
+					Message:  fmt.Sprintf("result column %q derives from expression without schema mapping", col.Alias),
+					Severity: SeverityWarning,
+				})
+			}
 		default:
 			diags = append(diags, Diagnostic{
 				Path:     blk.Path,
