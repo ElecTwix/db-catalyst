@@ -88,13 +88,8 @@ type DatabaseTypeOverride struct {
 	GoType       string `toml:"go_type"`
 }
 
-// ColumnOverride defines column-specific type overrides (sqlc compatibility).
-type ColumnOverride struct {
-	Column string `toml:"column"`
-	GoType any    `toml:"go_type"` // Can be string or complex object
-}
-
 // GoTypeDetails captures complex go_type configuration (sqlc compatibility).
+// It can unmarshal from either a string or a map.
 type GoTypeDetails struct {
 	Import  string `toml:"import"`
 	Package string `toml:"package"`
@@ -102,10 +97,47 @@ type GoTypeDetails struct {
 	Pointer bool   `toml:"pointer"`
 }
 
-// OverridesConfig captures sqlc-style overrides.
-type OverridesConfig struct {
-	DatabaseTypes []DatabaseTypeOverride `toml:"overrides"`
-	Columns       []ColumnOverride       `toml:"overrides"`
+// UnmarshalTOML implements custom TOML unmarshaling for GoTypeDetails.
+// This handles both formats:
+//   - Simple: go_type = "string"
+//   - Complex: go_type = { import = "...", package = "...", type = "..." }
+func (g *GoTypeDetails) UnmarshalTOML(data any) error {
+	switch v := data.(type) {
+	case string:
+		// Simple format: go_type = "string"
+		g.Type = v
+		return nil
+	case map[string]any:
+		// Complex format: go_type = { import = "...", ... }
+		if typ, ok := v["type"].(string); ok {
+			g.Type = typ
+		}
+		if imp, ok := v["import"].(string); ok {
+			g.Import = imp
+		}
+		if pkg, ok := v["package"].(string); ok {
+			g.Package = pkg
+		}
+		if ptr, ok := v["pointer"].(bool); ok {
+			g.Pointer = ptr
+		}
+		return nil
+	default:
+		return fmt.Errorf("go_type must be a string or a map, got %T", data)
+	}
+}
+
+// rawColumnOverride is used for TOML unmarshaling before conversion.
+type rawColumnOverride struct {
+	Column string `toml:"column"`
+	GoType any    `toml:"go_type"`
+}
+
+// ColumnOverride defines column-specific type overrides (sqlc compatibility).
+// The go_type field can be either a simple string or a complex object.
+type ColumnOverride struct {
+	Column string        `toml:"column"`
+	GoType GoTypeDetails `toml:"go_type"`
 }
 
 // GenerationOptions captures additional generation options.
@@ -139,6 +171,7 @@ type JobPlan struct {
 	Schemas             []string
 	Queries             []string
 	CustomTypes         []CustomTypeMapping
+	ColumnOverrides     map[string]ColumnOverride
 	EmitJSONTags        bool
 	EmitPointersForNull bool
 	PreparedQueries     PreparedQueries
@@ -164,14 +197,15 @@ type PreparedQueries struct {
 
 // Config mirrors the expected db-catalyst TOML schema.
 type Config struct {
-	Package         string                `toml:"package"`
-	Out             string                `toml:"out"`
-	Language        Language              `toml:"language"`
-	Database        Database              `toml:"database"`
-	SQLiteDriver    Driver                `toml:"sqlite_driver"`
-	Schemas         []string              `toml:"schemas"`
-	Queries         []string              `toml:"queries"`
-	CustomTypes     CustomTypesConfig     `toml:"custom_types"`
+	Package      string            `toml:"package"`
+	Out          string            `toml:"out"`
+	Language     Language          `toml:"language"`
+	Database     Database          `toml:"database"`
+	SQLiteDriver Driver            `toml:"sqlite_driver"`
+	Schemas      []string          `toml:"schemas"`
+	Queries      []string          `toml:"queries"`
+	CustomTypes  CustomTypesConfig `toml:"custom_types"`
+	// Overrides are parsed separately to handle flexible go_type formats
 	Generation      GenerationOptions     `toml:"generation"`
 	PreparedQueries PreparedQueriesConfig `toml:"prepared_queries"`
 	Cache           CacheConfig           `toml:"cache"`
@@ -293,6 +327,12 @@ func Load(path string, opts LoadOptions) (Result, error) {
 	// Process custom types to extract import paths from go_type if needed
 	customTypes := normalizeCustomTypes(cfg.CustomTypes.Mappings)
 
+	// Process column overrides into a lookup map
+	// First, unmarshal raw overrides to handle both string and object formats
+	rawOverrides := unmarshalRawOverrides(data)
+	convertedOverrides := convertRawOverrides(rawOverrides)
+	columnOverrides := normalizeColumnOverrides(convertedOverrides)
+
 	// Set default cache directory if enabled but not specified
 	cacheDir := cfg.Cache.Dir
 	if cfg.Cache.Enabled && cacheDir == "" {
@@ -308,6 +348,7 @@ func Load(path string, opts LoadOptions) (Result, error) {
 		Schemas:             schemas,
 		Queries:             queries,
 		CustomTypes:         customTypes,
+		ColumnOverrides:     columnOverrides,
 		EmitJSONTags:        cfg.Generation.EmitJSONTags,
 		EmitPointersForNull: cfg.Generation.EmitPointersForNull,
 		PreparedQueries:     prepared,
@@ -336,6 +377,7 @@ func collectUnknownKeys(data []byte) ([]string, error) {
 		"schemas":          {},
 		"queries":          {},
 		"custom_types":     {},
+		"overrides":        {},
 		"generation":       {},
 		"prepared_queries": {},
 		"cache":            {},
@@ -523,4 +565,63 @@ func extractImportAndType(qualifiedType string) (importPath, typeName string) {
 func extractPackageName(importPath string) string {
 	parts := strings.Split(importPath, "/")
 	return parts[len(parts)-1]
+}
+
+// normalizeColumnOverrides processes column overrides into a normalized lookup map.
+// The key format is "table.column" (lowercase for case-insensitive lookup).
+func normalizeColumnOverrides(overrides []ColumnOverride) map[string]ColumnOverride {
+	result := make(map[string]ColumnOverride, len(overrides))
+	for _, o := range overrides {
+		if o.Column == "" {
+			continue
+		}
+		// Normalize to lowercase for case-insensitive lookup
+		key := strings.ToLower(o.Column)
+		result[key] = o
+	}
+	return result
+}
+
+// unmarshalRawOverrides extracts raw column overrides from TOML data.
+func unmarshalRawOverrides(data []byte) []rawColumnOverride {
+	var raw struct {
+		Overrides []rawColumnOverride `toml:"overrides"`
+	}
+	// We ignore errors here because the main unmarshal already succeeded
+	// and we're just extracting the overrides field
+	_ = toml.Unmarshal(data, &raw)
+	return raw.Overrides
+}
+
+// convertRawOverrides converts raw TOML-parsed overrides to ColumnOverride structs.
+func convertRawOverrides(raw []rawColumnOverride) []ColumnOverride {
+	result := make([]ColumnOverride, 0, len(raw))
+	for _, r := range raw {
+		co := ColumnOverride{
+			Column: r.Column,
+		}
+
+		switch v := r.GoType.(type) {
+		case string:
+			// Simple format: go_type = "string"
+			co.GoType = GoTypeDetails{Type: v}
+		case map[string]any:
+			// Complex format: go_type = { import = "...", ... }
+			if typ, ok := v["type"].(string); ok {
+				co.GoType.Type = typ
+			}
+			if imp, ok := v["import"].(string); ok {
+				co.GoType.Import = imp
+			}
+			if pkg, ok := v["package"].(string); ok {
+				co.GoType.Package = pkg
+			}
+			if ptr, ok := v["pointer"].(bool); ok {
+				co.GoType.Pointer = ptr
+			}
+		}
+
+		result = append(result, co)
+	}
+	return result
 }

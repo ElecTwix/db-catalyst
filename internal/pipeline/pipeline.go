@@ -316,6 +316,12 @@ func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalo
 	if p.Env.Generator != nil {
 		generator = p.Env.Generator
 	} else {
+		// Convert column overrides map to slice
+		columnOverrides := make([]config.ColumnOverride, 0, len(plan.ColumnOverrides))
+		for _, override := range plan.ColumnOverrides {
+			columnOverrides = append(columnOverrides, override)
+		}
+
 		factory := codegen.NewGeneratorFactory(codegen.Options{
 			Package:             plan.Package,
 			Database:            plan.Database,
@@ -323,6 +329,7 @@ func (p *Pipeline) generateCode(ctx context.Context, plan config.JobPlan, catalo
 			EmitEmptySlices:     plan.PreparedQueries.EmitEmptySlices,
 			EmitPointersForNull: plan.EmitPointersForNull,
 			CustomTypes:         plan.CustomTypes,
+			ColumnOverrides:     columnOverrides,
 			Prepared: codegen.PreparedOptions{
 				Enabled:     plan.PreparedQueries.Enabled,
 				EmitMetrics: plan.PreparedQueries.Metrics,
@@ -678,6 +685,7 @@ func (p *Pipeline) analyzeQueries(ctx context.Context, plan config.JobPlan, cata
 	}
 
 	analyzer := queryanalyzer.NewWithCustomTypes(catalog, customTypesMap)
+	analyzer.SetColumnOverrides(plan.ColumnOverrides)
 
 	// Set up type resolver for database-specific type mapping
 	// Use engine's type mapper if available, otherwise fall back to legacy TypeResolver

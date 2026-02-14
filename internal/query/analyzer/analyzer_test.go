@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	"github.com/electwix/db-catalyst/internal/query/parser"
@@ -681,6 +682,167 @@ func TestAnalyzer_ParamTypeOverride(t *testing.T) {
 	}
 }
 
+func TestAnalyzer_ColumnOverride(t *testing.T) {
+	catalog := buildTestCatalog()
+
+	t.Run("simple column override", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL:    "SELECT users.id FROM users;",
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		an.SetColumnOverrides(map[string]config.ColumnOverride{
+			"users.id": {Column: "users.id", GoType: config.GoTypeDetails{Type: "uuid.UUID"}},
+		})
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(res.Columns))
+		}
+		if res.Columns[0].GoType != "uuid.UUID" {
+			t.Errorf("expected GoType uuid.UUID, got %q", res.Columns[0].GoType)
+		}
+	})
+
+	t.Run("complex column override with import", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL:    "SELECT users.email FROM users;",
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		an.SetColumnOverrides(map[string]config.ColumnOverride{
+			"users.email": {
+				Column: "users.email",
+				GoType: config.GoTypeDetails{
+					Import:  "github.com/example/types",
+					Package: "types",
+					Type:    "Email",
+				},
+			},
+		})
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(res.Columns))
+		}
+		if res.Columns[0].GoType != "Email" {
+			t.Errorf("expected GoType Email, got %q", res.Columns[0].GoType)
+		}
+	})
+
+	t.Run("pointer column override", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL:    "SELECT users.id FROM users;",
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		an.SetColumnOverrides(map[string]config.ColumnOverride{
+			"users.id": {
+				Column: "users.id",
+				GoType: config.GoTypeDetails{
+					Type:    "CustomID",
+					Pointer: true,
+				},
+			},
+		})
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(res.Columns))
+		}
+		if res.Columns[0].GoType != "*CustomID" {
+			t.Errorf("expected GoType *CustomID, got %q", res.Columns[0].GoType)
+		}
+	})
+
+	t.Run("no override uses default type", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL:    "SELECT users.id FROM users;",
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(res.Columns))
+		}
+		if res.Columns[0].GoType != "int64" {
+			t.Errorf("expected GoType int64, got %q", res.Columns[0].GoType)
+		}
+	})
+
+	t.Run("column override propagates through CTE", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL: `WITH user_subset AS (
+				SELECT users.id FROM users WHERE users.id = :user_id
+			)
+			SELECT user_subset.id FROM user_subset;`,
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		an.SetColumnOverrides(map[string]config.ColumnOverride{
+			"users.id": {Column: "users.id", GoType: config.GoTypeDetails{Type: "uuid.UUID"}},
+		})
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(res.Columns))
+		}
+		if res.Columns[0].GoType != "uuid.UUID" {
+			t.Errorf("expected GoType uuid.UUID, got %q", res.Columns[0].GoType)
+		}
+	})
+}
 func BenchmarkAnalyzeSelect(b *testing.B) {
 	cat := buildTestCatalog()
 	blk := block.Block{

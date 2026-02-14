@@ -28,9 +28,10 @@ const lineOffsetBufferOverhead = 2
 
 // Analyzer validates queries against the schema catalog.
 type Analyzer struct {
-	Catalog      *model.Catalog
-	CustomTypes  map[string]config.CustomTypeMapping
-	typeResolver TypeResolver
+	Catalog         *model.Catalog
+	CustomTypes     map[string]config.CustomTypeMapping
+	ColumnOverrides map[string]config.ColumnOverride
+	typeResolver    TypeResolver
 }
 
 // TypeResolver interface for database-specific type mapping.
@@ -141,12 +142,17 @@ type posKey struct {
 
 // New creates a new Analyzer with the given catalog.
 func New(catalog *model.Catalog) *Analyzer {
-	return &Analyzer{Catalog: catalog, CustomTypes: nil}
+	return &Analyzer{Catalog: catalog, CustomTypes: nil, ColumnOverrides: nil}
 }
 
 // NewWithCustomTypes creates a new Analyzer with the given catalog and custom type mappings.
 func NewWithCustomTypes(catalog *model.Catalog, customTypes map[string]config.CustomTypeMapping) *Analyzer {
-	return &Analyzer{Catalog: catalog, CustomTypes: customTypes}
+	return &Analyzer{Catalog: catalog, CustomTypes: customTypes, ColumnOverrides: nil}
+}
+
+// SetColumnOverrides sets the column-specific type overrides.
+func (a *Analyzer) SetColumnOverrides(overrides map[string]config.ColumnOverride) {
+	a.ColumnOverrides = overrides
 }
 
 // Analyze validates and resolves a parsed query.
@@ -1342,15 +1348,59 @@ func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
 	colIndex := make(map[string]int, len(tbl.Columns))
 	for _, col := range tbl.Columns {
 		idx := len(cols)
+		goType, nullable := a.resolveColumnType(tbl.Name, col)
 		cols = append(cols, scopeColumn{
 			name:     col.Name,
 			owner:    tbl.Name,
-			goType:   a.SQLiteTypeToGo(col.Type),
-			nullable: !col.NotNull,
+			goType:   goType,
+			nullable: nullable,
 		})
 		colIndex[normalizeIdent(col.Name)] = idx
 	}
 	return &scopeEntry{name: tbl.Name, columns: cols, columnIndex: colIndex}
+}
+
+// resolveColumnType resolves the Go type for a column, checking column overrides first.
+// Returns the Go type and whether the column is nullable.
+func (a *Analyzer) resolveColumnType(tableName string, col *model.Column) (string, bool) {
+	// Check for column-specific override first (format: "table.column")
+	if goType, ok := a.lookupColumnOverride(tableName, col.Name); ok {
+		return goType, !col.NotNull
+	}
+
+	// Fall back to default type mapping
+	return a.SQLiteTypeToGo(col.Type), !col.NotNull
+}
+
+// lookupColumnOverride checks for a column-specific type override.
+// Returns the override Go type and true if found.
+func (a *Analyzer) lookupColumnOverride(tableName, columnName string) (string, bool) {
+	if a.ColumnOverrides == nil {
+		return "", false
+	}
+
+	// Try fully qualified name: table.column
+	qualifiedKey := strings.ToLower(tableName + "." + columnName)
+	if override, ok := a.ColumnOverrides[qualifiedKey]; ok {
+		return formatGoTypeWithPointer(override.GoType), true
+	}
+
+	// Try unqualified column name (for convenience)
+	unqualifiedKey := strings.ToLower(columnName)
+	if override, ok := a.ColumnOverrides[unqualifiedKey]; ok {
+		return formatGoTypeWithPointer(override.GoType), true
+	}
+
+	return "", false
+}
+
+// formatGoTypeWithPointer formats a Go type, adding pointer prefix if needed.
+func formatGoTypeWithPointer(details config.GoTypeDetails) string {
+	goType := details.Type
+	if details.Pointer {
+		goType = "*" + goType
+	}
+	return goType
 }
 
 func normalizeIdent(name string) string {

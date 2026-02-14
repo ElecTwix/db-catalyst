@@ -43,6 +43,7 @@ type Options struct {
 	EmitPointersForNull bool
 	Prepared            PreparedOptions
 	CustomTypes         []config.CustomTypeMapping
+	ColumnOverrides     []config.ColumnOverride
 	SQL                 SQLOptions
 }
 
@@ -139,6 +140,7 @@ func (g *codegen) generateGo(ctx context.Context, catalog *model.Catalog, analys
 		EmitEmptySlices:     g.opts.EmitEmptySlices,
 		EmitPointersForNull: g.opts.EmitPointersForNull,
 		TypeResolver:        typeResolver,
+		ColumnOverrides:     g.opts.ColumnOverrides,
 		Prepared: astbuilder.PreparedOptions{
 			Enabled:     g.opts.Prepared.Enabled,
 			EmitMetrics: g.opts.Prepared.EmitMetrics,

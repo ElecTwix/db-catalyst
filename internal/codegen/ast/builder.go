@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/tools/imports"
 
+	"github.com/electwix/db-catalyst/internal/config"
 	"github.com/electwix/db-catalyst/internal/query/analyzer"
 	"github.com/electwix/db-catalyst/internal/query/block"
 	"github.com/electwix/db-catalyst/internal/schema/model"
@@ -38,6 +39,7 @@ type Options struct {
 	EmitPointersForNull bool
 	Prepared            PreparedOptions
 	TypeResolver        *TypeResolver
+	ColumnOverrides     []config.ColumnOverride
 }
 
 // File represents an AST file ready for rendering.
@@ -259,6 +261,40 @@ func (b *Builder) collectTableModels(catalog *model.Catalog, analyses []analyzer
 	return models, nil
 }
 
+// lookupColumnOverride checks if there's a column override for the given table.column
+func (b *Builder) lookupColumnOverride(table, column string) *config.ColumnOverride {
+	key := table + "." + column
+	for i := range b.opts.ColumnOverrides {
+		if b.opts.ColumnOverrides[i].Column == key {
+			return &b.opts.ColumnOverrides[i]
+		}
+	}
+	return nil
+}
+
+// resolveColumnType determines the Go type for a column, checking overrides first
+func (b *Builder) resolveColumnType(tbl *model.Table, col *model.Column) TypeInfo {
+	// Check for column-specific override first
+	if override := b.lookupColumnOverride(tbl.Name, col.Name); override != nil {
+		goType := override.GoType.Type
+		if col.NotNull && override.GoType.Pointer {
+			goType = "*" + goType
+		}
+		return TypeInfo{
+			GoType:      goType,
+			Import:      override.GoType.Import,
+			Package:     override.GoType.Package,
+			UsesSQLNull: false,
+		}
+	}
+
+	// Fall back to type resolver
+	if b.opts.TypeResolver != nil {
+		return b.opts.TypeResolver.ResolveType(col.Type, !col.NotNull)
+	}
+	return resolveType(analyzer.SQLiteTypeToGo(col.Type), !col.NotNull)
+}
+
 func (b *Builder) buildTableModel(tbl *model.Table) (*tableModel, error) {
 	used := make(map[string]int)
 	fields := make([]modelField, 0, len(tbl.Columns))
@@ -277,12 +313,7 @@ func (b *Builder) buildTableModel(tbl *model.Table) (*tableModel, error) {
 		} else {
 			used[goName] = 1
 		}
-		var typeInfo TypeInfo
-		if b.opts.TypeResolver != nil {
-			typeInfo = b.opts.TypeResolver.ResolveType(col.Type, !col.NotNull)
-		} else {
-			typeInfo = resolveType(analyzer.SQLiteTypeToGo(col.Type), !col.NotNull)
-		}
+		typeInfo := b.resolveColumnType(tbl, col)
 		if typeInfo.UsesSQLNull {
 			needsSQL = true
 		}

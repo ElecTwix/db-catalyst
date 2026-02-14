@@ -334,6 +334,184 @@ func copyFixtureDir(tb testing.TB, dstRoot, name string) {
 	}
 }
 
+func TestLoadColumnOverrides(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	copyFixtureDir(t, tempDir, "schemas")
+	copyFixtureDir(t, tempDir, "queries")
+
+	configPath := writeConfig(t, tempDir, `
+package = "demo"
+out = "gen"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[[overrides]]
+column = "user_.id"
+go_type = { import = "epin-mono/libs/db/pkg/idwrap", package = "idwrap", type = "IDWrap" }
+
+[[overrides]]
+column = "user_.name"
+go_type = "string"
+`)
+
+	result, err := Load(configPath, LoadOptions{})
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	if len(result.Plan.ColumnOverrides) != 2 {
+		t.Fatalf("expected 2 column overrides, got %d", len(result.Plan.ColumnOverrides))
+	}
+
+	// Check complex override
+	complexOverride, ok := result.Plan.ColumnOverrides["user_.id"]
+	if !ok {
+		t.Fatalf("expected override for 'user_.id' to be present")
+	}
+	if complexOverride.GoType.Type != "IDWrap" {
+		t.Errorf("expected GoType.Type 'IDWrap', got %q", complexOverride.GoType.Type)
+	}
+	if complexOverride.GoType.Import != "epin-mono/libs/db/pkg/idwrap" {
+		t.Errorf("expected GoType.Import 'epin-mono/libs/db/pkg/idwrap', got %q", complexOverride.GoType.Import)
+	}
+	if complexOverride.GoType.Package != "idwrap" {
+		t.Errorf("expected GoType.Package 'idwrap', got %q", complexOverride.GoType.Package)
+	}
+
+	// Check simple override
+	simpleOverride, ok := result.Plan.ColumnOverrides["user_.name"]
+	if !ok {
+		t.Fatalf("expected override for 'user_.name' to be present")
+	}
+	if simpleOverride.GoType.Type != "string" {
+		t.Errorf("expected GoType.Type 'string', got %q", simpleOverride.GoType.Type)
+	}
+	if simpleOverride.GoType.Import != "" {
+		t.Errorf("expected no import for simple type, got %q", simpleOverride.GoType.Import)
+	}
+}
+
+func TestLoadColumnOverridesWithPointer(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	copyFixtureDir(t, tempDir, "schemas")
+	copyFixtureDir(t, tempDir, "queries")
+
+	configPath := writeConfig(t, tempDir, `
+package = "demo"
+out = "gen"
+schemas = ["schemas/*.sql"]
+queries = ["queries/*.sql"]
+
+[[overrides]]
+column = "user_.custom_id"
+go_type = { import = "github.com/example/types", type = "CustomID", pointer = true }
+`)
+
+	result, err := Load(configPath, LoadOptions{})
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	override, ok := result.Plan.ColumnOverrides["user_.custom_id"]
+	if !ok {
+		t.Fatalf("expected override for 'user_.custom_id' to be present")
+	}
+	if override.GoType.Type != "CustomID" {
+		t.Errorf("expected GoType.Type 'CustomID', got %q", override.GoType.Type)
+	}
+	if !override.GoType.Pointer {
+		t.Errorf("expected GoType.Pointer to be true")
+	}
+}
+
+func TestNormalizeColumnOverrides(t *testing.T) {
+	testCases := []struct {
+		name      string
+		overrides []ColumnOverride
+		expected  map[string]ColumnOverride
+	}{
+		{
+			name:      "empty overrides",
+			overrides: []ColumnOverride{},
+			expected:  map[string]ColumnOverride{},
+		},
+		{
+			name: "single override",
+			overrides: []ColumnOverride{
+				{Column: "users.id", GoType: GoTypeDetails{Type: "uuid.UUID"}},
+			},
+			expected: map[string]ColumnOverride{
+				"users.id": {Column: "users.id", GoType: GoTypeDetails{Type: "uuid.UUID"}},
+			},
+		},
+		{
+			name: "case insensitive lookup",
+			overrides: []ColumnOverride{
+				{Column: "Users.ID", GoType: GoTypeDetails{Type: "uuid.UUID"}},
+			},
+			expected: map[string]ColumnOverride{
+				"users.id": {Column: "Users.ID", GoType: GoTypeDetails{Type: "uuid.UUID"}},
+			},
+		},
+		{
+			name: "complex override with import",
+			overrides: []ColumnOverride{
+				{
+					Column: "users.custom_type",
+					GoType: GoTypeDetails{
+						Import:  "github.com/example/types",
+						Package: "types",
+						Type:    "CustomType",
+						Pointer: true,
+					},
+				},
+			},
+			expected: map[string]ColumnOverride{
+				"users.custom_type": {
+					Column: "users.custom_type",
+					GoType: GoTypeDetails{
+						Import:  "github.com/example/types",
+						Package: "types",
+						Type:    "CustomType",
+						Pointer: true,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := normalizeColumnOverrides(tc.overrides)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("expected %d overrides, got %d", len(tc.expected), len(result))
+			}
+
+			for key, expectedOverride := range tc.expected {
+				actualOverride, ok := result[key]
+				if !ok {
+					t.Errorf("expected override for key %q to be present", key)
+					continue
+				}
+				if actualOverride.GoType.Type != expectedOverride.GoType.Type {
+					t.Errorf("expected GoType.Type %q, got %q", expectedOverride.GoType.Type, actualOverride.GoType.Type)
+				}
+				if actualOverride.GoType.Import != expectedOverride.GoType.Import {
+					t.Errorf("expected GoType.Import %q, got %q", expectedOverride.GoType.Import, actualOverride.GoType.Import)
+				}
+				if actualOverride.GoType.Pointer != expectedOverride.GoType.Pointer {
+					t.Errorf("expected GoType.Pointer %v, got %v", expectedOverride.GoType.Pointer, actualOverride.GoType.Pointer)
+				}
+			}
+		})
+	}
+}
+
 func writeConfig(tb testing.TB, dir, contents string) string {
 	tb.Helper()
 
