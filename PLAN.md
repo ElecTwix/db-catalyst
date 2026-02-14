@@ -17,13 +17,13 @@ Improve db-catalyst to match SQLC's feature set for complex SQL projects.
 - [x] Add FTS5 virtual table support
 - [x] Add TRIGGER support (parse and ignore with warning)
 
-### Phase 3: Type Inference Improvements (MEDIUM PRIORITY)
-- [ ] Improve CTE type inference for literal columns
-- [ ] Better window function metadata handling
+### Phase 3: Type Inference Improvements (MEDIUM PRIORITY) ✅ DONE
+- [x] Improve CTE type inference for literal columns
+- [x] Better window function metadata handling
 
 ### Phase 4: Testing & Documentation (MEDIUM PRIORITY)
-- [ ] Add tests for new commands
-- [ ] Add tests for FTS5/triggers
+- [x] Add tests for new commands
+- [x] Add tests for FTS5/triggers
 - [ ] Update feature comparison docs
 
 ## Files to Modify
@@ -53,10 +53,13 @@ Improve db-catalyst to match SQLC's feature set for complex SQL projects.
 - [x] :execlastid command support (commit 9bca9da)
 - [x] FTS5 virtual table support (commit 9bca9da)
 - [x] TRIGGER support with warning (commit 9bca9da)
+- [x] CTE type inference improvements (commit 89f2d1f)
+- [x] Window function metadata handling
 
 ### In Progress
-- [ ] CTE type inference improvements
-- [ ] Window function metadata handling
+- None
+
+### Completed All High/Medium Priority Tasks ✅
 
 ### Blocked
 - None
