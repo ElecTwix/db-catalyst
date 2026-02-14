@@ -214,9 +214,13 @@ go_type = "uint32"
 | sqlc.arg() | ✅ | ✅ | Supported |
 | sqlc.narg() | ✅ | ✅ | Supported |
 | sqlc.slice() | ✅ | ✅ | Supported |
+| :execrows | ✅ | ✅ | Returns rows affected |
+| :execlastid | ✅ | ✅ | Returns last insert ID |
 | ON CONFLICT | ✅ | ✅ | Now supported |
 | RETURNING | ✅ | ✅ | Full support |
-| CTEs (WITH) | ✅ | ✅ | Full support |
+| CTEs (WITH) | ✅ | ✅ | Full support with literal type inference |
+| FTS5 virtual tables | ⚠️ | ⚠️ | Supported with warning |
+| Triggers | ⚠️ | ⚠️ | Supported with warning |
 | Cursor pagination | ✅ | ⚠️ | Partial - use sqlc.narg() pattern |
 | Stored procedures | ❌ | ❌ | Not supported in either |
 

@@ -185,6 +185,56 @@ if err != nil {
 lastID, _ := result.LastInsertId()
 ```
 
+### :execrows - Rows Affected
+
+Returns the number of rows affected (int64):
+
+```sql
+-- name: DeleteOldSessions :execrows
+DELETE FROM sessions WHERE expires_at < datetime('now');
+```
+
+Generated signature:
+
+```go
+func (q *Queries) DeleteOldSessions(ctx context.Context) (int64, error)
+```
+
+Usage:
+
+```go
+rowsAffected, err := queries.DeleteOldSessions(ctx)
+if err != nil {
+    return err
+}
+fmt.Printf("Deleted %d sessions\n", rowsAffected)
+```
+
+### :execlastid - Last Insert ID
+
+Returns the last inserted row ID (int64):
+
+```sql
+-- name: CreateUser :execlastid
+INSERT INTO users (email, name) VALUES (?, ?);
+```
+
+Generated signature:
+
+```go
+func (q *Queries) CreateUser(ctx context.Context, email string, name string) (int64, error)
+```
+
+Usage:
+
+```go
+lastID, err := queries.CreateUser(ctx, "alice@example.com", "Alice")
+if err != nil {
+    return err
+}
+fmt.Printf("Created user with ID %d\n", lastID)
+```
+
 ### Return Type Summary
 
 | Suffix | Return Type | Use For |
@@ -193,6 +243,8 @@ lastID, _ := result.LastInsertId()
 | `:many` | `([]T, error)` | Lists, searches |
 | `:exec` | `error` | Updates, deletes without RETURNING |
 | `:execresult` | `(sql.Result, error)` | Inserts needing LastInsertId |
+| `:execrows` | `(int64, error)` | Getting rows affected count |
+| `:execlastid` | `(int64, error)` | Getting last insert ID |
 
 ## Parameters
 
@@ -630,6 +682,37 @@ SELECT
     c.total_comments
 FROM user_stats u, post_stats p, comment_stats c;
 ```
+
+### CTE Type Inference
+
+db-catalyst automatically infers types for CTE columns that derive from literals:
+
+```sql
+-- name: GetActivityFeed :many
+WITH activities AS (
+    SELECT 
+        'post' as activity_type,  -- inferred as string
+        id,
+        title as content,
+        0 as depth                 -- inferred as int64
+    FROM posts
+    UNION ALL
+    SELECT 
+        'comment' as activity_type,
+        id,
+        content,
+        1 as depth
+    FROM comments
+)
+SELECT * FROM activities ORDER BY depth;
+```
+
+Supported literal type inference:
+- String literals: `'post' as type` → `string`
+- Integer literals: `0 as depth` → `int64`
+- Float literals: `3.14 as value` → `float64`
+- Boolean literals: `TRUE as flag` → `bool`
+- CAST expressions: `CAST(id AS TEXT)` → `string`
 
 ## Advanced Features
 

@@ -12,6 +12,7 @@ Complete guide to writing SQL schemas for db-catalyst. This document covers supp
 - [Foreign Keys](#foreign-keys)
 - [Views](#views)
 - [Triggers](#triggers)
+- [Virtual Tables](#virtual-tables)
 - [Best Practices](#best-practices)
 - [Examples](#examples)
 - [SQL Schema Generation](#sql-schema-generation)
@@ -451,7 +452,7 @@ GROUP BY p.id, p.title, a.name;
 
 ## Triggers
 
-Triggers are parsed but don't affect code generation:
+Triggers are supported with a warning (the body is parsed but not analyzed):
 
 ```sql
 CREATE TRIGGER update_tasks_updated_at
@@ -461,6 +462,36 @@ BEGIN
     UPDATE tasks SET updated_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
 END;
+```
+
+> **Note**: Triggers generate a warning during parsing since the body is skipped. This is intentional - the trigger definition is preserved for schema completeness but the internal SQL is not analyzed.
+
+## Virtual Tables
+
+### FTS5 (Full-Text Search)
+
+FTS5 virtual tables are supported with a warning:
+
+```sql
+CREATE VIRTUAL TABLE posts_fts USING fts5(
+    title,
+    content,
+    content='posts',
+    content_rowid='id'
+);
+```
+
+> **Note**: FTS5 and other virtual tables (FTS4, rtree, etc.) generate a warning during parsing. The table definition is recognized but virtual table-specific options are not validated.
+
+### Other Virtual Tables
+
+All virtual table types are parsed without error:
+
+```sql
+-- R-Tree for spatial indexing
+CREATE VIRTUAL TABLE locations USING rtree(
+    id, minX, maxX, minY, maxY
+);
 ```
 
 ## Best Practices
