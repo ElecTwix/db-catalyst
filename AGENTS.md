@@ -230,6 +230,41 @@ Follow Conventional Commits:
 - [ ] Tests added for new functionality
 - [ ] Documentation updated if needed
 
+## Pre-Commit Testing Requirements
+
+Before committing code generation changes, you MUST run these tests:
+
+### 1. Code Generation Compilation Tests
+```bash
+go test ./test/e2e/... -v -run "TestGeneratedGoCode"
+```
+This ensures generated code compiles with all flag combinations:
+- Basic queries
+- Prepared queries (basic, threadsafe, with_metrics)
+
+### 2. Interface Compatibility Test
+```bash
+go test ./test/e2e/... -v -run "TestDBTXInterfaceCompatibility"
+```
+This ensures the generated DBTX interface is compatible with *sql.DB and *sql.Tx.
+
+### 3. All Examples Build
+```bash
+task build-examples
+```
+This regenerates and builds all examples to catch integration issues.
+
+### 4. Golden Files (if tests fail)
+If golden file tests fail due to intentional changes:
+```bash
+UPDATE_GOLDEN=1 go test ./internal/codegen/... ./internal/pipeline/...
+```
+
+### Golden File Strategy
+- Golden files detect CHANGES in generated output
+- Compilation tests detect CORRECTNESS issues
+- BOTH are required: golden for diff review, compilation for validation
+
 ## Resources
 
 - [Effective Go](https://go.dev/doc/effective_go)

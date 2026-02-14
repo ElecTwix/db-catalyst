@@ -284,46 +284,41 @@ queries = ["queries.sql"]
 func TestGeneratedGoCode_WithPreparedQueries(t *testing.T) {
 	ctx := context.Background()
 
-	tmpDir, err := os.MkdirTemp("", "db-catalyst-e2e-prepared-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	tests := []struct {
+		name      string
+		config    string
+		needBuild bool // whether this config needs compilation test
+	}{
+		{
+			name: "basic",
+			config: `package = "productdb"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
 
-	goModContent := `module testapp
+[prepared_queries]
+enabled = true
+`,
+			needBuild: true,
+		},
+		{
+			name: "threadsafe",
+			config: `package = "productdb"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
 
-go 1.23
-
-require modernc.org/sqlite v1.34.1
-`
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
-		t.Fatalf("failed to write go.mod: %v", err)
-	}
-
-	schemaSQL := `
-CREATE TABLE products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sku TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    price INTEGER NOT NULL
-);
-`
-	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
-		t.Fatalf("failed to write schema: %v", err)
-	}
-
-	queriesSQL := `
--- name: GetProduct :one
-SELECT * FROM products WHERE id = ?;
-
--- name: ListProducts :many
-SELECT * FROM products ORDER BY name;
-`
-	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
-		t.Fatalf("failed to write queries: %v", err)
-	}
-
-	cfgContent := `package = "productdb"
+[prepared_queries]
+enabled = true
+thread_safe = true
+`,
+			needBuild: true,
+		},
+		{
+			name: "with_metrics",
+			config: `package = "productdb"
 out = "gen"
 sqlite_driver = "modernc"
 schemas = ["schema.sql"]
@@ -333,26 +328,84 @@ queries = ["queries.sql"]
 enabled = true
 metrics = true
 thread_safe = true
-`
-	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
-	if err := os.WriteFile(configPath, []byte(cfgContent), 0600); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	p := &pipeline.Pipeline{
-		Env: pipeline.Environment{
-			Logger: logging.NewNopLogger(),
+`,
+			needBuild: true,
 		},
 	}
 
-	opts := pipeline.RunOptions{
-		ConfigPath: configPath,
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "db-catalyst-e2e-prepared-*")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	_, err = p.Run(ctx, opts)
-	if err != nil {
-		t.Fatalf("pipeline failed: %v", err)
-	}
+			goModContent := `module testapp
 
-	t.Log("✅ Prepared queries generated files successfully")
+go 1.23
+
+require modernc.org/sqlite v1.34.1
+`
+			if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+				t.Fatalf("failed to write go.mod: %v", err)
+			}
+
+			schemaSQL := `
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    price INTEGER NOT NULL
+);
+`
+			if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
+				t.Fatalf("failed to write schema: %v", err)
+			}
+
+			queriesSQL := `
+-- name: GetProduct :one
+SELECT * FROM products WHERE id = ?;
+
+-- name: ListProducts :many
+SELECT * FROM products ORDER BY name;
+
+-- name: CreateProduct :exec
+INSERT INTO products (sku, name, price) VALUES (?, ?, ?);
+`
+			if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
+				t.Fatalf("failed to write queries: %v", err)
+			}
+
+			configPath := filepath.Join(tmpDir, "db-catalyst.toml")
+			if err := os.WriteFile(configPath, []byte(tt.config), 0600); err != nil {
+				t.Fatalf("failed to write config: %v", err)
+			}
+
+			p := &pipeline.Pipeline{
+				Env: pipeline.Environment{
+					Logger: logging.NewNopLogger(),
+				},
+			}
+
+			opts := pipeline.RunOptions{
+				ConfigPath: configPath,
+			}
+
+			_, err = p.Run(ctx, opts)
+			if err != nil {
+				t.Fatalf("pipeline failed: %v", err)
+			}
+
+			if tt.needBuild {
+				// Verify the generated code compiles - catches variable redeclaration bugs
+				cmd := exec.CommandContext(ctx, "go", "build", "./...")
+				cmd.Dir = tmpDir
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("generated code failed to compile:\n%s", output)
+				}
+				t.Logf("✅ Prepared queries (%s) compile successfully", tt.name)
+			}
+		})
+	}
 }

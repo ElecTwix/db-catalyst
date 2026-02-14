@@ -90,6 +90,22 @@ tasks:
     desc: Run all linters
     deps: [lint, vet, staticcheck]
 
+  test-codegen:
+    desc: Test code generation compiles correctly
+    cmds:
+      - go test ./test/e2e/... -v -run "TestGeneratedGoCode"
+      - go test ./test/e2e/... -v -run "TestDBTXInterfaceCompatibility"
+
+  build-examples:
+    desc: Regenerate and build all examples
+    cmds:
+      - go run ./cmd/db-catalyst -c examples/simple/db-catalyst.toml
+      - go run ./cmd/db-catalyst -c examples/advanced/db-catalyst.toml
+      - go run ./cmd/db-catalyst -c examples/complex/db-catalyst.toml
+      - go run ./cmd/db-catalyst -c examples/postgresql/db-catalyst.toml
+      - go run ./cmd/db-catalyst -c examples/mysql/db-catalyst.toml
+      - go build ./examples/...
+
   fuzz-tokenizer:
     desc: Fuzz test the tokenizer
     cmds:
@@ -220,8 +236,12 @@ tasks:
     deps: [lint-all, security, vulncheck, test-race, coverage-report]
 
   quick:
-    desc: Quick check (build + test)
-    deps: [build, test]
+    desc: Quick build, test, and verify
+    cmds:
+      - go build ./cmd/db-catalyst
+      - go test ./...
+      - task: test-codegen
+      - task: lint
 
   install:
     desc: Install binary to $GOPATH/bin
