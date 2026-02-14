@@ -61,6 +61,8 @@ type ResultColumn struct {
 	Table    string
 	GoType   string
 	Nullable bool
+	Import   string
+	Package  string
 }
 
 // ResultParam describes a single input parameter of a query.
@@ -71,6 +73,8 @@ type ResultParam struct {
 	Nullable      bool
 	IsVariadic    bool
 	VariadicCount int
+	Import        string
+	Package       string
 }
 
 // Diagnostic represents an issue found during analysis.
@@ -119,10 +123,12 @@ type scopeEntry struct {
 }
 
 type scopeColumn struct {
-	name     string
-	owner    string
-	goType   string
-	nullable bool
+	name        string
+	owner       string
+	goType      string
+	nullable    bool
+	importPath  string
+	packageName string
 }
 
 type textIndex struct {
@@ -133,6 +139,8 @@ type textIndex struct {
 type paramInfo struct {
 	GoType   string
 	Nullable bool
+	Import   string
+	Package  string
 }
 
 type posKey struct {
@@ -309,6 +317,8 @@ func (a *Analyzer) Analyze(q parser.Query) Result {
 		} else if info, ok := paramInfos[idx]; ok {
 			rp.GoType = info.GoType
 			rp.Nullable = info.Nullable
+			rp.Import = info.Import
+			rp.Package = info.Package
 		}
 		result.Params = append(result.Params, rp)
 	}
@@ -1010,6 +1020,8 @@ func entryToResultColumns(entry *scopeEntry) []ResultColumn {
 			Table:    entry.name,
 			GoType:   sc.goType,
 			Nullable: sc.nullable,
+			Import:   sc.importPath,
+			Package:  sc.packageName,
 		})
 	}
 	return cols
@@ -1147,6 +1159,8 @@ func resolveResultColumn(col parser.Column, scope *queryScope, blk block.Block, 
 		}
 		rc.GoType = lookup.goType
 		rc.Nullable = lookup.nullable
+		rc.Import = lookup.importPath
+		rc.Package = lookup.packageName
 	case scopeLookupAliasNotFound:
 		if isAggregate {
 			msg := fmt.Sprintf("aggregate %s references unknown relation", aggregateKindString(agg.kind))
@@ -1348,50 +1362,71 @@ func (a *Analyzer) scopeEntryFromTable(tbl *model.Table) *scopeEntry {
 	colIndex := make(map[string]int, len(tbl.Columns))
 	for _, col := range tbl.Columns {
 		idx := len(cols)
-		goType, nullable := a.resolveColumnType(tbl.Name, col)
+		typeInfo := a.resolveColumnTypeFull(tbl.Name, col)
 		cols = append(cols, scopeColumn{
-			name:     col.Name,
-			owner:    tbl.Name,
-			goType:   goType,
-			nullable: nullable,
+			name:        col.Name,
+			owner:       tbl.Name,
+			goType:      typeInfo.goType,
+			nullable:    typeInfo.nullable,
+			importPath:  typeInfo.importPath,
+			packageName: typeInfo.packageName,
 		})
 		colIndex[normalizeIdent(col.Name)] = idx
 	}
 	return &scopeEntry{name: tbl.Name, columns: cols, columnIndex: colIndex}
 }
 
-// resolveColumnType resolves the Go type for a column, checking column overrides first.
-// Returns the Go type and whether the column is nullable.
-func (a *Analyzer) resolveColumnType(tableName string, col *model.Column) (string, bool) {
+// columnTypeInfo holds resolved type information including import/package
+type columnTypeInfo struct {
+	goType      string
+	nullable    bool
+	importPath  string
+	packageName string
+}
+
+// resolveColumnTypeFull resolves the Go type for a column with full type information.
+func (a *Analyzer) resolveColumnTypeFull(tableName string, col *model.Column) columnTypeInfo {
 	// Check for column-specific override first (format: "table.column")
-	if goType, ok := a.lookupColumnOverride(tableName, col.Name); ok {
-		return goType, !col.NotNull
+	if info, ok := a.lookupColumnOverrideFull(tableName, col.Name); ok {
+		info.nullable = !col.NotNull
+		return info
 	}
 
 	// Fall back to default type mapping
-	return a.SQLiteTypeToGo(col.Type), !col.NotNull
+	return columnTypeInfo{
+		goType:   a.SQLiteTypeToGo(col.Type),
+		nullable: !col.NotNull,
+	}
 }
 
-// lookupColumnOverride checks for a column-specific type override.
-// Returns the override Go type and true if found.
-func (a *Analyzer) lookupColumnOverride(tableName, columnName string) (string, bool) {
+// lookupColumnOverrideFull checks for a column-specific type override with full type info.
+// Returns the override type information and true if found.
+func (a *Analyzer) lookupColumnOverrideFull(tableName, columnName string) (columnTypeInfo, bool) {
 	if a.ColumnOverrides == nil {
-		return "", false
+		return columnTypeInfo{}, false
 	}
 
 	// Try fully qualified name: table.column
 	qualifiedKey := strings.ToLower(tableName + "." + columnName)
 	if override, ok := a.ColumnOverrides[qualifiedKey]; ok {
-		return formatGoTypeWithPointer(override.GoType), true
+		return columnTypeInfo{
+			goType:      formatGoTypeWithPointer(override.GoType),
+			importPath:  override.GoType.Import,
+			packageName: override.GoType.Package,
+		}, true
 	}
 
 	// Try unqualified column name (for convenience)
 	unqualifiedKey := strings.ToLower(columnName)
 	if override, ok := a.ColumnOverrides[unqualifiedKey]; ok {
-		return formatGoTypeWithPointer(override.GoType), true
+		return columnTypeInfo{
+			goType:      formatGoTypeWithPointer(override.GoType),
+			importPath:  override.GoType.Import,
+			packageName: override.GoType.Package,
+		}, true
 	}
 
-	return "", false
+	return columnTypeInfo{}, false
 }
 
 // formatGoTypeWithPointer formats a Go type, adding pointer prefix if needed.
@@ -1868,12 +1903,16 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 
 		var typeName string
 		var nullable bool
+		var importPath string
+		var packageName string
 		found := false
 
 		if scope != nil {
 			if resolved, _, status := scope.lookup(table, column); status == scopeLookupOK && resolved.goType != "any" {
 				typeName = resolved.goType
 				nullable = resolved.nullable
+				importPath = resolved.importPath
+				packageName = resolved.packageName
 				found = true
 			}
 		}
@@ -1882,12 +1921,16 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 			if resolved, _, status := baseScope.lookup(table, column); status == scopeLookupOK && resolved.goType != "any" {
 				typeName = resolved.goType
 				nullable = resolved.nullable
+				importPath = resolved.importPath
+				packageName = resolved.packageName
 				found = true
 			} else if (status == scopeLookupAliasNotFound || status == scopeLookupAmbiguous) && column != "" {
 				// Final fallback: try global lookup in baseScope if alias not found or ambiguous
 				if fallback, _, fbStatus := baseScope.lookup("", column); fbStatus == scopeLookupOK && fallback.goType != "any" {
 					typeName = fallback.goType
 					nullable = fallback.nullable
+					importPath = fallback.importPath
+					packageName = fallback.packageName
 					found = true
 				}
 			}
@@ -1897,6 +1940,8 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 			if info, schemaFound := a.schemaInfoForColumn(cat, table, column); schemaFound {
 				typeName = info.GoType
 				nullable = info.Nullable
+				importPath = info.Import
+				packageName = info.Package
 				found = true
 			}
 		}
@@ -1910,7 +1955,12 @@ func (a *Analyzer) inferParamTypes(q parser.Query, scope *queryScope, baseScope 
 				typeName = "[]" + typeName
 				nullable = false // Slices themselves aren't nullable in this context usually
 			}
-			infos[paramIdx] = paramInfo{GoType: typeName, Nullable: nullable}
+			infos[paramIdx] = paramInfo{
+				GoType:   typeName,
+				Nullable: nullable,
+				Import:   importPath,
+				Package:  packageName,
+			}
 		}
 	}
 
@@ -1933,6 +1983,17 @@ func (a *Analyzer) schemaInfoForColumn(cat *model.Catalog, tableName, columnName
 	if column == nil {
 		return paramInfo{}, false
 	}
+
+	// Check for column override first to get custom type info
+	if info, ok := a.lookupColumnOverrideFull(tableName, columnName); ok {
+		return paramInfo{
+			GoType:   info.goType,
+			Nullable: !column.NotNull,
+			Import:   info.importPath,
+			Package:  info.packageName,
+		}, true
+	}
+
 	return paramInfo{
 		GoType:   a.SQLiteTypeToGo(column.Type),
 		Nullable: !column.NotNull,

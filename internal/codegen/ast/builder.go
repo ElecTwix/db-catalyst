@@ -505,8 +505,17 @@ func (b *Builder) buildParams(params []analyzer.ResultParam) ([]paramSpec, error
 	for idx, p := range params {
 		name := b.resolveParamName(p, idx, used)
 
+		// Check for import/package from analyzer (column override), then fall back to type resolver
 		var typeInfo TypeInfo
-		if b.opts.TypeResolver != nil {
+		if p.Import != "" {
+			// Use the import/package info from the analyzer (from column override)
+			typeInfo = TypeInfo{
+				GoType:      p.GoType,
+				Import:      p.Import,
+				Package:     p.Package,
+				UsesSQLNull: false,
+			}
+		} else if b.opts.TypeResolver != nil {
 			typeInfo = b.opts.TypeResolver.ResolveType(p.GoType, p.Nullable)
 		} else {
 			typeInfo = resolveType(p.GoType, p.Nullable)
@@ -595,8 +604,18 @@ func (b *Builder) buildHelper(methodName string, columns []analyzer.ResultColumn
 		} else {
 			used[fieldName] = 1
 		}
+
+		// Check for column override first, then fall back to type resolver
 		var typeInfo TypeInfo
-		if b.opts.TypeResolver != nil {
+		if col.Import != "" {
+			// Use the import/package info from the analyzer (from column override)
+			typeInfo = TypeInfo{
+				GoType:      col.GoType,
+				Import:      col.Import,
+				Package:     col.Package,
+				UsesSQLNull: false,
+			}
+		} else if b.opts.TypeResolver != nil {
 			typeInfo = b.opts.TypeResolver.ResolveType(col.GoType, col.Nullable)
 		} else {
 			typeInfo = resolveType(col.GoType, col.Nullable)
@@ -909,11 +928,19 @@ func (b *Builder) buildQueryFiles(pkg string, queries []queryInfo) ([]File, erro
 	for _, q := range queries {
 		file := &goast.File{Name: goast.NewIdent(pkg)}
 
-		// Collect imports needed for query parameters
+		// Collect imports needed for query parameters and result types
 		importSet := make(map[string]struct{})
 		for _, p := range q.params {
 			if p.importPath != "" {
 				importSet[p.importPath] = struct{}{}
+			}
+		}
+		// Collect imports from helper fields (result columns with custom types)
+		if q.helper != nil {
+			for _, fld := range q.helper.fields {
+				if fld.importPath != "" {
+					importSet[fld.importPath] = struct{}{}
+				}
 			}
 		}
 

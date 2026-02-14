@@ -680,6 +680,48 @@ func TestAnalyzer_ParamTypeOverride(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("column override provides import info to params", func(t *testing.T) {
+		blk := block.Block{
+			Path:   "query/test.sql",
+			Line:   1,
+			Column: 1,
+			SQL:    "SELECT * FROM users WHERE id = :user_id;",
+		}
+		q, diags := parser.Parse(blk)
+		if len(diags) != 0 {
+			t.Fatalf("unexpected parser diagnostics: %+v", diags)
+		}
+
+		an := analyzer.New(catalog)
+		an.SetColumnOverrides(map[string]config.ColumnOverride{
+			"users.id": {
+				Column: "users.id",
+				GoType: config.GoTypeDetails{
+					Type:    "UserID",
+					Import:  "github.com/example/types",
+					Package: "types",
+				},
+			},
+		})
+		res := an.Analyze(q)
+
+		if len(res.Diagnostics) != 0 {
+			t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+		}
+		if len(res.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d", len(res.Params))
+		}
+		if res.Params[0].GoType != "UserID" {
+			t.Errorf("expected param type UserID, got %q", res.Params[0].GoType)
+		}
+		if res.Params[0].Import != "github.com/example/types" {
+			t.Errorf("expected param import github.com/example/types, got %q", res.Params[0].Import)
+		}
+		if res.Params[0].Package != "types" {
+			t.Errorf("expected param package types, got %q", res.Params[0].Package)
+		}
+	})
 }
 
 func TestAnalyzer_ColumnOverride(t *testing.T) {
@@ -747,6 +789,12 @@ func TestAnalyzer_ColumnOverride(t *testing.T) {
 		}
 		if res.Columns[0].GoType != "Email" {
 			t.Errorf("expected GoType Email, got %q", res.Columns[0].GoType)
+		}
+		if res.Columns[0].Import != "github.com/example/types" {
+			t.Errorf("expected Import github.com/example/types, got %q", res.Columns[0].Import)
+		}
+		if res.Columns[0].Package != "types" {
+			t.Errorf("expected Package types, got %q", res.Columns[0].Package)
 		}
 	})
 
