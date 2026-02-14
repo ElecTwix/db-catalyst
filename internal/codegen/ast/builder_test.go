@@ -925,6 +925,32 @@ func TestBuildQueries_AllCommandTypes(t *testing.T) {
 		{
 			Query: parser.Query{
 				Block: block.Block{
+					Name:    "ExecRowsQuery",
+					SQL:     "DELETE FROM users WHERE active = :active",
+					Command: block.CommandExecRows,
+				},
+				Columns: []parser.Column{},
+				Params:  []parser.Param{{Name: "active", Line: 1, Column: 38}},
+			},
+			Columns: []analyzer.ResultColumn{},
+			Params:  []analyzer.ResultParam{{Name: "active", GoType: "bool"}},
+		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
+					Name:    "ExecLastIDQuery",
+					SQL:     "INSERT INTO users (name) VALUES (:name)",
+					Command: block.CommandExecLastID,
+				},
+				Columns: []parser.Column{},
+				Params:  []parser.Param{{Name: "name", Line: 1, Column: 37}},
+			},
+			Columns: []analyzer.ResultColumn{},
+			Params:  []analyzer.ResultParam{{Name: "name", GoType: "string"}},
+		},
+		{
+			Query: parser.Query{
+				Block: block.Block{
 					Name:    "OneQuery",
 					SQL:     "SELECT id FROM users WHERE id = :id",
 					Command: block.CommandOne,
@@ -955,16 +981,28 @@ func TestBuildQueries_AllCommandTypes(t *testing.T) {
 		t.Fatalf("buildQueries() error = %v", err)
 	}
 
-	if len(queries) != 4 {
-		t.Errorf("buildQueries() returned %d queries, want 4", len(queries))
+	if len(queries) != 6 {
+		t.Errorf("buildQueries() returned %d queries, want 6", len(queries))
 	}
 
 	// Check return types
 	expectedReturnTypes := map[string]string{
 		"ExecQuery":       "", // :exec returns just error
 		"ExecResultQuery": "QueryResult",
+		"ExecRowsQuery":   "int64",
+		"ExecLastIdQuery": "int64",
 		"OneQuery":        "int64", // Single column :one queries return scalar type
 		"ManyQuery":       "[]ManyQueryRow",
+	}
+
+	// Check return zero values
+	expectedReturnZeros := map[string]string{
+		"ExecQuery":       "",
+		"ExecResultQuery": "QueryResult{}",
+		"ExecRowsQuery":   "0",
+		"ExecLastIdQuery": "0",
+		"OneQuery":        "0",
+		"ManyQuery":       "nil",
 	}
 
 	for _, q := range queries {
@@ -975,6 +1013,15 @@ func TestBuildQueries_AllCommandTypes(t *testing.T) {
 		}
 		if q.returnType != want {
 			t.Errorf("%s returnType = %q, want %q", q.methodName, q.returnType, want)
+		}
+
+		wantZero, ok := expectedReturnZeros[q.methodName]
+		if !ok {
+			t.Errorf("unexpected query for zero check: %s", q.methodName)
+			continue
+		}
+		if q.returnZero != wantZero {
+			t.Errorf("%s returnZero = %q, want %q", q.methodName, q.returnZero, wantZero)
 		}
 	}
 }
@@ -1056,6 +1103,36 @@ func TestBuildQueryFunc(t *testing.T) {
 				command:    block.CommandExecResult,
 				returnType: "QueryResult",
 				returnZero: "QueryResult{}",
+				params: []paramSpec{
+					{name: "name", goType: "string", argExpr: "name"},
+				},
+				args: []string{"name"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "exec rows query",
+			query: queryInfo{
+				methodName: "DeleteAllUsers",
+				constName:  "queryDeleteAllUsers",
+				sqlLiteral: "DELETE FROM users",
+				command:    block.CommandExecRows,
+				returnType: "int64",
+				returnZero: "0",
+				params:     []paramSpec{},
+				args:       []string{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "exec last id query",
+			query: queryInfo{
+				methodName: "InsertUser",
+				constName:  "queryInsertUser",
+				sqlLiteral: "INSERT INTO users (name) VALUES (?)",
+				command:    block.CommandExecLastID,
+				returnType: "int64",
+				returnZero: "0",
 				params: []paramSpec{
 					{name: "name", goType: "string", argExpr: "name"},
 				},

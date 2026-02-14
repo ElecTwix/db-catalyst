@@ -25,6 +25,10 @@ const (
 	CommandExec
 	// CommandExecResult indicates a query that returns execution result (rows affected, etc.).
 	CommandExecResult
+	// CommandExecRows indicates a query that returns the number of affected rows.
+	CommandExecRows
+	// CommandExecLastID indicates a query that returns the last insert ID.
+	CommandExecLastID
 )
 
 // ParamTypeOverride represents an explicit type override for a parameter.
@@ -59,6 +63,10 @@ func (c Command) String() string {
 		return ":exec"
 	case CommandExecResult:
 		return ":execresult"
+	case CommandExecRows:
+		return ":execrows"
+	case CommandExecLastID:
+		return ":execlastid"
 	default:
 		return ":unknown"
 	}
@@ -75,6 +83,10 @@ func ParseCommand(tag string) (Command, bool) {
 		return CommandExec, true
 	case ":execresult":
 		return CommandExecResult, true
+	case ":execrows":
+		return CommandExecRows, true
+	case ":execlastid":
+		return CommandExecLastID, true
 	default:
 		return CommandUnknown, false
 	}

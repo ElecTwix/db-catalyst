@@ -1053,9 +1053,9 @@ func TestParseCreate(t *testing.T) {
 		},
 		{
 			name:      "create unsupported target",
-			input:     "CREATE TRIGGER trg AFTER INSERT ON t BEGIN SELECT 1; END;",
+			input:     "CREATE UNKNOWN something;",
 			wantDiags: true,
-			diagMsg:   "unsupported CREATE",
+			diagMsg:   "expected TABLE",
 		},
 		{
 			name:      "create without keyword",

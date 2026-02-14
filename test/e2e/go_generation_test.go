@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/electwix/db-catalyst/internal/logging"
@@ -408,4 +409,117 @@ INSERT INTO products (sku, name, price) VALUES (?, ?, ?);
 			}
 		})
 	}
+}
+
+// TestGeneratedGoCode_ExecRowsAndLastID tests that :execrows and :execlastid commands work correctly.
+func TestGeneratedGoCode_ExecRowsAndLastID(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary directory for the test module
+	tmpDir, err := os.MkdirTemp("", "db-catalyst-e2e-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	// Create go.mod for the test module
+	goModContent := `module testapp
+
+go 1.23
+
+require modernc.org/sqlite v1.34.1
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goModContent), 0600); err != nil {
+		t.Fatalf("failed to write go.mod: %v", err)
+	}
+
+	// Create a simple schema
+	schemaSQL := `
+CREATE TABLE authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+);
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "schema.sql"), []byte(schemaSQL), 0600); err != nil {
+		t.Fatalf("failed to write schema: %v", err)
+	}
+
+	// Create queries with :execrows and :execlastid
+	queriesSQL := `
+-- name: DeleteAllAuthors :execrows
+DELETE FROM authors;
+
+-- name: InsertAuthor :execlastid
+INSERT INTO authors (name) VALUES (?);
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "queries.sql"), []byte(queriesSQL), 0600); err != nil {
+		t.Fatalf("failed to write queries: %v", err)
+	}
+
+	// Create config with relative paths
+	cfgContent := `package = "db"
+out = "gen"
+sqlite_driver = "modernc"
+schemas = ["schema.sql"]
+queries = ["queries.sql"]
+`
+	configPath := filepath.Join(tmpDir, "db-catalyst.toml")
+	if err := os.WriteFile(configPath, []byte(cfgContent), 0600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	// Run the pipeline using default OS writer
+	p := &pipeline.Pipeline{
+		Env: pipeline.Environment{
+			Logger: logging.NewNopLogger(),
+		},
+	}
+
+	opts := pipeline.RunOptions{
+		ConfigPath: configPath,
+	}
+
+	summary, err := p.Run(ctx, opts)
+	if err != nil {
+		t.Fatalf("pipeline failed: %v", err)
+	}
+
+	if len(summary.Files) == 0 {
+		t.Fatal("no files generated")
+	}
+
+	// Verify the generated code compiles
+	cmd := exec.CommandContext(ctx, "go", "build", "./...")
+	cmd.Dir = tmpDir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generated code failed to compile:\n%s", output)
+	}
+	t.Logf("✅ :execrows and :execlastid commands generate valid code")
+
+	// Verify generated file contents contain expected return types
+	deleteFile := filepath.Join(tmpDir, "gen", "query_delete_all_authors.go")
+	insertFile := filepath.Join(tmpDir, "gen", "query_insert_author.go")
+
+	deleteContent, err := os.ReadFile(deleteFile)
+	if err != nil {
+		t.Fatalf("failed to read delete file: %v", err)
+	}
+	if !strings.Contains(string(deleteContent), "int64, error") {
+		t.Errorf("DeleteAllAuthors should return (int64, error)")
+	}
+	if !strings.Contains(string(deleteContent), "res.RowsAffected()") {
+		t.Errorf("DeleteAllAuthors should call res.RowsAffected()")
+	}
+
+	insertContent, err := os.ReadFile(insertFile)
+	if err != nil {
+		t.Fatalf("failed to read insert file: %v", err)
+	}
+	if !strings.Contains(string(insertContent), "int64, error") {
+		t.Errorf("InsertAuthor should return (int64, error)")
+	}
+	if !strings.Contains(string(insertContent), "res.LastInsertId()") {
+		t.Errorf("InsertAuthor should call res.LastInsertId()")
+	}
+	t.Logf("✅ Generated functions have correct signatures")
 }

@@ -461,6 +461,12 @@ func (b *Builder) buildQueries(analyses []analyzer.Result) ([]queryInfo, error) 
 		case block.CommandExecResult:
 			info.returnType = "QueryResult"
 			info.returnZero = "QueryResult{}"
+		case block.CommandExecRows:
+			info.returnType = "int64"
+			info.returnZero = "0"
+		case block.CommandExecLastID:
+			info.returnType = "int64"
+			info.returnZero = "0"
 		default:
 			// CommandUnknown or other unhandled commands - skip
 		}
@@ -1241,6 +1247,36 @@ func (b *Builder) buildPreparedFile(pkg string, queries []queryInfo) (File, erro
 			fmt.Fprintf(&buf, "\t\tresult.RowsAffected = v\n")
 			fmt.Fprintf(&buf, "\t}\n")
 			fmt.Fprintf(&buf, "\treturn result, nil\n")
+		case block.CommandExecRows:
+			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if b.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn 0, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\treturn res.RowsAffected()\n")
+		case block.CommandExecLastID:
+			fmt.Fprintf(&buf, "\tres, err := stmt.ExecContext(ctx")
+			for _, arg := range q.args {
+				fmt.Fprintf(&buf, ", %s", arg)
+			}
+			fmt.Fprintf(&buf, ")\n")
+			if b.opts.Prepared.EmitMetrics {
+				fmt.Fprintf(&buf, "\tif recorder != nil {\n")
+				fmt.Fprintf(&buf, "\t\trecorder.ObservePreparedQuery(ctx, %q, time.Since(start), err)\n", q.metricsKey)
+				fmt.Fprintf(&buf, "\t}\n")
+			}
+			fmt.Fprintf(&buf, "\tif err != nil {\n")
+			fmt.Fprintf(&buf, "\t\treturn 0, err\n")
+			fmt.Fprintf(&buf, "\t}\n")
+			fmt.Fprintf(&buf, "\treturn res.LastInsertId()\n")
 		case block.CommandOne:
 			fmt.Fprintf(&buf, "\trows, err := stmt.QueryContext(ctx")
 			for _, arg := range q.args {
@@ -1446,6 +1482,24 @@ func (b *Builder) buildQueryFunc(q queryInfo) (*goast.FuncDecl, error) {
 		body = append(body, mustParseStmt("if v, err := res.LastInsertId(); err == nil {\nresult.LastInsertID = v\n}"))
 		body = append(body, mustParseStmt("if v, err := res.RowsAffected(); err == nil {\nresult.RowsAffected = v\n}"))
 		body = append(body, mustParseStmt("return result, nil"))
+	case block.CommandExecRows:
+		if hasDynamic {
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(ctx, query, %s...)", callArgsName)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		}
+		body = append(body, mustParseStmt("if err != nil {\nreturn 0, err\n}"))
+		body = append(body, mustParseStmt("return res.RowsAffected()"))
+	case block.CommandExecLastID:
+		if hasDynamic {
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(ctx, query, %s...)", callArgsName)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("res, err := q.db.ExecContext(%s)", strings.Join(args, ", "))))
+		}
+		body = append(body, mustParseStmt("if err != nil {\nreturn 0, err\n}"))
+		body = append(body, mustParseStmt("return res.LastInsertId()"))
 	default:
 		// Check if caching is enabled for this query
 		if q.cache != nil && q.cache.enabled {

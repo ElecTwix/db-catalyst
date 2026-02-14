@@ -149,9 +149,14 @@ func (p *Parser) parseCreate() {
 		p.sync()
 		return
 	}
+	if p.matchKeyword("VIRTUAL") {
+		p.advance()
+		p.parseVirtualTable(createTok)
+		return
+	}
 	tok := p.current()
 	if tok.Kind != tokenizer.KindKeyword {
-		p.addDiagToken(tok, SeverityError, "expected TABLE, INDEX, or VIEW after CREATE")
+		p.addDiagToken(tok, SeverityError, "expected TABLE, INDEX, VIEW, TRIGGER, or VIRTUAL after CREATE")
 		p.sync()
 		return
 	}
@@ -165,6 +170,9 @@ func (p *Parser) parseCreate() {
 	case "VIEW":
 		p.advance()
 		p.parseCreateView(createTok)
+	case "TRIGGER":
+		p.advance()
+		p.parseTrigger(createTok)
 	default:
 		p.addDiagToken(tok, SeverityError, "unsupported CREATE target %s", tok.Text)
 		p.sync()
@@ -447,6 +455,69 @@ func (p *Parser) parseCreateView(createTok tokenizer.Token) {
 		return
 	}
 	p.catalog.Views[key] = view
+}
+
+func (p *Parser) parseVirtualTable(createTok tokenizer.Token) {
+	if !p.matchKeyword("TABLE") {
+		p.addDiagToken(p.current(), SeverityError, "expected TABLE after VIRTUAL")
+		p.sync()
+		return
+	}
+	p.advance()
+	p.skipIfNotExists()
+	name, nameTok, ok := p.parseObjectName()
+	if !ok {
+		p.sync()
+		return
+	}
+	moduleName := "virtual"
+	last := nameTok
+	for !p.isEOF() {
+		tok := p.current()
+		if tok.Kind == tokenizer.KindKeyword && tok.Text == "USING" {
+			p.advance()
+			if modTok := p.current(); modTok.Kind == tokenizer.KindKeyword || modTok.Kind == tokenizer.KindIdentifier {
+				moduleName = modTok.Text
+				last = modTok
+				p.advance()
+				continue
+			}
+		}
+		if tok.Kind == tokenizer.KindSymbol && tok.Text == ";" {
+			last = tok
+			p.advance()
+			break
+		}
+		last = tok
+		p.advance()
+	}
+	span := tokenizer.SpanBetween(createTok, last)
+	p.addDiagSpan(span, SeverityWarning, "virtual tables are not fully supported; %s table %q will not generate model structs", moduleName, name)
+}
+
+func (p *Parser) parseTrigger(createTok tokenizer.Token) {
+	p.skipIfNotExists()
+	name, nameTok, ok := p.parseIdentifierToken(true)
+	if !ok {
+		p.sync()
+		return
+	}
+	last := nameTok
+	for !p.isEOF() {
+		tok := p.current()
+		if tok.Kind == tokenizer.KindKeyword && tok.Text == "END" {
+			last = tok
+			p.advance()
+			if p.matchSymbol(";") {
+				last = p.advance()
+			}
+			break
+		}
+		last = tok
+		p.advance()
+	}
+	span := tokenizer.SpanBetween(createTok, last)
+	p.addDiagSpan(span, SeverityWarning, "triggers are not supported in schema files and will be ignored: %q", name)
 }
 
 func (p *Parser) parseAlter() {

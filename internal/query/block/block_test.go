@@ -101,6 +101,8 @@ func TestParseCommand(t *testing.T) {
 		":many":       CommandMany,
 		":exec":       CommandExec,
 		":execresult": CommandExecResult,
+		":execrows":   CommandExecRows,
+		":execlastid": CommandExecLastID,
 	}
 	for tag, want := range cases {
 		got, ok := ParseCommand(tag)
@@ -113,5 +115,23 @@ func TestParseCommand(t *testing.T) {
 	}
 	if _, ok := ParseCommand(":nope"); ok {
 		t.Fatalf("expected :nope to be invalid")
+	}
+}
+
+func TestCommandString(t *testing.T) {
+	cases := map[Command]string{
+		CommandOne:        ":one",
+		CommandMany:       ":many",
+		CommandExec:       ":exec",
+		CommandExecResult: ":execresult",
+		CommandExecRows:   ":execrows",
+		CommandExecLastID: ":execlastid",
+		CommandUnknown:    ":unknown",
+	}
+	for cmd, want := range cases {
+		got := cmd.String()
+		if got != want {
+			t.Errorf("Command(%d).String() = %q, want %q", cmd, got, want)
+		}
 	}
 }

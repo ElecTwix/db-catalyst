@@ -314,3 +314,133 @@ func TestSqliteParser_Parse(t *testing.T) {
 		_ = diags
 	})
 }
+
+func TestParseVirtualTable(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantWarning    string
+		wantTableCount int
+	}{
+		{
+			name:           "fts5 virtual table",
+			input:          "CREATE VIRTUAL TABLE posts_fts USING fts5(title, content, content=posts, content_rowid=id);",
+			wantWarning:    "fts5",
+			wantTableCount: 0,
+		},
+		{
+			name: "fts5 with regular tables",
+			input: `CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, content TEXT);
+CREATE VIRTUAL TABLE posts_fts USING fts5(title, content, content=posts, content_rowid=id);`,
+			wantWarning:    "fts5",
+			wantTableCount: 1,
+		},
+		{
+			name:           "fts4 virtual table",
+			input:          "CREATE VIRTUAL TABLE docs_fts USING fts4(content);",
+			wantWarning:    "fts4",
+			wantTableCount: 0,
+		},
+		{
+			name:           "rtree virtual table",
+			input:          "CREATE VIRTUAL TABLE rtree_index USING rtree(id, minX, maxX, minY, maxY);",
+			wantWarning:    "rtree",
+			wantTableCount: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			catalog, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if !containsMessage(diags, "virtual tables are not fully supported") {
+				t.Errorf("expected virtual table warning, got: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning to contain %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if len(catalog.Tables) != tt.wantTableCount {
+				t.Errorf("expected %d tables, got %d", tt.wantTableCount, len(catalog.Tables))
+			}
+		})
+	}
+}
+
+func TestParseTrigger(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantWarning    string
+		wantTableCount int
+	}{
+		{
+			name: "after insert trigger",
+			input: `CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT);
+CREATE TRIGGER posts_ai AFTER INSERT ON posts BEGIN
+    INSERT INTO posts_fts(rowid, title) VALUES (new.id, new.title);
+END;`,
+			wantWarning:    "posts_ai",
+			wantTableCount: 1,
+		},
+		{
+			name: "before update trigger",
+			input: `CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);
+CREATE TRIGGER validate_email BEFORE UPDATE ON users BEGIN
+    SELECT RAISE(ABORT, 'Invalid email') WHERE NEW.email NOT LIKE '%@%';
+END;`,
+			wantWarning:    "validate_email",
+			wantTableCount: 1,
+		},
+		{
+			name: "instead of trigger",
+			input: `CREATE VIEW user_view AS SELECT id, email FROM users;
+CREATE TRIGGER user_view_insert INSTEAD OF INSERT ON user_view BEGIN
+    INSERT INTO users(id, email) VALUES (NEW.id, NEW.email);
+END;`,
+			wantWarning:    "user_view_insert",
+			wantTableCount: 0,
+		},
+		{
+			name: "trigger with if not exists",
+			input: `CREATE TABLE items (id INTEGER PRIMARY KEY);
+CREATE TRIGGER IF NOT EXISTS items_check BEFORE DELETE ON items BEGIN
+    SELECT RAISE(FAIL, 'Cannot delete items') WHERE 1;
+END;`,
+			wantWarning:    "items_check",
+			wantTableCount: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			catalog, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if !containsMessage(diags, "triggers are not supported") {
+				t.Errorf("expected trigger warning, got: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning to contain %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if len(catalog.Tables) != tt.wantTableCount {
+				t.Errorf("expected %d tables, got %d", tt.wantTableCount, len(catalog.Tables))
+			}
+		})
+	}
+}
+
+func mustScan(t *testing.T, input string) []tokenizer.Token {
+	t.Helper()
+	tokens, err := tokenizer.Scan("test.sql", []byte(input), true)
+	if err != nil {
+		t.Fatalf("scan error: %v", err)
+	}
+	return tokens
+}
