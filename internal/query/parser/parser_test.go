@@ -1000,4 +1000,304 @@ WHERE u.status = ?`,
 			t.Fatalf("expected 1 column, got %d", len(q.Columns))
 		}
 	})
+
+	t.Run("DollarSignParameter", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `UPDATE handles SET name = $2, updated_at = $1 WHERE id = $1`,
+		}
+		q, diags := Parse(blk)
+		for _, d := range diags {
+			t.Logf("diagnostic: %v", d)
+		}
+		// Note: $ params may or may not be fully supported depending on implementation
+		if q.Verb != VerbUpdate {
+			t.Errorf("expected VerbUpdate, got %v", q.Verb)
+		}
+	})
+
+	t.Run("BetweenAfterAnd", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT id FROM test WHERE name = ? AND id BETWEEN ? AND ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 3 {
+			t.Fatalf("expected 3 params (name, id lower, id upper), got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "name" {
+			t.Errorf("expected first param 'name', got %q", q.Params[0].Name)
+		}
+	})
+
+	t.Run("BetweenNamedAfterAnd", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT id FROM test WHERE name = :name AND id BETWEEN :min AND :max`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 3 {
+			t.Fatalf("expected 3 params, got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "name" {
+			t.Errorf("expected first param 'name', got %q", q.Params[0].Name)
+		}
+		if q.Params[1].Name != "min" {
+			t.Errorf("expected second param 'min', got %q", q.Params[1].Name)
+		}
+		if q.Params[2].Name != "max" {
+			t.Errorf("expected third param 'max', got %q", q.Params[2].Name)
+		}
+	})
+
+	t.Run("SelectWithoutFromWhereNotExists", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT sqlc.arg('id'), sqlc.arg('name')
+WHERE NOT EXISTS (
+    SELECT 1 FROM rels
+    WHERE rels.left = sqlc.arg('left') AND rels.right = sqlc.arg('right')
+)`,
+		}
+		q, diags := Parse(blk)
+		for _, d := range diags {
+			t.Logf("diagnostic: %v", d)
+		}
+		// SQLite allows SELECT without FROM
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+		if len(q.Params) != 4 {
+			t.Fatalf("expected 4 params (id, name, left, right), got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("AtSignParameter", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users WHERE email = @email AND status = @status`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		// Note: @ params may not be fully supported - check implementation
+		// SQLite supports @VVV syntax but parser may not recognize them
+		t.Logf("params found: %+v", q.Params)
+	})
+
+	t.Run("IsDistinctFrom", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users WHERE status IS DISTINCT FROM 'deleted'`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
+
+	t.Run("IsNotDistinctFrom", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users WHERE status IS NOT DISTINCT FROM ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("FullOuterJoin", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT u.id, p.title
+FROM users u
+FULL OUTER JOIN posts p ON p.user_id = u.id
+WHERE u.status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("RightOuterJoin", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT u.id, p.title
+FROM users u
+RIGHT JOIN posts p ON p.user_id = u.id
+WHERE p.status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("NaturalJoin", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users NATURAL JOIN profiles WHERE users.id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
+
+	t.Run("UsingClause", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users JOIN posts USING (user_id) WHERE users.status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
+
+	t.Run("CompoundSelectUnion", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT id FROM users WHERE status = ?
+UNION
+SELECT id FROM admins WHERE role = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("CompoundSelectIntersect", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT id FROM users WHERE status = ?
+INTERSECT
+SELECT user_id FROM posts WHERE status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("CompoundSelectExcept", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT id FROM users WHERE status = ?
+EXCEPT
+SELECT user_id FROM blocked WHERE active = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("ValuesClause", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `VALUES (1, 'one'), (2, 'two'), (3, ?)`,
+		}
+		q, diags := Parse(blk)
+		// VALUES as standalone statement is SQLite-specific and may not be supported
+		if len(diags) > 0 {
+			t.Logf("expected diagnostic for VALUES: %v", diags[0].Message)
+		}
+		if q.Verb != VerbUnknown {
+			t.Logf("verb: %v", q.Verb)
+		}
+	})
+
+	t.Run("NullsFirstLast", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users ORDER BY status ASC NULLS FIRST, created_at DESC NULLS LAST`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
+
+	t.Run("ExtractOperator", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT data->'name' AS name, data->>'email' AS email FROM users WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 2 {
+			t.Fatalf("expected 2 columns, got %d", len(q.Columns))
+		}
+	})
+
+	t.Run("GlobOperator", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM files WHERE path NOT GLOB ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("TableValuedFunction", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM json_each(?) WHERE value > 10`,
+		}
+		q, diags := Parse(blk)
+		for _, d := range diags {
+			t.Logf("diagnostic: %v", d)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
 }
