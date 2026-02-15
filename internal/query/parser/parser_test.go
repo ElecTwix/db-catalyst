@@ -1087,9 +1087,18 @@ WHERE NOT EXISTS (
 		if len(diags) > 0 {
 			t.Fatalf("unexpected diagnostics: %+v", diags)
 		}
-		// Note: @ params may not be fully supported - check implementation
-		// SQLite supports @VVV syntax but parser may not recognize them
-		t.Logf("params found: %+v", q.Params)
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "email" {
+			t.Errorf("expected first param 'email', got %q", q.Params[0].Name)
+		}
+		if q.Params[1].Name != "status" {
+			t.Errorf("expected second param 'status', got %q", q.Params[1].Name)
+		}
+		if q.Params[0].Style != ParamStyleNamed {
+			t.Errorf("expected ParamStyleNamed, got %v", q.Params[0].Style)
+		}
 	})
 
 	t.Run("IsDistinctFrom", func(t *testing.T) {

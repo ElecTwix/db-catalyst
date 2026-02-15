@@ -698,6 +698,16 @@ func collectParams(tokens []tokenizer.Token, blk block.Block, pos positionIndex)
 		}
 
 		if tok.Kind != tokenizer.KindSymbol {
+			// Check for @VVV identifiers (SQLite named params)
+			if tok.Kind == tokenizer.KindIdentifier && strings.HasPrefix(tok.Text, "@") {
+				newParams, newDiags, consumed := handleAtSignIdentifierParam(tokens, i, blk, pos, named, params)
+				params = newParams
+				diags = append(diags, newDiags...)
+				i += consumed
+				if consumed > 0 {
+					continue
+				}
+			}
 			i++
 			continue
 		}
@@ -1006,6 +1016,57 @@ func handleNamedParam(
 	})
 	named[key] = len(params) - 1
 	return params, nil, namedParamLen
+}
+
+// handleAtSignIdentifierParam processes a "@VVV" identifier as a named parameter.
+// SQLite tokenizes "@email" as a single identifier token.
+// Returns the updated params slice, diagnostics, and the number of tokens consumed.
+func handleAtSignIdentifierParam(
+	tokens []tokenizer.Token,
+	idx int,
+	blk block.Block,
+	pos positionIndex,
+	named map[string]int,
+	params []Param,
+) ([]Param, []Diagnostic, int) {
+	tok := tokens[idx]
+	if tok.Kind != tokenizer.KindIdentifier || !strings.HasPrefix(tok.Text, "@") {
+		return params, nil, 0
+	}
+
+	// Extract name after @ sign
+	raw := tok.Text[1:] // Remove @ prefix
+	if raw == "" {
+		return params, nil, 0
+	}
+
+	key := strings.ToLower(raw)
+	camel := camelCaseParam(raw)
+
+	actualLine, actualColumn := actualPosition(blk, tok.Line, tok.Column)
+	startOffset := pos.offset(tok)
+	endOffset := startOffset + len(tok.Text)
+
+	if existingIdx, exists := named[key]; exists {
+		if params[existingIdx].Name != camel {
+			return params, []Diagnostic{
+				makeDiag(blk, tok.Line, tok.Column, SeverityError, "parameter %s resolves to conflicting name %q", raw, camel),
+			}, 1
+		}
+		return params, nil, 1
+	}
+
+	params = append(params, Param{
+		Name:        camel,
+		Style:       ParamStyleNamed,
+		Order:       len(params) + 1,
+		Line:        actualLine,
+		Column:      actualColumn,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+	})
+	named[key] = len(params) - 1
+	return params, nil, 1
 }
 
 type positionIndex struct {
