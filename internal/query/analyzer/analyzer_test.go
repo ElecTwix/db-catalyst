@@ -495,6 +495,216 @@ WHERE users.email = ? AND ? = users.id;`,
 				}
 			},
 		},
+		{
+			name:    "upsert with returning",
+			catalog: catalog,
+			sql: `INSERT INTO users (id, email, status) VALUES (?, ?, 'active')
+ON CONFLICT(id) DO UPDATE SET email = excluded.email
+RETURNING id, email`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 RETURNING columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].Name != "id" || res.Columns[0].GoType != "int64" {
+					t.Errorf("unexpected first column %+v", res.Columns[0])
+				}
+				if res.Columns[1].Name != "email" || res.Columns[1].GoType != "string" {
+					t.Errorf("unexpected second column %+v", res.Columns[1])
+				}
+			},
+		},
+		{
+			name:    "window function row_number",
+			catalog: catalog,
+			sql: `SELECT 
+  id,
+  ROW_NUMBER() OVER (ORDER BY id DESC) AS row_num
+FROM users
+WHERE status = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "int64" {
+					t.Errorf("unexpected id column %+v", res.Columns[0])
+				}
+				// Window functions produce warnings about expression without schema mapping
+				// fallback to any/interface{} is acceptable
+				validTypes := map[string]bool{"int64": true, "interface{}": true, "any": true}
+				if !validTypes[res.Columns[1].GoType] {
+					t.Errorf("unexpected row_num column %+v", res.Columns[1])
+				}
+			},
+		},
+		{
+			name:    "subquery in select list",
+			catalog: catalog,
+			sql: `SELECT 
+  u.id,
+  (SELECT COUNT(*) FROM posts p WHERE p.user_id = u.id) AS post_count
+FROM users u
+WHERE u.status = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "int64" {
+					t.Errorf("unexpected id column %+v", res.Columns[0])
+				}
+				// Subquery scalar produces warning but should still infer type
+				validTypes := map[string]bool{"int64": true, "interface{}": true, "any": true}
+				if !validTypes[res.Columns[1].GoType] {
+					t.Errorf("unexpected post_count column %+v", res.Columns[1])
+				}
+			},
+		},
+		{
+			name:    "case expression in select",
+			catalog: catalog,
+			sql: `SELECT 
+  id,
+  CASE 
+    WHEN status = 'active' THEN 1
+    WHEN status = 'inactive' THEN 0
+    ELSE -1
+  END AS status_code
+FROM users
+WHERE id = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				// CASE expression may produce warning about schema mapping
+			},
+		},
+		{
+			name:    "not exists correlated subquery",
+			catalog: catalog,
+			sql: `SELECT u.id, u.email FROM users u
+WHERE NOT EXISTS (
+    SELECT 1 FROM posts p
+    WHERE p.user_id = u.id AND p.title = ?
+)`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+			},
+		},
+		{
+			name:    "coalesce expression",
+			catalog: catalog,
+			sql:     `SELECT COALESCE(email, 'unknown') AS display_email FROM users WHERE id = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "string" {
+					t.Errorf("unexpected column type %+v", res.Columns[0])
+				}
+			},
+		},
+		{
+			name:    "nullif expression",
+			catalog: catalog,
+			sql:     `SELECT NULLIF(status, '') AS non_empty_status FROM users WHERE id = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				// NULLIF may produce warning about schema mapping
+			},
+		},
+		{
+			name:    "iif function sqlite",
+			catalog: catalog,
+			sql:     `SELECT IIF(status = 'active', 1, 0) AS is_active FROM users WHERE id = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				// IIF may produce warning about schema mapping
+			},
+		},
+		{
+			name:    "cast expression",
+			catalog: catalog,
+			sql:     `SELECT CAST(credits AS TEXT) AS credits_str FROM users WHERE id = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				if res.Columns[0].GoType != "string" {
+					t.Errorf("unexpected column type %+v", res.Columns[0])
+				}
+			},
+		},
+		{
+			name:    "multiple joins with aliases",
+			catalog: catalog,
+			sql: `SELECT u.id, p.title, u.email
+FROM users u
+JOIN posts p ON p.user_id = u.id
+WHERE u.status = ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 3 {
+					t.Fatalf("expected 3 columns, got %d", len(res.Columns))
+				}
+				if len(res.Params) != 1 {
+					t.Fatalf("expected 1 param, got %d", len(res.Params))
+				}
+			},
+		},
+		{
+			name:    "aggregate with group by",
+			catalog: catalog,
+			sql:     `SELECT status, COUNT(*) AS cnt FROM users GROUP BY status HAVING cnt > ?`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Diagnostics) != 0 {
+					t.Fatalf("unexpected diagnostics: %+v", res.Diagnostics)
+				}
+				if len(res.Columns) != 2 {
+					t.Fatalf("expected 2 columns, got %d", len(res.Columns))
+				}
+				if res.Columns[1].GoType != "int64" {
+					t.Errorf("unexpected count column type %+v", res.Columns[1])
+				}
+			},
+		},
+		{
+			name:    "filter clause with aggregate",
+			catalog: catalog,
+			sql:     `SELECT COUNT(*) FILTER (WHERE status = 'active') AS active_count FROM users`,
+			assert: func(t *testing.T, res analyzer.Result) {
+				if len(res.Columns) != 1 {
+					t.Fatalf("expected 1 column, got %d", len(res.Columns))
+				}
+				// FILTER clause may produce warning about aggregate inference
+				// fallback to any/interface{} is acceptable
+				validTypes := map[string]bool{"int64": true, "interface{}": true, "any": true}
+				if !validTypes[res.Columns[0].GoType] {
+					t.Errorf("unexpected column type %+v", res.Columns[0])
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {

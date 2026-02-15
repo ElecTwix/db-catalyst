@@ -575,3 +575,429 @@ func TestInferParamName(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSQLiteEdgeCases(t *testing.T) {
+	t.Run("RepeatedNamedParameter", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT e1.expires_at FROM entities AS e1
+WHERE e1.key = sqlc.arg('key')
+AND e1.last_modified_at_block <= sqlc.arg('block')
+AND NOT EXISTS (
+  SELECT 1 FROM entities AS e2
+  WHERE e2.key = e1.key
+  AND e2.last_modified_at_block > e1.last_modified_at_block
+  AND e2.last_modified_at_block <= sqlc.arg('block')
+)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			for _, d := range diags {
+				t.Logf("diagnostic: %v", d)
+			}
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params (key, block), got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "key" {
+			t.Errorf("expected first param 'key', got %q", q.Params[0].Name)
+		}
+		if q.Params[1].Name != "block" {
+			t.Errorf("expected second param 'block', got %q", q.Params[1].Name)
+		}
+	})
+
+	t.Run("SliceWithNamedArgMixed", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM mytable WHERE typ IN (sqlc.slice('types')) AND (sqlc.arg('allnames') OR (name IN (sqlc.slice('names'))))`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 3 {
+			t.Fatalf("expected 3 params (types, allnames, names), got %d: %+v", len(q.Params), q.Params)
+		}
+		if !q.Params[0].IsVariadic {
+			t.Errorf("expected 'types' to be variadic")
+		}
+		if q.Params[1].IsVariadic {
+			t.Errorf("expected 'allnames' to not be variadic")
+		}
+		if !q.Params[2].IsVariadic {
+			t.Errorf("expected 'names' to be variadic")
+		}
+	})
+
+	t.Run("OrderByExpressionParam", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT ID FROM Sequence WHERE SeriesID = ? ORDER BY Name = ? DESC, ID LIMIT 1`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "seriesid" {
+			t.Errorf("expected first param 'seriesid', got %q", q.Params[0].Name)
+		}
+		if q.Params[1].Name != "name" {
+			t.Errorf("expected second param 'name', got %q", q.Params[1].Name)
+		}
+	})
+
+	t.Run("OnConflictWithRepeatedParam", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `INSERT INTO x (user_id, x)
+VALUES ((SELECT user_id FROM users WHERE email = ?), ?)
+ON CONFLICT(x) 
+DO UPDATE SET user_id = (SELECT user_id FROM users WHERE email = ?)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 3 {
+			t.Fatalf("expected 3 params (email twice, x once), got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("JSONGroupArrayWithOrderBy", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT item.*,
+  COALESCE(
+    JSON_GROUP_ARRAY(document.id ORDER BY document.created_at ASC) FILTER (WHERE document.id IS NOT NULL),
+    '[]'
+  ) as document_ids
+FROM item
+LEFT JOIN document ON document.item_id = item.id
+GROUP BY item.id`,
+		}
+		q, diags := Parse(blk)
+		for _, d := range diags {
+			t.Logf("diagnostic: %v", d)
+		}
+		if q.Verb != VerbSelect {
+			t.Errorf("expected VerbSelect, got %v", q.Verb)
+		}
+	})
+
+	t.Run("FilterClauseWithAggregate", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT COUNT(*) FILTER (WHERE status = 'active') AS active_count FROM users`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(q.Columns))
+		}
+		if q.Columns[0].Expr != "COUNT(*) FILTER (WHERE status = 'active')" {
+			t.Errorf("unexpected column expr: %q", q.Columns[0].Expr)
+		}
+	})
+
+	t.Run("CorrelatedSubqueryAlias", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT * FROM locations l
+WHERE l.public_id = ?
+AND EXISTS (
+    SELECT 1 FROM projects p
+    JOIN organization_members om ON p.organization_id = om.organization_id
+    WHERE p.id = l.project_id AND om.account_id = ?
+)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("NotExistsInSubquery", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT * FROM users u
+WHERE NOT EXISTS (
+    SELECT 1 FROM blocked b
+    WHERE b.user_id = u.id AND b.blocked_by = ?
+)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+		if q.Params[0].Name != "blockedBy" {
+			t.Errorf("expected param 'blockedBy', got %q", q.Params[0].Name)
+		}
+	})
+
+	t.Run("ChineseCommentsUTF8", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `-- 当新建MasterItem时，需要为所有App创建相应的AppItem
+INSERT INTO app_items (app_id, master_item_id)
+SELECT a.id, ? FROM apps a
+WHERE NOT EXISTS (
+    SELECT 1 FROM app_items ai 
+    WHERE ai.app_id = a.id AND ai.master_item_id = ?
+)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbInsert {
+			t.Errorf("expected VerbInsert, got %v", q.Verb)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("UpsertReturning", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `INSERT INTO users (email, name) VALUES (?, ?)
+ON CONFLICT(email) DO UPDATE SET name = excluded.name
+RETURNING id, email`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbInsert {
+			t.Errorf("expected VerbInsert, got %v", q.Verb)
+		}
+		// Note: RETURNING columns are discovered by analyzer, not parser
+	})
+
+	t.Run("MultipleSlicesInQuery", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM items WHERE category_id IN (sqlc.slice('cat_ids')) AND tag_id IN (sqlc.slice('tag_ids'))`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 2 {
+			t.Fatalf("expected 2 params, got %d: %+v", len(q.Params), q.Params)
+		}
+		if !q.Params[0].IsVariadic || !q.Params[1].IsVariadic {
+			t.Errorf("expected both params to be variadic")
+		}
+	})
+
+	t.Run("ExcludedTableReference", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `INSERT INTO users (id, name, email) VALUES (?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET 
+  name = excluded.name,
+  email = excluded.email
+RETURNING id`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if q.Verb != VerbInsert {
+			t.Errorf("expected VerbInsert, got %v", q.Verb)
+		}
+		// Note: RETURNING columns are discovered by analyzer, not parser
+	})
+
+	t.Run("CaseExpressionInSelect", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT 
+  id,
+  CASE 
+    WHEN status = 'active' THEN 1
+    WHEN status = 'inactive' THEN 0
+    ELSE -1
+  END AS status_code
+FROM users
+WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 2 {
+			t.Fatalf("expected 2 columns, got %d", len(q.Columns))
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("WindowFunction", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT 
+  id,
+  ROW_NUMBER() OVER (PARTITION BY category ORDER BY created_at DESC) AS row_num
+FROM items
+WHERE user_id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 2 {
+			t.Fatalf("expected 2 columns, got %d", len(q.Columns))
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("SubqueryInSelect", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL: `SELECT 
+  u.id,
+  (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS order_count
+FROM users u
+WHERE u.status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 2 {
+			t.Fatalf("expected 2 columns, got %d", len(q.Columns))
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("ValuesClauseWithMultipleRows", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `INSERT INTO items (name, value) VALUES (?, ?), (?, ?), (?, ?)`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 6 {
+			t.Fatalf("expected 6 params, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("NullLiteralComparison", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users WHERE deleted_at IS NULL AND status = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("BooleanLiteralComparison", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM users WHERE deleted = FALSE AND role = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("GlobOperator", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT * FROM files WHERE path GLOB ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Params) != 1 {
+			t.Fatalf("expected 1 param, got %d: %+v", len(q.Params), q.Params)
+		}
+	})
+
+	t.Run("CastExpression", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT CAST(score AS REAL) AS score_real FROM items WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(q.Columns))
+		}
+	})
+
+	t.Run("CoalesceExpression", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT COALESCE(nickname, email, 'unknown') AS display_name FROM users WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(q.Columns))
+		}
+	})
+
+	t.Run("NullIfExpression", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT NULLIF(status, 'deleted') AS effective_status FROM items WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(q.Columns))
+		}
+	})
+
+	t.Run("IifFunction", func(t *testing.T) {
+		blk := block.Block{
+			Path: "query/test.sql",
+			SQL:  `SELECT IIF(active = 1, 'yes', 'no') AS is_active FROM users WHERE id = ?`,
+		}
+		q, diags := Parse(blk)
+		if len(diags) > 0 {
+			t.Fatalf("unexpected diagnostics: %+v", diags)
+		}
+		if len(q.Columns) != 1 {
+			t.Fatalf("expected 1 column, got %d", len(q.Columns))
+		}
+	})
+}
