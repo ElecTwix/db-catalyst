@@ -107,8 +107,17 @@ func (p *Parser) parse() error {
 				p.parseCreate()
 			case "ALTER":
 				p.parseAlter()
+			case "DROP":
+				p.parseDrop()
+			case "PRAGMA":
+				p.parsePragma()
+			case "ANALYZE":
+				p.parseAnalyze()
+			case "VACUUM":
+				p.parseVacuum()
+			case "REINDEX":
+				p.parseReindex()
 			case "INSERT", "UPDATE", "DELETE":
-				// DML statements are allowed in schema files for data seeding, but we skip them
 				p.addDiagToken(tok, SeverityWarning, "%s statements are ignored in schema files (data seeding not supported)", tok.Text)
 				p.sync()
 			default:
@@ -579,6 +588,192 @@ func (p *Parser) parseAlter() {
 	}
 }
 
+func (p *Parser) parseDrop() {
+	dropTok := p.advance()
+	tok := p.current()
+	if tok.Kind != tokenizer.KindKeyword {
+		p.addDiagToken(tok, SeverityError, "expected TABLE, INDEX, VIEW, or TRIGGER after DROP")
+		p.sync()
+		return
+	}
+	switch tok.Text {
+	case "TABLE":
+		p.advance()
+		p.skipIfExists()
+		name, nameTok, ok := p.parseObjectName()
+		if !ok {
+			p.sync()
+			return
+		}
+		key := canonicalName(name)
+		if _, exists := p.catalog.Tables[key]; !exists {
+			p.addDiagToken(nameTok, SeverityWarning, "DROP TABLE references unknown table %q", name)
+		} else {
+			delete(p.catalog.Tables, key)
+		}
+		if p.matchSymbol(";") {
+			p.advance()
+		}
+	case "INDEX":
+		p.advance()
+		p.skipIfExists()
+		name, _, ok := p.parseObjectName()
+		if !ok {
+			p.sync()
+			return
+		}
+		p.dropIndex(name)
+		if p.matchSymbol(";") {
+			p.advance()
+		}
+	case "VIEW":
+		p.advance()
+		p.skipIfExists()
+		name, nameTok, ok := p.parseObjectName()
+		if !ok {
+			p.sync()
+			return
+		}
+		key := canonicalName(name)
+		if _, exists := p.catalog.Views[key]; !exists {
+			p.addDiagToken(nameTok, SeverityWarning, "DROP VIEW references unknown view %q", name)
+		} else {
+			delete(p.catalog.Views, key)
+		}
+		if p.matchSymbol(";") {
+			p.advance()
+		}
+	case "TRIGGER":
+		p.advance()
+		p.skipIfExists()
+		name, _, ok := p.parseObjectName()
+		if !ok {
+			p.sync()
+			return
+		}
+		span := tokenizer.NewSpan(dropTok)
+		span = span.Extend(p.previous())
+		p.addDiagSpan(span, SeverityWarning, "DROP TRIGGER ignored (triggers are not tracked): %q", name)
+		if p.matchSymbol(";") {
+			p.advance()
+		}
+	default:
+		p.addDiagToken(tok, SeverityError, "unsupported DROP target %s", tok.Text)
+		p.sync()
+	}
+}
+
+func (p *Parser) dropIndex(name string) {
+	key := canonicalName(name)
+	for _, table := range p.catalog.Tables {
+		for i, idx := range table.Indexes {
+			if canonicalName(idx.Name) == key {
+				table.Indexes = append(table.Indexes[:i], table.Indexes[i+1:]...)
+				return
+			}
+		}
+	}
+}
+
+func (p *Parser) parsePragma() {
+	pragmaTok := p.advance()
+	name, _, ok := p.parseIdentifierToken(false)
+	if !ok {
+		p.addDiagToken(p.current(), SeverityError, "expected pragma name")
+		p.sync()
+		return
+	}
+	span := tokenizer.NewSpan(pragmaTok)
+	span = span.Extend(p.previous())
+	if p.matchSymbol("=") {
+		p.advance()
+		p.skipUntilSemicolon()
+		p.addDiagSpan(span, SeverityWarning, "PRAGMA %s value ignored (pragmas are runtime settings)", name)
+	} else if p.matchSymbol("(") {
+		p.advance()
+		p.skipUntilSemicolon()
+		p.addDiagSpan(span, SeverityWarning, "PRAGMA %s with arguments ignored (pragmas are runtime settings)", name)
+	} else {
+		p.addDiagSpan(span, SeverityWarning, "PRAGMA %s ignored (pragmas are runtime settings)", name)
+	}
+	if p.matchSymbol(";") {
+		p.advance()
+	}
+}
+
+func (p *Parser) parseAnalyze() {
+	analyzeTok := p.advance()
+	if p.matchSymbol(";") {
+		p.addDiagToken(analyzeTok, SeverityWarning, "ANALYZE ignored (statistics are runtime artifacts)")
+		p.advance()
+		return
+	}
+	name, _, ok := p.parseIdentifierToken(false)
+	if ok {
+		span := tokenizer.NewSpan(analyzeTok)
+		span = span.Extend(p.previous())
+		p.addDiagSpan(span, SeverityWarning, "ANALYZE %s ignored (statistics are runtime artifacts)", name)
+	} else {
+		p.addDiagToken(analyzeTok, SeverityWarning, "ANALYZE ignored (statistics are runtime artifacts)")
+	}
+	if p.matchSymbol(";") {
+		p.advance()
+	}
+}
+
+func (p *Parser) parseVacuum() {
+	vacuumTok := p.advance()
+	if p.matchKeyword("INTO") {
+		p.advance()
+		p.skipUntilSemicolon()
+	}
+	span := tokenizer.NewSpan(vacuumTok)
+	p.addDiagSpan(span, SeverityWarning, "VACUUM ignored (maintenance operation)")
+	if p.matchSymbol(";") {
+		p.advance()
+	}
+}
+
+func (p *Parser) parseReindex() {
+	reindexTok := p.advance()
+	if p.matchSymbol(";") {
+		p.addDiagToken(reindexTok, SeverityWarning, "REINDEX ignored (maintenance operation)")
+		p.advance()
+		return
+	}
+	name, _, ok := p.parseIdentifierToken(false)
+	if ok {
+		span := tokenizer.NewSpan(reindexTok)
+		span = span.Extend(p.previous())
+		p.addDiagSpan(span, SeverityWarning, "REINDEX %s ignored (maintenance operation)", name)
+	} else {
+		p.addDiagToken(reindexTok, SeverityWarning, "REINDEX ignored (maintenance operation)")
+	}
+	if p.matchSymbol(";") {
+		p.advance()
+	}
+}
+
+func (p *Parser) skipIfExists() {
+	if p.matchKeyword("IF") {
+		p.advance()
+		if !p.matchKeyword("EXISTS") {
+			p.addDiagToken(p.current(), SeverityError, "expected EXISTS after IF")
+			return
+		}
+		p.advance()
+	}
+}
+
+func (p *Parser) skipUntilSemicolon() {
+	for !p.isEOF() {
+		if p.matchSymbol(";") {
+			return
+		}
+		p.advance()
+	}
+}
+
 type columnResult struct {
 	column  *model.Column
 	pk      *model.PrimaryKey
@@ -694,6 +889,32 @@ func (p *Parser) parseColumnDefinition() (*columnResult, bool) {
 				res.lastTok = checkTok
 			}
 			return res, true
+		case "GENERATED":
+			genTok := p.advance()
+			if p.matchKeyword("ALWAYS") {
+				p.advance()
+			}
+			if !p.matchKeyword("AS") {
+				p.addDiagToken(p.current(), SeverityError, "expected AS after GENERATED")
+				return res, true
+			}
+			p.advance()
+			if p.matchSymbol("(") {
+				last := p.skipBalancedParentheses()
+				res.lastTok = last
+			} else {
+				res.lastTok = genTok
+			}
+			if p.matchKeyword("STORED") {
+				storedTok := p.advance()
+				res.lastTok = storedTok
+			} else if p.matchKeyword("VIRTUAL") {
+				virtualTok := p.advance()
+				res.lastTok = virtualTok
+			}
+		case "ENFORCED":
+			p.advance()
+			res.lastTok = p.previous()
 		default:
 			p.addDiagToken(tok, SeverityWarning, "unsupported column constraint %s", tok.Text)
 			res.lastTok = tok
@@ -1262,4 +1483,6 @@ var columnConstraintStarters = map[string]struct{}{
 	"CHECK":      {},
 	"UNIQUE":     {},
 	"CONSTRAINT": {},
+	"GENERATED":  {},
+	"ENFORCED":   {},
 }

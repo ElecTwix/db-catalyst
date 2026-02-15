@@ -1139,9 +1139,9 @@ func TestParseEdgeCases(t *testing.T) {
 		},
 		{
 			name:      "unsupported statement",
-			input:     "DROP TABLE t;",
+			input:     "ROLLBACK;",
 			wantDiags: true,
-			diagMsg:   "unsupported statement",
+			diagMsg:   "unsupported statement starting with ROLLBACK",
 		},
 		{
 			name:      "unexpected symbol",

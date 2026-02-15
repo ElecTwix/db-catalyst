@@ -444,3 +444,444 @@ func mustScan(t *testing.T, input string) []tokenizer.Token {
 	}
 	return tokens
 }
+
+func TestDropTable(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantTables  int
+		wantWarning string
+		wantError   string
+	}{
+		{
+			name: "drop existing table",
+			input: `CREATE TABLE users (id INTEGER PRIMARY KEY);
+DROP TABLE users;`,
+			wantTables:  0,
+			wantWarning: "",
+		},
+		{
+			name: "drop non-existent table",
+			input: `CREATE TABLE users (id INTEGER PRIMARY KEY);
+DROP TABLE nonexistent;`,
+			wantTables:  1,
+			wantWarning: "unknown table",
+		},
+		{
+			name: "drop table if exists",
+			input: `CREATE TABLE users (id INTEGER PRIMARY KEY);
+DROP TABLE IF EXISTS users;`,
+			wantTables: 0,
+		},
+		{
+			name:       "drop table if exists non-existent",
+			input:      `DROP TABLE IF EXISTS nonexistent;`,
+			wantTables: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			catalog, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if tt.wantError != "" {
+				if !containsMessage(diags, tt.wantError) {
+					t.Errorf("expected error %q, got: %s", tt.wantError, formatDiagnostics(diags))
+				}
+				return
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if tt.wantWarning != "" && !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+			if len(catalog.Tables) != tt.wantTables {
+				t.Errorf("expected %d tables, got %d", tt.wantTables, len(catalog.Tables))
+			}
+		})
+	}
+}
+
+func TestDropView(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantViews   int
+		wantWarning string
+	}{
+		{
+			name: "drop existing view",
+			input: `CREATE VIEW active_users AS SELECT id FROM users;
+DROP VIEW active_users;`,
+			wantViews: 0,
+		},
+		{
+			name:        "drop non-existent view",
+			input:       `DROP VIEW nonexistent;`,
+			wantViews:   0,
+			wantWarning: "unknown view",
+		},
+		{
+			name: "drop view if exists",
+			input: `CREATE VIEW v AS SELECT 1;
+DROP VIEW IF EXISTS v;`,
+			wantViews: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			catalog, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if tt.wantWarning != "" && !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+			if len(catalog.Views) != tt.wantViews {
+				t.Errorf("expected %d views, got %d", tt.wantViews, len(catalog.Views))
+			}
+		})
+	}
+}
+
+func TestDropIndex(t *testing.T) {
+	input := `CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);
+CREATE UNIQUE INDEX idx_email ON users(email);
+DROP INDEX idx_email;`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "users")
+	if len(table.Indexes) != 0 {
+		t.Errorf("expected 0 indexes after DROP, got %d", len(table.Indexes))
+	}
+}
+
+func TestDropTrigger(t *testing.T) {
+	input := `CREATE TABLE users (id INTEGER PRIMARY KEY);
+CREATE TRIGGER update_timestamp AFTER UPDATE ON users BEGIN SELECT 1; END;
+DROP TRIGGER update_timestamp;`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if !containsMessage(diags, "triggers are not supported") {
+		t.Errorf("expected trigger warning, got: %s", formatDiagnostics(diags))
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	if len(catalog.Tables) != 1 {
+		t.Errorf("expected 1 table, got %d", len(catalog.Tables))
+	}
+}
+
+func TestPragma(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantWarning string
+	}{
+		{
+			name:        "pragma simple",
+			input:       `PRAGMA foreign_keys;`,
+			wantWarning: "foreign_keys ignored",
+		},
+		{
+			name:        "pragma with value",
+			input:       `PRAGMA foreign_keys = ON;`,
+			wantWarning: "foreign_keys value ignored",
+		},
+		{
+			name:        "pragma with function syntax",
+			input:       `PRAGMA journal_mode(WAL);`,
+			wantWarning: "journal_mode with arguments ignored",
+		},
+		{
+			name:        "pragma cache size",
+			input:       `PRAGMA cache_size = -20000;`,
+			wantWarning: "cache_size value ignored",
+		},
+		{
+			name:        "pragma busy timeout",
+			input:       `PRAGMA busy_timeout = 5000;`,
+			wantWarning: "busy_timeout value ignored",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+		})
+	}
+}
+
+func TestAnalyze(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantWarning string
+	}{
+		{
+			name:        "analyze all",
+			input:       `ANALYZE;`,
+			wantWarning: "ANALYZE ignored",
+		},
+		{
+			name:        "analyze table",
+			input:       `ANALYZE users;`,
+			wantWarning: "ANALYZE users ignored",
+		},
+		{
+			name:        "analyze index",
+			input:       `ANALYZE idx_email;`,
+			wantWarning: "ANALYZE idx_email ignored",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+		})
+	}
+}
+
+func TestVacuum(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantWarning string
+	}{
+		{
+			name:        "vacuum simple",
+			input:       `VACUUM;`,
+			wantWarning: "VACUUM ignored",
+		},
+		{
+			name:        "vacuum into",
+			input:       `VACUUM INTO 'backup.db';`,
+			wantWarning: "VACUUM ignored",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+		})
+	}
+}
+
+func TestReindex(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		wantWarning string
+	}{
+		{
+			name:        "reindex all",
+			input:       `REINDEX;`,
+			wantWarning: "REINDEX ignored",
+		},
+		{
+			name:        "reindex table",
+			input:       `REINDEX users;`,
+			wantWarning: "REINDEX users ignored",
+		},
+		{
+			name:        "reindex index",
+			input:       `REINDEX idx_email;`,
+			wantWarning: "REINDEX idx_email ignored",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, diags, err := Parse("test.sql", mustScan(t, tt.input))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if hasErrors(diags) {
+				t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+			}
+			if !containsMessage(diags, tt.wantWarning) {
+				t.Errorf("expected warning %q, got: %s", tt.wantWarning, formatDiagnostics(diags))
+			}
+		})
+	}
+}
+
+func TestStrictTables(t *testing.T) {
+	input := `CREATE TABLE strict_table (
+		id INTEGER PRIMARY KEY,
+		name TEXT NOT NULL
+	) STRICT;`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "strict_table")
+	if !table.Strict {
+		t.Error("expected STRICT table flag to be set")
+	}
+}
+
+func TestGeneratedColumns(t *testing.T) {
+	input := `CREATE TABLE products (
+		id INTEGER PRIMARY KEY,
+		price REAL NOT NULL,
+		quantity INTEGER NOT NULL,
+		total_value REAL GENERATED ALWAYS AS (price * quantity) STORED
+	);`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "products")
+	if len(table.Columns) != 4 {
+		t.Errorf("expected 4 columns, got %d", len(table.Columns))
+	}
+	found := false
+	for _, col := range table.Columns {
+		if col.Name == "total_value" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected generated column 'total_value'")
+	}
+}
+
+func TestDeferrableConstraints(t *testing.T) {
+	input := `CREATE TABLE orders (
+		id INTEGER PRIMARY KEY,
+		user_id INTEGER REFERENCES users(id) DEFERRABLE INITIALLY DEFERRED
+	);
+	CREATE TABLE users (id INTEGER PRIMARY KEY);`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "orders")
+	if len(table.Columns) != 2 {
+		t.Errorf("expected 2 columns, got %d", len(table.Columns))
+	}
+}
+
+func TestMultipleAlterTable(t *testing.T) {
+	input := `CREATE TABLE users (id INTEGER PRIMARY KEY);
+	ALTER TABLE users ADD COLUMN email TEXT NOT NULL;
+	ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP;`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "users")
+	if len(table.Columns) != 3 {
+		t.Errorf("expected 3 columns, got %d", len(table.Columns))
+	}
+}
+
+func TestPartialIndex(t *testing.T) {
+	input := `CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, active INTEGER);
+	CREATE INDEX idx_active_users ON users(email) WHERE active = 1;`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "users")
+	if len(table.Indexes) != 1 {
+		t.Errorf("expected 1 index, got %d", len(table.Indexes))
+	}
+	if table.Indexes[0].Name != "idx_active_users" {
+		t.Errorf("expected index 'idx_active_users', got %q", table.Indexes[0].Name)
+	}
+}
+
+func TestCompositePrimaryKey(t *testing.T) {
+	input := `CREATE TABLE user_roles (
+		user_id INTEGER NOT NULL,
+		role_id INTEGER NOT NULL,
+		PRIMARY KEY (user_id, role_id)
+	);`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "user_roles")
+	if table.PrimaryKey == nil {
+		t.Fatal("expected primary key")
+	}
+	if len(table.PrimaryKey.Columns) != 2 {
+		t.Errorf("expected 2 primary key columns, got %d", len(table.PrimaryKey.Columns))
+	}
+}
+
+func TestTableCheckConstraint(t *testing.T) {
+	input := `CREATE TABLE products (
+		id INTEGER PRIMARY KEY,
+		price REAL NOT NULL,
+		CHECK (price > 0)
+	);`
+	catalog, diags, err := Parse("test.sql", mustScan(t, input))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if hasErrors(diags) {
+		t.Errorf("unexpected error diagnostics: %s", formatDiagnostics(diags))
+	}
+	table := lookupTable(t, catalog, "products")
+	if len(table.Columns) != 2 {
+		t.Errorf("expected 2 columns, got %d", len(table.Columns))
+	}
+}
