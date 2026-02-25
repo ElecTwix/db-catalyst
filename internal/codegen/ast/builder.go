@@ -1551,32 +1551,52 @@ return result, nil
 
 func (b *Builder) buildStandardQueryBody(body []goast.Stmt, q queryInfo, hasDynamic bool, callArgsName string) []goast.Stmt {
 
+	zero := q.returnZero
+	if zero == "" {
+		zero = "nil"
+	}
+
+	// Optimization: Use QueryRowContext for :one queries (faster, no iterator overhead)
+	if q.command == block.CommandOne {
+		if hasDynamic {
+			args := fmt.Sprintf("query, %s...", callArgsName)
+			body = append(body, mustParseStmt(fmt.Sprintf("row := q.db.QueryRowContext(ctx, %s)", args)))
+		} else {
+			args := append([]string{"ctx", q.constName}, q.args...)
+			body = append(body, mustParseStmt(fmt.Sprintf("row := q.db.QueryRowContext(%s)", strings.Join(args, ", "))))
+		}
+		body = append(body, mustParseStmt("if err := row.Err(); err != nil {\nreturn "+zero+", err\n}"))
+
+		// Inline scan directly - faster than using helper with Row
+		body = append(body, mustParseStmt("var item "+q.returnType))
+		body = append(body, mustParseStmt("err := row.Scan("+b.buildScanArgsFromHelper(q.helper)+")"))
+		body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
+
+		// Cache the result before returning
+		if q.cache != nil && q.cache.enabled {
+			body = append(body, mustParseStmt(fmt.Sprintf(`if q.cache != nil {
+q.cache.Set(ctx, cacheKey, item, %d)
+}`, int(q.cache.ttl.Seconds()))))
+		}
+		body = append(body, mustParseStmt("return item, nil"))
+		return body
+	}
+
+	// Standard Query for :many and other commands
 	if hasDynamic {
 		body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(ctx, query, %s...)", callArgsName)))
 	} else {
 		args := append([]string{"ctx", q.constName}, q.args...)
 		body = append(body, mustParseStmt(fmt.Sprintf("rows, err := q.db.QueryContext(%s)", strings.Join(args, ", "))))
 	}
-	zero := q.returnZero
-	if zero == "" {
-		zero = "nil"
-	}
 	body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
 	body = append(body, mustParseStmt("defer rows.Close()"))
 
+	// For :one queries with helpers, use the iterator pattern
 	if q.command == block.CommandOne {
 		body = append(body, mustParseStmt("if !rows.Next() {\nif err := rows.Err(); err != nil {\nreturn "+zero+", err\n}\nreturn "+zero+", sql.ErrNoRows\n}"))
-
-		// For scalar single-column returns, scan directly; otherwise use helper
-		if q.helper == nil {
-			// Scalar return - scan directly into variable
-			body = append(body, mustParseStmt("var item "+q.returnType))
-			body = append(body, mustParseStmt("err = rows.Scan(&item)"))
-			body = append(body, mustParseStmt("if err != nil {\nreturn "+zero+", err\n}"))
-		} else {
-			body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
-			body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
-		}
+		body = append(body, mustParseStmt("item, err := "+q.helper.funcName+"(rows)"))
+		body = append(body, mustParseStmt("if err != nil {\nreturn item, err\n}"))
 		body = append(body, mustParseStmt("if err := rows.Err(); err != nil {\nreturn item, err\n}"))
 		// Cache the result before returning
 		if q.cache != nil && q.cache.enabled {
@@ -1586,6 +1606,7 @@ q.cache.Set(ctx, cacheKey, item, %d)
 		}
 		body = append(body, mustParseStmt("return item, nil"))
 	} else {
+		// :many queries
 		if b.opts.EmitEmptySlices {
 			body = append(body, mustParseStmt("items := make([]"+q.rowType+", 0)"))
 		} else {
@@ -1611,6 +1632,17 @@ q.cache.Set(ctx, cacheKey, items, %d)
 	}
 
 	return body
+}
+
+func (b *Builder) buildScanArgsFromHelper(helper *helperSpec) string {
+	if helper == nil || len(helper.fields) == 0 {
+		return "&item"
+	}
+	args := make([]string, 0, len(helper.fields))
+	for _, fld := range helper.fields {
+		args = append(args, "&item."+fld.name)
+	}
+	return strings.Join(args, ", ")
 }
 
 func selector(pkg, name string) *goast.SelectorExpr {
