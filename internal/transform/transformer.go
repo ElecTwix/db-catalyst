@@ -17,6 +17,45 @@ const (
 	typeOnlyMatchGroups   = 2 // Full match + type name only
 )
 
+// Precompiled regexes for schema parsing (compiled once at init)
+var (
+	columnTypeRegex = regexp.MustCompile(`\b(\w+)\s+(\w+)\b`)
+	columnLineRegex = regexp.MustCompile(`(?m)^\s*[A-Za-z_][A-Za-z0-9_]*\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
+	sqlKeywordSet   func(string) bool
+)
+
+func init() {
+	// Pre-compile SQL keyword set for fast lookup
+	keywords := map[string]struct{}{
+		"PRIMARY": {}, "KEY": {}, "NOT": {}, "NULL": {}, "UNIQUE": {},
+		"DEFAULT": {}, "CHECK": {}, "REFERENCES": {}, "FOREIGN": {},
+		"TABLE": {}, "CREATE": {}, "ALTER": {}, "ADD": {}, "COLUMN": {},
+		"DROP": {}, "INDEX": {}, "VIEW": {}, "TRIGGER": {}, "ON": {},
+		"DELETE": {}, "UPDATE": {}, "INSERT": {}, "INTO": {}, "VALUES": {},
+		"SELECT": {}, "FROM": {}, "WHERE": {}, "AND": {}, "OR": {},
+		"ORDER": {}, "BY": {}, "GROUP": {}, "HAVING": {}, "LIMIT": {},
+		"OFFSET": {}, "JOIN": {}, "LEFT": {}, "RIGHT": {}, "INNER": {},
+		"OUTER": {}, "CROSS": {}, "AS": {}, "DISTINCT": {}, "ALL": {},
+		"UNION": {}, "INTERSECT": {}, "EXCEPT": {}, "CASE": {},
+		"WHEN": {}, "THEN": {}, "ELSE": {}, "END": {}, "EXISTS": {},
+		"IN": {}, "LIKE": {}, "BETWEEN": {}, "IS": {}, "ASC": {},
+		"DESC": {}, "NULLS": {}, "FIRST": {}, "LAST": {}, "USING": {},
+		"CONSTRAINT": {}, "CASCADE": {}, "SET": {}, "RESTRICT": {},
+		"NO": {}, "ACTION": {}, "DEFERRABLE": {}, "INITIALLY": {},
+		"DEFERRED": {}, "IMMEDIATE": {}, "EXCLUDE": {}, "WITH": {},
+		"RECURSIVE": {}, "TEMP": {}, "TEMPORARY": {}, "IF": {},
+		"REPLACE": {}, "ABORT": {}, "FAIL": {}, "IGNORE": {},
+		"INTEGER": {}, "TEXT": {}, "REAL": {}, "BLOB": {}, "NUMERIC": {},
+		"VARCHAR": {}, "CHAR": {}, "BOOLEAN": {}, "DATE": {}, "TIME": {},
+		"TIMESTAMP": {}, "INT": {}, "BIGINT": {}, "SMALLINT": {},
+		"FLOAT": {}, "DOUBLE": {}, "PRECISION": {},
+	}
+	sqlKeywordSet = func(word string) bool {
+		_, ok := keywords[strings.ToUpper(word)]
+		return ok
+	}
+}
+
 // Transformer handles conversion of custom types to SQLite-compatible types.
 type Transformer struct {
 	mappings []config.CustomTypeMapping
@@ -108,12 +147,8 @@ func (t *Transformer) GetGoTypeForCustomType(customType string) (string, bool, e
 func (t *Transformer) ExtractCustomTypesFromSchema(input []byte) []string {
 	found := make(map[string]bool)
 
-	// Simple regex to find column definitions
-	// This looks for patterns like "column_name custom_type" in CREATE TABLE statements
-	columnRegex := regexp.MustCompile(`\b(\w+)\s+(\w+)\b`)
-
-	// Process the entire input, not just CREATE TABLE lines
-	matches := columnRegex.FindAllSubmatch(input, -1)
+	// Use precompiled regex
+	matches := columnTypeRegex.FindAllSubmatch(input, -1)
 	for _, match := range matches {
 		if len(match) >= columnTypeMatchGroups {
 			typeName := string(match[2])
@@ -131,17 +166,14 @@ func (t *Transformer) ExtractCustomTypesFromSchema(input []byte) []string {
 
 // ValidateCustomTypes checks that all custom types used in the schema have mappings.
 func (t *Transformer) ValidateCustomTypes(input []byte) []string {
-	// Find all potential custom types in the schema using a more specific pattern
-	// This looks for column definitions: column_name custom_type
-	columnRegex := regexp.MustCompile(`(?m)^\s*[A-Za-z_][A-Za-z0-9_]*\s+([A-Za-z_][A-Za-z0-9_]*)\b`)
-
+	// Use precompiled regex
 	usedTypes := make(map[string]bool)
-	matches := columnRegex.FindAllSubmatch(input, -1)
+	matches := columnLineRegex.FindAllSubmatch(input, -1)
 	for _, match := range matches {
 		if len(match) >= typeOnlyMatchGroups {
 			typeName := string(match[1])
 			// Skip if it's a standard SQLite type or common SQL keyword
-			if !t.IsStandardSQLiteType(typeName) && !t.isSQLKeyword(typeName) {
+			if !t.IsStandardSQLiteType(typeName) && !sqlKeywordSet(typeName) {
 				usedTypes[typeName] = true
 			}
 		}
@@ -154,30 +186,6 @@ func (t *Transformer) ValidateCustomTypes(input []byte) []string {
 	})
 	slices.Sort(missing)
 	return missing
-}
-
-// isSQLKeyword checks if a word is a common SQL keyword
-func (t *Transformer) isSQLKeyword(word string) bool {
-	keywords := map[string]bool{
-		"PRIMARY": true, "KEY": true, "NOT": true, "NULL": true, "UNIQUE": true,
-		"DEFAULT": true, "CHECK": true, "REFERENCES": true, "FOREIGN": true,
-		"TABLE": true, "CREATE": true, "ALTER": true, "ADD": true, "COLUMN": true,
-		"INDEX": true, "VIEW": true, "TRIGGER": true, "DROP": true, "IF": true,
-		"EXISTS": true, "TEMP": true, "TEMPORARY": true, "WITHOUT": true, "ROWID": true,
-		"AUTOINCREMENT": true, "ASC": true, "DESC": true, "COLLATE": true, "NOCASE": true,
-		"RTRIM": true, "BINARY": true, "DEFERRABLE": true, "INITIALLY": true,
-		"DEFERRED": true, "IMMEDIATE": true, "EXCLUSIVE": true, "CASCADE": true, "RESTRICT": true,
-		"SET": true, "ACTION": true, "MATCH": true, "SIMPLE": true, "FULL": true,
-		"PARTIAL": true, "ON": true, "DELETE": true, "UPDATE": true, "INSERT": true, "REPLACE": true,
-		"INTO": true, "VALUES": true, "SELECT": true, "FROM": true, "WHERE": true, "GROUP": true,
-		"BY": true, "HAVING": true, "ORDER": true, "LIMIT": true, "OFFSET": true, "UNION": true,
-		"ALL": true, "DISTINCT": true, "INTERSECT": true, "EXCEPT": true, "INNER": true, "LEFT": true,
-		"OUTER": true, "JOIN": true, "NATURAL": true, "CROSS": true, "USING": true, "AS": true,
-		"CASE": true, "WHEN": true, "THEN": true, "ELSE": true, "END": true,
-		"IN": true, "BETWEEN": true, "LIKE": true, "GLOB": true, "REGEXP": true, "IS": true,
-		"AND": true, "OR": true, "CAST": true,
-	}
-	return keywords[strings.ToUpper(word)]
 }
 
 // IsStandardSQLiteType checks if a type is a standard SQLite type
