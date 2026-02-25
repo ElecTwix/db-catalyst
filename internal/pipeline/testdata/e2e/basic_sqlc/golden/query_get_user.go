@@ -1,30 +1,18 @@
 package basic
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
 
 const queryGetUser string = `SELECT * FROM users WHERE id = :id;`
 
 func (q *Queries) GetUser(ctx context.Context, id int32) (GetUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, queryGetUser, id)
-	if err != nil {
+	row := q.db.QueryRowContext(ctx, queryGetUser, id)
+	if err := row.Err(); err != nil {
 		return GetUserRow{}, err
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return GetUserRow{}, err
-		}
-		return GetUserRow{}, sql.ErrNoRows
-	}
-	item, err := scanGetUserRow(rows)
+	var item GetUserRow
+	err := row.Scan(&item.Id, &item.Username, &item.Email, &item.CreatedAt)
 	if err != nil {
-		return item, err
-	}
-	if err := rows.Err(); err != nil {
-		return item, err
+		return GetUserRow{}, err
 	}
 	return item, nil
 }

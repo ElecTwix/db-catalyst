@@ -124,6 +124,7 @@ func (r Resolver) Resolve(patterns []string) ([]string, error) {
 
 	unique := dedupePreserveOrder(combined)
 	slices.Sort(unique)
+	unique = slices.Compact(unique)
 	return unique, nil
 }
 

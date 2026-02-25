@@ -1,9 +1,6 @@
 package store
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
 
 const querySummarizeCredits string = `WITH RECURSIVE credit_totals AS (
     SELECT id, credits FROM users
@@ -17,23 +14,14 @@ FROM credit_totals;`
 
 // SummarizeCredits aggregates user credits across a recursive rollup.
 func (q *Queries) SummarizeCredits(ctx context.Context) (SummarizeCreditsRow, error) {
-	rows, err := q.db.QueryContext(ctx, querySummarizeCredits)
-	if err != nil {
+	row := q.db.QueryRowContext(ctx, querySummarizeCredits)
+	if err := row.Err(); err != nil {
 		return SummarizeCreditsRow{}, err
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return SummarizeCreditsRow{}, err
-		}
-		return SummarizeCreditsRow{}, sql.ErrNoRows
-	}
-	item, err := scanSummarizeCreditsRow(rows)
+	var item SummarizeCreditsRow
+	err := row.Scan(&item.TotalUsers, &item.SumCredits, &item.AvgCredit)
 	if err != nil {
-		return item, err
-	}
-	if err := rows.Err(); err != nil {
-		return item, err
+		return SummarizeCreditsRow{}, err
 	}
 	return item, nil
 }
